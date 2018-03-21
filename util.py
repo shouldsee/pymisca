@@ -470,3 +470,18 @@ def invert_interp(F):
                       fp=F.keywords['xp'],                     
                      )
     return Fi
+
+def mat2str(mat,decimal=None):
+    if not isinstance(mat,np.ndarray):
+        mat = np.array(mat)
+    if not decimal is None:
+        mat = np.round(mat,decimal)
+    mat = mat.astype('str')
+    lst = mat.tolist()
+    
+    if mat.ndim == 1:
+        lst = [lst]
+    elif mat.ndim == 2:
+        pass
+    s = '\n'.join('\t'.join(x) for x in lst )
+    return s
