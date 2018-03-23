@@ -485,3 +485,8 @@ def mat2str(mat,decimal=None):
         pass
     s = '\n'.join('\t'.join(x) for x in lst )
     return s
+
+def cov2cor(COV):
+    D = np.diag(COV)
+    COR = COV /  np.sqrt(D[:,None]*D[None,:])
+    return COR
