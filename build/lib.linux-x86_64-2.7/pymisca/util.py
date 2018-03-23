@@ -439,7 +439,8 @@ import multiprocessing as mp
 def mp_map(f,lst,n_cpu=1,**kwargs):
     if n_cpu > 1:
         p = mp.Pool(n_cpu)
-        OUTPUT=p.map(f,lst)
+        OUTPUT=p.map_async(f,lst).get(999999999999999999) ## appx. 7.6E11 years
+#         OUTPUT = p.map(f,lst)
         p.close()
     else:
         OUTPUT = map(f,lst)
@@ -485,3 +486,8 @@ def mat2str(mat,decimal=None):
         pass
     s = '\n'.join('\t'.join(x) for x in lst )
     return s
+
+def cov2cor(COV):
+    D = np.diag(COV)
+    COR = COV /  np.sqrt(D[:,None]*D[None,:])
+    return COR
