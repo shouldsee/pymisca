@@ -1,6 +1,7 @@
 import functools, copy
 import matplotlib.pyplot as plt
 import numpy as np
+from fop import *
 
 def symmetric_hamm(x,y):
     hamm  = np.mean(x == y)
@@ -398,10 +399,13 @@ def f_2d(f,transpose = 0):
 
 
 def repeatF(f,n):
-    of = compositeF([f]*n)
+    of = composeF([f]*n)
     return of
-def compositeF(lst):
+def composeF(lst):
     return reduce(lambda f,g: lambda x:g(f(x)),lst,lambda x:x)
+compositeF = composeF
+# def compositeF(lst):
+#     return reduce(lambda f,g: lambda x:g(f(x)),lst,lambda x:x)
 def transform_linear(x,W = None,b = None):
     if W is not None:
         x = np.dot(x,W)
@@ -472,7 +476,7 @@ def invert_interp(F):
                      )
     return Fi
 
-def mat2str(mat,decimal=None):
+def mat2str(mat,decimal=None,sep='\t'):
     if not isinstance(mat,np.ndarray):
         mat = np.array(mat)
     if not decimal is None:
@@ -484,10 +488,51 @@ def mat2str(mat,decimal=None):
         lst = [lst]
     elif mat.ndim == 2:
         pass
-    s = '\n'.join('\t'.join(x) for x in lst )
+    s = '\n'.join(sep.join(x) for x in lst )
     return s
 
 def cov2cor(COV):
     D = np.diag(COV)
     COR = COV /  np.sqrt(D[:,None]*D[None,:])
     return COR
+
+
+
+
+###### Curve fitting
+def model_exp(x, x0, bt, c):
+    return c*np.exp(x/(-bt)) + x0
+#     return c*np.exp(-bt*x) + x0
+
+# ys = arr[0]
+def fit_exp(ys,xs = None):
+    if xs is None:
+        xs=  np.arange(ys.size)
+    popt,pcov,yfit = curve_fit_wrapper(model_exp, xs, ys,plot=0)
+    loss = np.mean((yfit-ys)**2)
+    return popt,yfit,loss
+
+
+def flat2dict(lst):
+    '''
+    Group duplicate objects 
+    '''
+    d = {}
+    for i,val in enumerate(lst):
+        d[val] = d.get(val,[]) + [i]
+    return d
+def appendIndex(lst):
+    '''
+    Add index to duplicated objects
+    '''
+    d  = flat2dict(lst)
+    out = len(lst)* [None]
+    for k,pos in d.items():
+        vals = ['%s%d'%(k,i) for i in range(len(pos))]
+        for i,v in zip(pos,vals):
+            out[i]=v
+    return out
+if __name__=='__main__':
+    IN = ['a','b','a','a','b']
+    print IN
+    print addIndex(IN)
