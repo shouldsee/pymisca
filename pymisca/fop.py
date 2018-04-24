@@ -23,3 +23,10 @@ def make_gradF(f,eps=1E-4):
             grad[i]= df/eps
         return grad
     return gradF
+
+def alignF(f,g):
+    '''
+    Chain functions together but only change the first of inputed arguments
+    '''
+    h = lambda *args:g(*(f(*args),)+args[1:])
+    return h
