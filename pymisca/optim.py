@@ -42,8 +42,13 @@ f = lambda x,y: -np.exp(-( (x+1)**2 + (y+1)**2 ))
 g = lambda x,y: -np.exp(-((x-1)**2 + (y-1)**2))
 l1_2d = lambda x,y:abs(x) + abs(y)
 gauss_well = addF(f,g) 
+def gauss_well(x,y):
+    out = -np.exp(-( (x+1)**2 + (y+1)**2 )) -np.exp(-((x-1)**2 + (y-1)**2))
+    return out
 # dmet_2d()
 def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
+    if callable(x):
+        x = x()
     if D is None:
         D = len(x)//2
 #     if gradF is None:
@@ -56,6 +61,7 @@ def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
         print 'Initial  objective:',f(*x[:D])
     data = {'coord':[],'grad':[],'fval':[]}
     for i in range(T):
+        data['coord'].append(x)
         if record_fval:
             data['fval'].append(f(*x[:D]))
         if record_grad:
@@ -64,12 +70,9 @@ def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
             data['grad'].append(gd)
         else:
             x = adv(x,i,)
-        data['coord'].append(x)
     if not silent:
         print 'Ending  coordinate:',x[:min(D,6)]
         print 'Ending  objective:',f(*x[:D])
-#         X.append(snap)
-#     X = np.array(X)
     return data
 def make_adv_unif(h,alpha=None,eta=0.0,
                   dt=0.1,D=None,gradF=None):
@@ -104,7 +107,7 @@ def make_adv_unif(h,alpha=None,eta=0.0,
     return adv_descent
 
 
-def make_adv_descent(h,D=None,lr=0.1,gradF = None):
+def make_adv_descent(h,D=None,dt=0.1,gradF = None):
     '''
     Standard gradient descent
     '''
@@ -121,7 +124,7 @@ def make_adv_descent(h,D=None,lr=0.1,gradF = None):
         if gd is None:
             gd = gradF(*x)
         dx = gradF(*x)
-        x = np.add(x,np.multiply(-1*lr,dx))
+        x = np.add(x,np.multiply(-1*dt,dx))
         
         return np.hstack([x,v])
     return adv_descent
@@ -148,15 +151,17 @@ def main(h,D=None,gradF= None,x0 = None,nStep=500,
         gradF = make_gradF(h)    
 #     print gradF(*x[:D])
     if adv_maker is None:
-        adv = make_adv_unif(h,D=D, dt=dt,
+        adv_maker = make_adv_unif
+    try:
+        adv = adv_maker(h,D=D, dt=dt,
                             alpha = alpha,
                             eta=eta,
         #                         alpha=None, 
         #                         eta=.5,
                             gradF=gradF
                            )
-    else:
-        adv = adv_maker(h,D=D)
+    except:
+        adv = adv_maker(h,D=D,gradF = gradF,dt=dt)
 #     res = forward(x0,1500,adv=adv,D=D,gradF=gradF,f = h)
     res = forward(x0,nStep,adv=adv,D=D,gradF=gradF,f = h)
 
@@ -189,7 +194,7 @@ def main(h,D=None,gradF= None,x0 = None,nStep=500,
     plt.plot(l2_norm(res['grad']),label='L2(grad)')
     plt.legend()
     # plt.plot(switch)
-    plt.yscale('log')
+#     plt.yscale('log')
     plt.grid()
     plt.title('Objective over time')
 
