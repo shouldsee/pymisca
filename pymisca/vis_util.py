@@ -340,6 +340,7 @@ tb = PrettyTable(data,header )
 #    print >>out,s
 
     
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 import numpy as np
 
