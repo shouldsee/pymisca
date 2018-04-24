@@ -75,6 +75,13 @@ def sigmoid(arr):
     return 1 / (1 + np.exp(-arr))
 np.sigmoid = sigmoid
 
+def enlarge(IN,rd=0):
+    if isinstance(IN,np.ndarray):
+        x = IN.tolist()
+    x = IN[:]
+    x[0] = x[0] - rd
+    x[1] = x[1] + rd
+    return x
 
 def mapper_2d(wFunc, xs,ys, as_list =0):
     out = map(lambda y: 
@@ -241,7 +248,6 @@ def linear_model(x,x0,k):
     y = k*(x-x0)
     return y
 
-model = sigmoid
 guess_dict ={sigmoid:guess_sigmoid,
             relu:guess_relu,
             softrelu: guess_softrelu,}
@@ -386,7 +392,7 @@ def optimiser_gd(W,gradF, lr = 0.1, alpha = 0.0,
 
 #### Functional Programming Utilities
 
-from util import *
+#from util import *
 
 mse  = lambda t,y: np.mean(np.square(t-y))
 mae  = lambda t,y: np.mean(np.abs(t-y))
@@ -536,3 +542,55 @@ if __name__=='__main__':
     IN = ['a','b','a','a','b']
     print IN
     print addIndex(IN)
+
+
+def expand(rg,rd=None):
+    '''
+    Expand an interval
+    '''
+    if rd is None:
+        rd = np.diff(rg)/5.
+    return (rg[0]-rd,rg[-1]+rd)
+def basename(fname):
+    '''
+    Extract "bar" from "/foo/bar.ext"
+    '''
+    bname = fname.split('/')[-1].rsplit('.',1)[0]
+    return bname
+
+
+
+def fname2mdpic(fname):
+    '''Generate a markdown picture referr using a filename
+    '''
+    s = '![\label{fig:%s}](%s)'%(basename(fname),fname)
+    return s 
+def mat2str(mat,decimal=None,sep='\t',linesep='\n'):
+    ''' Converting a numpy array to formatted string
+    '''
+    if not isinstance(mat,np.ndarray):
+        mat = np.array(mat)
+    if not decimal is None:
+        mat = np.round(mat,decimal)
+    mat = mat.astype('str')
+    lst = mat.tolist()
+    
+    if mat.ndim == 1:
+        lst = [lst]
+    elif mat.ndim == 2:
+        pass
+    s = linesep.join(sep.join(x) for x in lst )
+    return s 
+def mat2latex(mat):
+    '''
+    Converting a numpy array to latex array
+    '''
+    s = mat2str(mat,sep='&',linesep='\\\\')
+    s = wrap_env(s,env='pmatrix')
+    return s.replace('\n','') 
+def wrap_env(s,env=None):
+    if env is None:
+        return s
+    if len(env)==0:
+        return s
+    return '\\begin{{{env}}} \n {s} \n \\end{{{env}}}'.format(s=s,env=env)
