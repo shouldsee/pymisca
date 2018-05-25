@@ -75,6 +75,21 @@ def sigmoid(arr):
     return 1 / (1 + np.exp(-arr))
 np.sigmoid = sigmoid
 
+
+
+def renorm(x,axis=None,silent=0):
+    ''' Renormalising a vector along an axis so that sum up to 1.
+    '''
+    SUM = np.sum(x,axis=axis,keepdims=1)
+    isZero = SUM==0
+    if np.any(isZero) and not silent:
+        print '[WARN]: Zero sum when normalising vector'
+    SUM[isZero]=1
+    return x/SUM
+##### Extra functions for numpy----End
+
+
+
 def enlarge(IN,rd=0):
     if isinstance(IN,np.ndarray):
         x = IN.tolist()
@@ -565,6 +580,13 @@ def fname2mdpic(fname):
     '''
     s = '![\label{fig:%s}](%s)'%(basename(fname),fname)
     return s 
+
+def showsavefig(fname='test.png',fig=None,**kwargs):
+    print fname2mdpic(fname)
+    fig = plt.gcf()
+    fig.savefig(fname,**kwargs)    
+    plt.show(fig)
+    
 def mat2str(mat,decimal=None,sep='\t',linesep='\n'):
     ''' Converting a numpy array to formatted string
     '''
@@ -588,9 +610,151 @@ def mat2latex(mat):
     s = mat2str(mat,sep='&',linesep='\\\\')
     s = wrap_env(s,env='pmatrix')
     return s.replace('\n','') 
+
 def wrap_env(s,env=None):
     if env is None:
         return s
     if len(env)==0:
         return s
     return '\\begin{{{env}}} \n {s} \n \\end{{{env}}}'.format(s=s,env=env)
+
+def wrap_math(s):
+    return '$%s$'%s
+
+def wrap_table(tab,caption = '',pos = 'h'):
+    fmt='''\\begin{{table}}[{pos}]
+    {tab}
+    \\caption{{ {cap} }}
+    \\end{{table}}
+    '''
+    s = fmt.format(pos=pos,cap = caption,tab = tab)
+    return s
+
+
+class RedirectStdStreams(object):
+    '''Source:https://stackoverflow.com/a/6796752/8083313
+    '''
+    def __init__(self, stdout=None, stderr=None):
+        self._stdout = stdout or sys.stdout
+        self._stderr = stderr or sys.stderr
+    def __enter__(self):
+        self.old_stdout, self.old_stderr = sys.stdout, sys.stderr
+        self.old_stdout.flush(); self.old_stderr.flush()
+        sys.stdout, sys.stderr = self._stdout, self._stderr
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._stdout.flush(); self._stderr.flush()
+        sys.stdout = self.old_stdout
+        sys.stderr = self.old_stderr
+
+
+
+#### Bash-like utils
+def head(lst, n ):
+    if n >= 0:
+        res = lst[:n]
+    if n < 0:
+        res = lst[:n]
+    return res
+
+def tail(lst, n ):
+    if n > 0:
+        res = lst[-n:]
+    if n < 0:
+        res = lst[-n:]
+    elif n==0:
+        res = lst[:0]
+        
+    return res
+
+def keep(lst, n ):
+    '''
+    Keep until specified elements in the list and drop the rest 
+    '''
+    if n >= 0:
+        res = lst[:n]
+    if n < 0:
+        res = lst[n:]
+    return res
+
+def drop(lst, n):
+    '''
+    Drop until specified elements in the list and keep the rest 
+    '''
+    if n >= 0:
+        res = lst[n:]
+    if n < 0:
+        res = lst[:n]
+    return res
+l = list(range(10))
+
+def test(f):
+    print f.func_name
+    print f(l,1)
+    print f(l,-1)
+    print f(l,0)
+
+if __name__=='__main__':
+    test(keep)
+    test(drop)
+    test(head)
+    test(tail)
+
+
+from numpy_extra import np
+
+# ##### Numpy patches        
+# from numpy import *
+# def as_2d(*arys):
+#     """
+#     View inputs as arrays with exactly two dimensions.
+
+#     Parameters
+#     ----------
+#     arys1, arys2, ... : array_like
+#         One or more array-like sequences.  Non-array inputs are converted
+#         to arrays.  Arrays that already have two or more dimensions are
+#         preserved.
+
+#     Returns
+#     -------
+#     res, res2, ... : ndarray
+#         An array, or list of arrays, each with ``a.ndim >= 2``.
+#         Copies are avoided where possible, and views with two or more
+#         dimensions are returned.
+
+#     See Also
+#     --------
+#     atleast_1d, atleast_3d
+
+#     Examples
+#     --------
+#     >>> np.atleast_2d(3.0)
+#     array([[ 3.]])
+
+#     >>> x = np.arange(3.0)
+#     >>> np.atleast_2d(x)
+#     array([[ 0.,  1.,  2.]])
+#     >>> np.atleast_2d(x).base is x
+#     True
+
+#     >>> np.atleast_2d(1, [1, 2], [[1, 2]])
+#     [array([[1]]), array([[1, 2]]), array([[1, 2]])]
+
+#     """
+#     res = []
+#     for ary in arys:
+#         ary = asanyarray(ary)
+#         if ary.ndim == 0:
+#             result = ary.reshape(1, 1)
+#         elif ary.ndim == 1:
+#             result = ary[newaxis,:]
+#         elif ary.ndim > 2:
+#             result = ary.reshape(ary.shape[:1] + (-1,))            
+#         else:
+#             result = ary
+#         res.append(result)
+#     if len(res) == 1:
+#         return res[0]
+#     else:
+#         return res
+# np.as_2d = as_2d
