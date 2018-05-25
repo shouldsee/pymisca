@@ -290,7 +290,7 @@ def plot_CRR(MEAN,STD,xs=None,ys=None,
 
 
 
-import prettytable as pt
+# import prettytable as pt
 from ptable import PrettyTable
 def latex_table_tabular(self,hline = '\\hline',env = 'center'):
     latex = ["\\begin{tabular}"]
