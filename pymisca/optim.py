@@ -5,6 +5,10 @@ from util import *
 from fop import *
 from proba import *
 
+
+from gill import * #### Gillespie Algortihm/PoissonEvent
+
+
 def ackley(x1,x2):
     '''
     Source: https://gist.github.com/kazetof/de206f55d8a8cacb8600ed355c6ec057
@@ -47,6 +51,10 @@ def gauss_well(x,y):
     return out
 # dmet_2d()
 def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
+    '''Iteratively calling an advancer ("adv") to work on a state vector ("x")
+    State vector ("x") is of length 2*D, where first D elements are coordinates,
+        and last D elements are momenta/velocities
+    '''
     if callable(x):
         x = x()
     if D is None:
@@ -58,7 +66,8 @@ def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
 #     f0 = h(*x[:D]) + 0.000
     if not silent:
         print 'Initial coordinate:',x[:min(D,6)]
-        print 'Initial  objective:',f(*x[:D])
+        if record_fval:
+            print 'Initial  objective:',f(*x[:D])
     data = {'coord':[],'grad':[],'fval':[]}
     for i in range(T):
         data['coord'].append(x)
@@ -70,9 +79,12 @@ def forward(x,T,adv=None,D=None,gradF = None,f=None,silent=0):
             data['grad'].append(gd)
         else:
             x = adv(x,i,)
+        if x[-1]==np.inf:
+            break
     if not silent:
         print 'Ending  coordinate:',x[:min(D,6)]
-        print 'Ending  objective:',f(*x[:D])
+        if record_fval:
+            print 'Ending  objective:',f(*x[:D])
     return data
 def make_adv_unif(h,alpha=None,eta=0.0,
                   dt=0.1,D=None,gradF=None):
@@ -239,3 +251,4 @@ def traj_2D(X,ax=None):
     ax.scatter(pt[0],pt[1],marker='o',s=100,c='orange')
     # plt.plot(X[-1,0],X[-1,1],'ob',markersize=10)
     return ax
+

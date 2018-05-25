@@ -12,6 +12,11 @@ def addF(f,g):
     def h(*args):
         return f(*args) + g(*args)
     return h
+
+def sumF(Fs):
+    outF=  lambda *x: sum( (F(*x) for F in Fs) )
+    return outF
+
 def make_gradF(f,eps=1E-4):
     def gradF(*x):
         f0 = f(*x)
@@ -30,3 +35,27 @@ def alignF(f,g):
     '''
     h = lambda *args:g(*(f(*args),)+args[1:])
     return h
+
+
+def linearF(IN,):
+    '''
+    return a Linear function:
+        1. if IN is float, return a constant function
+        2. if IN is list, return a linear combination using
+        elements as coef.
+    '''
+    if isinstance(IN,float):
+        F = lambda *x:IN
+    if isinstance(IN,np.ndarray):
+        IN = IN.tolist()
+    if isinstance(IN,list):
+        L = len(IN)
+        F = lambda *x:np.dot(IN,np.ravel(x))
+    return F
+
+def deltaF(delta):
+    '''Apply a finite deviation (delta) to a state vetor (sv)
+    '''
+    F = lambda sv: np.add(sv,delta)
+    F.D = len(delta)
+    return F

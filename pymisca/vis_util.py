@@ -288,24 +288,6 @@ def plot_CRR(MEAN,STD,xs=None,ys=None,
 
 
 
-def wrap_env(s,env=None):
-    if env is None:
-        return s
-    if len(env)==0:
-        return s
-    return '\\begin{{{env}}} \n {s} \n \\end{{{env}}}'.format(s=s,env=env)
-
-def wrap_math(s):
-    return '$%s$'%s
-
-def wrap_table(tab,caption = '',pos = 'h'):
-    fmt='''\\begin{{table}}[{pos}]
-    {tab}
-    \\caption{{ {cap} }}
-    \\end{{table}}
-    '''
-    s = fmt.format(pos=pos,cap = caption,tab = tab)
-    return s
 
 
 import prettytable as pt
@@ -465,5 +447,34 @@ def preview(f,xs = None,rg=[0,1],**kwargs):
     plt.plot(xs,ys,**kwargs)
     plt.grid()
 
+    
+def square_shape(im):
+    '''Reshape an array to R*R
+    '''
+    im = np.squeeze(im)
+    SHAPE = im.shape[0]
+    if np.ndim(im)==1:
+        im = np.reshape(im,(int(SHAPE**0.5),)*2 )
+    else:
+        pass
+#         im = np.squeeze(im)    
+    return im
+def show_pics(IN):
+    '''Display input as a list of square images
+    '''
+    SHAPE = IN.shape[1]
+    
+    fig,axs = plt.subplots(2,5,figsize=[12,4])
+    axs = axs.flat
+    for i in range(min(10,len(IN))):
+    #     plt.axs
+        ax=axs[i]
+        im = IN[i]
+        im=square_shape(im)
+        ax.imshow(im,)
 
-
+def ylim_fromZero(ax):
+    '''Assuming positive range 
+    '''
+    ax.set_ylim(bottom = 0,top = ax.get_ylim()[1]*1.1)
+    return ax
