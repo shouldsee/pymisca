@@ -59,3 +59,15 @@ def deltaF(delta):
     F = lambda sv: np.add(sv,delta)
     F.D = len(delta)
     return F
+
+def safeMap(f,it):
+    '''Perform single-evaluation for non-iterable
+    '''
+    try:
+        it = iter(it)
+        res = map(f,it)
+#         if len(res)==1:
+#             res = res[0]
+    except TypeError:
+        res = f(it)
+    return res
