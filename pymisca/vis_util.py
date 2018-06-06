@@ -478,3 +478,47 @@ def ylim_fromZero(ax):
     '''
     ax.set_ylim(bottom = 0,top = ax.get_ylim()[1]*1.1)
     return ax
+
+####### Clustering
+def heatmap(C,
+            ax=None,
+            xlab = '',
+            ylab = '',
+            main='',
+            xtick = None,
+            ytick = None,
+            transpose=0,
+            cname=None,
+            tickMax=100,
+            **kwargs
+           ):
+    ''' C of shape (xLen,yLen)
+    '''
+#     print kwargs.keys()
+    if transpose:
+        C = C.T
+        xtick,ytick = ytick,xtick
+        xlab,ylab   = ylab,xlab
+    if ax is None:
+        fig,ax = plt.subplots(1,1,figsize=[min(len(C.T)/3.,14),
+                                           min(len(C)/5.,14)])
+    plt.sca(ax)
+    im = ax.matshow(C,aspect='auto',**kwargs)
+    ax.xaxis.tick_bottom()
+
+    if xtick is not None:
+        if len(xtick) <= tickMax:
+            plt.xticks(range(len(C.T)), xtick,
+                      rotation='vertical')
+    if ytick is not None:
+        if len(ytick) <= tickMax:
+            plt.yticks(range(len(C)),ytick)
+
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
+    if cname is not None:
+        cbar = plt.colorbar(im)
+        cbar.set_label(cname)
+    plt.title(main)    
+    return im
+# pyvis.heatmap=heatmap
