@@ -1,7 +1,24 @@
-import functools, copy
+import os,sys
+import functools, copy,re
+import matplotlib as mpl; mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from fop import *
+from canonic import *
+
+import re
+import datetime
+def datenow():
+    res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    return res
+
+def arg2dict(s):
+#     s = '''a=1,b=2,c=3
+#     '''
+    lst = re.findall('([^ =]+)[ ]?=[ ]?([^ ,]+)[, ]',s)
+    print lst
+    dct = {k:eval(v) for k,v in lst}
+    return dct
 
 def symmetric_hamm(x,y):
     hamm  = np.mean(x == y)
@@ -471,6 +488,37 @@ def mp_map(f,lst,n_cpu=1,**kwargs):
         OUTPUT = map(f,lst)
     return OUTPUT
 
+def MapWithCache(f,it,ALI='Test',nCPU=1,force=0):
+    print '[MSG] Mapping function:   Under cahce alias: %s'%(ALI)
+    fmt = '%s_%%05d'%(ALI)
+    def cb(resLst):
+        for i,res in enumerate(resLst):
+            fname = pyutil.canonic_npy([fmt%i])[0]
+            np.save(fname,res)    
+            print 'Saving to %s'%fname
+        return resLst
+    fname = pyutil.canonic_npy([fmt%0])[0]
+    print fname
+    if os.path.exists(fname) and not force:
+        res = np.load(fname).tolist()
+        p = None
+    else:        
+        p = mp.Pool(nCPU)
+        
+        res = p.map_async(f,it,callback=cb)
+    return res,p
+
+if __name__ == '__main__':
+    def f(IN):
+        res = 'test'
+        return res
+    os.system('rm -rf test/*')
+    os.system('mkdir -p test')
+    p = mp.Pool(4)
+    res,p = MapWithCache(f,[None]*10,ALI='test/test')
+    # print res.get(1000000)
+    p.close()
+
 def flatten(gd):
     return np.concatenate([x.flat for x in gd])
 
@@ -581,11 +629,13 @@ def fname2mdpic(fname):
     s = '![\label{fig:%s}](%s)'%(basename(fname),fname)
     return s 
 
-def showsavefig(fname='test.png',fig=None,**kwargs):
-    print fname2mdpic(fname)
+def showsavefig(fname='test.png',fig=None,show=1,**kwargs):
+#     print fname2mdpic(fname)
     fig = plt.gcf()
     fig.savefig(fname,**kwargs)    
-    plt.show(fig)
+    if show:
+        plt.show(fig)
+    return fname2mdpic(fname)
     
 def mat2str(mat,decimal=None,sep='\t',linesep='\n'):
     ''' Converting a numpy array to formatted string
@@ -633,6 +683,9 @@ def wrap_table(tab,caption = '',pos = 'h'):
 
 class RedirectStdStreams(object):
     '''Source:https://stackoverflow.com/a/6796752/8083313
+Example:
+    with RedirectStdStreams(stdout=devnull, stderr=devnull):
+        print("You'll never see me")
     '''
     def __init__(self, stdout=None, stderr=None):
         self._stdout = stdout or sys.stdout
@@ -645,18 +698,132 @@ class RedirectStdStreams(object):
         self._stdout.flush(); self._stderr.flush()
         sys.stdout = self.old_stdout
         sys.stderr = self.old_stderr
+        
 
 
+#### R-like utils
+import pandas as pd
+#### Slower implementation
+# def paste0(ss,sep=None,na_rep=None,):
+#     '''Analogy to R paste0
+#     '''
+#     ss = [pd.Series(s) for s in ss]
+#     ss = [s.astype(str) for s in ss]
+#     s = ss[0]
+#     res = s.str.cat(ss[1:],sep=sep,na_rep=na_rep)
+#     return res
+# pasteA=paste0
+
+def paste0(ss,sep=None,na_rep=None):
+    '''Analogy to R paste0
+    '''
+    if sep is None:
+        sep=''
+    res = [sep.join(str(s) for s in x) for x in zip(*ss)]
+    res = pd.Series(res)
+    return res
+pasteB = paste0
+
+def gQuery(gQuery,gRef,id_col='ID'):
+    ''' Query a DataFrame with a set of ID's
+    '''
+    if not  isinstance(gQuery, pd.DataFrame):
+        gQuery = pd.DataFrame({'ID':gQuery})
+    else:
+        gQuery = gQuery.rename(columns = {gQuery.keys()[0]:'ID'},)
+    if 'index' in gRef:
+        gRef = gRef.drop('index',1)
+    gRef = gRef.rename(columns ={id_col:'ID'},)
+    gRes = gRef.reset_index().merge(gQuery).set_index('index')        
+    return gRes
+def pd2md(df):
+    ''' Source https://stackoverflow.com/a/33869154/8083313
+    '''
+    fmt = ['---' for i in range(len(df.columns))]
+    df_fmt = pd.DataFrame([fmt], columns=df.columns)
+    df_formatted = pd.concat([df_fmt, df])
+    return df_formatted.to_csv(sep="|", index=False)
+
+def df2flat(meta,exclude='.+?[_/]'):
+    ''' Convert a meta dataFrame into a serialised format
+    '''
+    mc = meta.columns
+    m0 = meta.iloc[0]
+    ex = ['{}{}'.format(*x) for x in zip(mc,m0)]
+    ptn = re.compile(exclude)
+    idx = [ (ptn.match(x) is None) for x in ex]
+    mcurr = meta.iloc[:,idx]
+    L = len(mcurr)
+    for c in mcurr.columns:
+        mcurr.loc[:,c] = paste0([[c]*L, mcurr[c]],sep='=')
+    res = (paste0(mcurr.values.T,sep='_'))
+    return res
+def unpackFlat(s,seps=['_']):
+    '''My first recursive function that unpack a string according to a
+    sequence of separators
+    '''
+    if len(seps) == 0:
+        return s,seps
+    else:
+        sep,seps = seps[0],seps[1:]
+#             print sep,s,s.split(sep)
+        s = [upk(x, seps)[0] for x in s.split(sep)]
+        return s,seps
+upk = unpackFlat
+def packFlat(s,seps=['_']):
+    if len(seps) == 0:
+        return s,seps
+    else:
+        sep,seps = seps[0],seps[1:]
+        s = sep.join([pck(x,seps)[0] for x in s]) 
+        return s,seps
+pck = packFlat
+        
+def flat2meta(ss,seps= ['_','=']):
+    ''' Unpack a string produced by meta2flat() or df2flat()
+    '''
+    def f(x):
+        return unpackFlat(x,seps)[0]
+    res = map(f,ss)
+    return res
+def meta2flat(ss,seps= ['_','=']):
+    ''' Unpack a string produced by meta2flat() or df2flat()
+    '''
+    def f(x):
+        return packFlat(x,seps)[0]
+    res = map(f,ss)
+    return res
+
+def metaContrast(mRef,mObs):
+    ''' Merge two flattened meta descriptor 
+    '''
+    mSeq = zip(*map(flat2meta,[mRef,mObs]))
+    def mMerge( (ref,obs) ):
+        def f((rr,oo)):
+            assert rr[0]==oo[0]
+            if rr[1]==oo[1]:
+                return rr
+            else:
+                return [rr[0],'%s-%s'%(oo[1],rr[1])]
+        seq = zip(ref,obs)
+        oseq = map(f,seq)
+        return oseq
+    mSeq = map(mMerge,mSeq)
+    mFlat = meta2flat(mSeq)
+    return mFlat
 
 #### Bash-like utils
 def head(lst, n ):
+    if not isinstance(n,int):
+        n = int(len(lst)*n)
     if n >= 0:
         res = lst[:n]
     if n < 0:
         res = lst[:n]
     return res
-
 def tail(lst, n ):
+    if not isinstance(n,int):
+        n = int(len(lst)*n)
     if n > 0:
         res = lst[-n:]
     if n < 0:
