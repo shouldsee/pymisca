@@ -55,3 +55,9 @@ def as_2d(*arys):
     else:
         return res
 np.as_2d = as_2d
+
+def span(xs,p=100.):
+    MIN = percentile(xs,100.-p)
+    MAX = percentile(xs,p)
+    return MIN,MAX
+np.span = span
