@@ -1,17 +1,17 @@
-import os,sys
+import os,sys,subprocess
 import functools, copy,re
 import matplotlib as mpl; mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from oop import *
 from fop import *
 from canonic import *
 
-import re
 import datetime
 def datenow():
     res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     return res
-
+#### Regex
 def arg2dict(s):
 #     s = '''a=1,b=2,c=3
 #     '''
@@ -19,6 +19,38 @@ def arg2dict(s):
     print lst
     dct = {k:eval(v) for k,v in lst}
     return dct
+retype = type(re.compile('hello, world'))
+def revSub(ptn, dict):
+    '''Reverse filling a regex matcher.
+    Adapted from: https://stackoverflow.com/a/13268043/8083313
+'''
+    if isinstance(ptn, retype):
+        ptn = ptn.pattern
+    ptn = ptn.replace(r'\.','.')
+    replacer_regex = re.compile(r'''
+        \(\?P         # Match the opening
+        \<(.+?)\>
+        (.*?)
+        \)     # Match the rest
+        '''
+        , re.VERBOSE)
+    res = replacer_regex.sub( lambda m : dict[m.group(1)], ptn)
+    return res
+
+def nTuple(lst,n,silent=1):
+    """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
+    
+    Group a list into consecutive n-tuples. Incomplete tuples are
+    discarded e.g.
+    
+    >>> group(range(10), 3)
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
+    """
+    if not silent:
+        L = len(lst)
+        if L % n != 0:
+            print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
+    return zip(*[lst[i::n] for i in range(n)])
 
 def symmetric_hamm(x,y):
     hamm  = np.mean(x == y)
@@ -53,31 +85,6 @@ def make_label(ret,tar,res = None):
     
     lab = ['Retrival %d:%s'%(i,r) for (i,r) in zip(range(len(ret)+1)[1:],res)] + ['*Memory %d'%i for i in range(len(tar)+1)[1:]]
     return (range(len(ret)+len(tar)),lab)
-
-
-##### OOP utility
-
-class util_obj(object):
-    def __init__(self):
-        pass
-    
-    def reset(h,method):
-        mthd = getattr(h,method)
-        if isinstance(mthd, functools.partial):
-            setattr(h,method,mthd.func)
-        else:
-            print "[WARN]:Trying to reset a native method"
-        pass
-
-    def partial(h,attrN,**param):
-        attr = getattr(h,attrN)
-        newattr = functools.partial(attr,**param)
-        setattr(h,attrN,newattr)
-        pass
-    def set_attr(h,**param):
-        for k,v in param.items():
-            setattr(h, k, v)
-        return h
 
     
 ##### Extra functions for numpy
@@ -866,6 +873,46 @@ if __name__=='__main__':
     test(head)
     test(tail)
 
+
+def LinesNotEmpty(sub):
+    sub = [ x for x in sub.splitlines() if x]
+    return sub
+
+def LeafFiles(DIR):
+    ''' Drill down to leaf files of a directory tree if the path is unique.
+    '''
+    assert os.path.exists(DIR),'%s not exist'%DIR
+    DIR = DIR.rstrip('/')
+    if not os.path.isdir(DIR):
+        return [DIR]
+    else:
+        cmd = 'ls -LR %s'%DIR
+        res = subprocess.check_output(cmd,shell=1)
+        res = re.split(r'([^\n]*):',res)[1:]
+        it = pyutil.nTuple(res,2,silent=0)
+        DIR, ss = it[0];
+        for dd,ss in it[1:]:
+            NEWDIR, ALI = dd.rsplit('/',1)
+            assert NEWDIR == DIR, 'Next directory %s not contained in %s'%(dd,DIR)
+            DIR = dd 
+        res = [ '%s/%s'%(DIR,x) for x in LinesNotEmpty(ss)]
+        return res
+if __name__=='__main__':
+    def test_d(d):
+        try:
+            return LeafFiles(d)
+        except Exception as e:
+            print e
+    ##### To be refactored to work everywhere
+    d = '/home/feng/test_envs/tdir/something/A/B/C/D/'
+    test_d(d)
+    d = '/home/feng/test_envs/tdir/something/'
+    print test_d(d)
+    d = '/home/feng/syno3/PW_HiSeq_data/ChIP-seq/Raw_data/182C/Bd_ELF3-44645602/FASTQ_Generation_2018-06-06_03_43_21Z-101158414/182C_721_L001-ds.e1f926b50b5f4efd99bcffeca5fb75a0'
+    print test_d(d)
+    d = '/home/feng/syno3/PW_HiSeq_data/ChIP-seq/Raw_data/182C/Bd_ELF3-44645602/FASTQ_Generation_2018-06-06_03_43_21Z-101158414/182C_721_L001-ds.e1f926b50b5f4efd99bcffeca5fb75a0/Bd-ELF3OX-SD-ZT16-_S2_L001_R1_001.fastq.gz'
+    # print test_d(d)
+    LeafFiles(d)
 
 from numpy_extra import np
 
