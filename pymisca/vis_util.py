@@ -490,6 +490,8 @@ def heatmap(C,
             transpose=0,
             cname=None,
             tickMax=100,
+            vlim = None,
+            cmap = None,
             **kwargs
            ):
     ''' C of shape (xLen,yLen)
@@ -502,8 +504,26 @@ def heatmap(C,
     if ax is None:
         fig,ax = plt.subplots(1,1,figsize=[min(len(C.T)/3.,14),
                                            min(len(C)/5.,14)])
+    if vlim is None:
+        vlim = np.span(C[~np.isnan(C)],99)
+    elif vlim[0] is None:
+        pass
+    else:
+        if cmap is None:
+            if vlim[0] * vlim[1]>=0:
+                cmap = plt.get_cmap('viridis')
+            else:
+                avg = abs( vlim[1] - vlim[0] )/2.
+                vlim = -avg,avg
+                cmap = plt.get_cmap('PiYG')
+            cmap.set_bad('black',1.)
+    C = np.ma.array (C, mask=np.isnan(C))
+    if cmap is not None:
+        cmap.set_bad('black',1.)
+    kwargs['vmin'],kwargs['vmax'] = vlim
+
     plt.sca(ax)
-    im = ax.matshow(C,aspect='auto',**kwargs)
+    im = ax.matshow(C,aspect='auto', cmap = cmap, **kwargs)
     ax.xaxis.tick_bottom()
 
     if xtick is not None:
@@ -522,3 +542,28 @@ def heatmap(C,
     plt.title(main)    
     return im
 # pyvis.heatmap=heatmap
+import random
+def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
+    """Create an N-bin discrete colormap from the specified input map
+    Source: https://gist.github.com/jakevdp/91077b0cae40f8f8244a
+    """
+
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+    if base_cmap is None:
+        base = plt.get_cmap()
+    else:
+        base = plt.cm.get_cmap(base_cmap)
+    
+
+        
+    rg = np.linspace(0, 1, N+1)
+    if shuffle:
+        if seed is not None:
+            np.random.seed(seed)
+        np.random.shuffle(rg)
+    color_list = base(rg)
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N+1)
+from mpl_extra import *
