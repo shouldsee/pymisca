@@ -1,23 +1,32 @@
 import os,sys,subprocess
-import functools, copy,re
-import matplotlib as mpl; mpl.use('Agg')
+import json
+import functools, itertools, copy,re
+if 'matplotlib' not in sys.modules:
+    import matplotlib as mpl; mpl.use('Agg')
+else:
+    mpl = sys.modules['matplotlib']
+cluMap = mpl.colors.ListedColormap(['r', 'g', 'b', 'y', 'w', 'k', 'm'])
 import matplotlib.pyplot as plt
+
 import numpy as np
 from oop import *
 from fop import *
 from canonic import *
 
+
 import datetime
 def datenow():
     res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     return res
+
+
 #### Regex
-def arg2dict(s):
+def arg2dict(s, as_string=0):
 #     s = '''a=1,b=2,c=3
 #     '''
     lst = re.findall('([^ =]+)[ ]?=[ ]?([^ ,]+)[, ]',s)
     print lst
-    dct = {k:eval(v) for k,v in lst}
+    dct = {k: (v if as_string else eval(v) ) for k,v in lst}
     return dct
 retype = type(re.compile('hello, world'))
 def revSub(ptn, dict):
@@ -36,7 +45,35 @@ def revSub(ptn, dict):
         , re.VERBOSE)
     res = replacer_regex.sub( lambda m : dict[m.group(1)], ptn)
     return res
-
+def envSource(sfile,silent=0,dry=0):
+#     import os
+    '''Loading environment variables after running a script
+    '''
+    command = 'bash -c "source %s&>/dev/null ;env -0" ' % sfile
+    # print command
+    res = subprocess.check_output(command,stderr=subprocess.STDOUT,shell=1)
+    
+    for line in res.split('\x00'):
+        (key, _, value) = line.strip().partition("=")
+        if not silent:
+            print key,'=',value
+        if not dry:
+            os.environ[key] = value
+    return res
+def shellexec(cmd,debug=0):
+    print cmd
+    if debug:
+        return 'dbg'
+    else:
+        try:
+            res = subprocess.check_output(cmd,shell=1)
+        except subprocess.CalledProcessError as e:
+#             print e.output
+#             raise e
+            raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
+        return res
+    
+    
 def nTuple(lst,n,silent=1):
     """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
     
@@ -51,6 +88,26 @@ def nTuple(lst,n,silent=1):
         if L % n != 0:
             print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
     return zip(*[lst[i::n] for i in range(n)])
+
+import itertools
+def window(seq, n=2,step=1,fill=None,keep=0):
+    '''Returns a sliding window (of width n) over data from the iterable
+   s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...  
+   Adapted from: https://stackoverflow.com/a/6822773/8083313
+'''   
+    it = iter(seq)
+    result = tuple(itertools.islice(it, n))    
+    if len(result) <= n:
+        yield result
+    while True:        
+        elem = tuple( next(it, fill) for _ in range(step))
+        result = result[step:] + elem        
+        if elem[-1] is fill:
+            if keep:
+                yield result
+            break
+        yield result
+    pass    
 
 def symmetric_hamm(x,y):
     hamm  = np.mean(x == y)
@@ -485,12 +542,13 @@ np.vectorize_lazy = vectorize_lazy
 
 ##### Multiprocessing map
 import multiprocessing as mp
-def mp_map(f,lst,n_cpu=1,**kwargs):
+def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, **kwargs):
     if n_cpu > 1:
-        p = mp.Pool(n_cpu)
-        OUTPUT=p.map_async(f,lst).get(999999999999999999) ## appx. 7.6E11 years
+        p = mp.Pool(n_cpu,**kwargs)
+        OUTPUT=p.map_async(f,lst, chunksize=chunksize, callback = callback).get(999999999999999999) ## appx. 7.6E11 years
 #         OUTPUT = p.map(f,lst)
         p.close()
+        p.join()
     else:
         OUTPUT = map(f,lst)
     return OUTPUT
@@ -510,8 +568,7 @@ def MapWithCache(f,it,ALI='Test',nCPU=1,force=0):
         res = np.load(fname).tolist()
         p = None
     else:        
-        p = mp.Pool(nCPU)
-        
+        p = mp.pool.ThreadPool(nCPU)        
         res = p.map_async(f,it,callback=cb)
     return res,p
 
@@ -535,13 +592,22 @@ def is_ipython():
         return 1
     except:
         return 0
-print 'is in ipython:',is_ipython()
+hasIPD = is_ipython()
+print 'is in ipython:',hasIPD
+if hasIPD:
+    import IPython.display as ipd
 
 
 def printlines(lst):
-    print '\n'.join(lst)
+    print '\n'.join(map(str,lst))
     
-    
+def ppJson(d):
+    '''
+    Pretty print a dictionary
+    '''
+    s = json.dumps(d,indent=4, sort_keys=True)
+    return s
+
 def invert_interp(F):
     '''
     Invert a functools.partial-made interpolator
@@ -708,6 +774,14 @@ Example:
         
 
 
+def reindexZero(idx):
+    ''' Mapped a index to an consecutive integer sequence starting from 0
+    '''
+    uniq = np.unique(idx)
+    mapper = { oi:ni for ni,oi in enumerate(uniq)}
+    newidx = np.vectorize(mapper.get)(idx)
+    return newidx, uniq        
+        
 #### R-like utils
 import pandas as pd
 #### Slower implementation
@@ -721,12 +795,24 @@ import pandas as pd
 #     return res
 # pasteA=paste0
 
+def init_DF(C,rowName= None,colName=None):
+    '''Conveniently initialise a pandas.DataFrame from a matrix "C"
+'''
+    df = pd.DataFrame(C)
+    if rowName is not None:
+        df.set_index(rowName,inplace=1)
+    if colName is not None:
+        df.columns = colName
+    return df
+
 def paste0(ss,sep=None,na_rep=None):
     '''Analogy to R paste0
     '''
     if sep is None:
         sep=''
-    res = [sep.join(str(s) for s in x) for x in zip(*ss)]
+    L = max([len(e) for e in ss])
+    it = itertools.izip(*[itertools.cycle(e) for e in ss])
+    res = [sep.join(str(s) for s in next(it) ) for i in range(L)]
     res = pd.Series(res)
     return res
 pasteB = paste0
@@ -743,6 +829,7 @@ def gQuery(gQuery,gRef,id_col='ID'):
     gRef = gRef.rename(columns ={id_col:'ID'},)
     gRes = gRef.reset_index().merge(gQuery).set_index('index')        
     return gRes
+
 def pd2md(df):
     ''' Source https://stackoverflow.com/a/33869154/8083313
     '''
@@ -751,20 +838,57 @@ def pd2md(df):
     df_formatted = pd.concat([df_fmt, df])
     return df_formatted.to_csv(sep="|", index=False)
 
-def df2flat(meta,exclude='.+?[_/]'):
-    ''' Convert a meta dataFrame into a serialised format
-    '''
-    mc = meta.columns
-    m0 = meta.iloc[0]
-    ex = ['{}{}'.format(*x) for x in zip(mc,m0)]
-    ptn = re.compile(exclude)
-    idx = [ (ptn.match(x) is None) for x in ex]
-    mcurr = meta.iloc[:,idx]
-    L = len(mcurr)
-    for c in mcurr.columns:
-        mcurr.loc[:,c] = paste0([[c]*L, mcurr[c]],sep='=')
-    res = (paste0(mcurr.values.T,sep='_'))
+
+def explode(df,tosplit, tokeep, sep = ','):
+    '''split var1 by separator and keep var2
+    Source: https://stackoverflow.com/a/28182629/8083313
+    [Add to ]: pd.DataFrame
+'''
+    var1 = tosplit
+    var2 = tokeep
+    a = df
+    a = a.dropna()
+    b = pd.DataFrame(a[var1].str.split(sep).tolist(), index=a[var2])
+    b = b.stack()
+    b = b.reset_index()[[0, var2]] # var1 variable is currently labeled 0
+    b.columns = [var1, var2] # renaming var1
+    return b
+
+# def df2flat(meta,exclude='.+?[_/]'):
+#     ''' Convert a meta dataFrame into a serialised format
+#     '''
+#     mc = meta.columns
+#     m0 = meta.iloc[0]
+#     ex = ['{}{}'.format(*x) for x in zip(mc,m0)]
+#     ptn = re.compile(exclude)
+#     idx = [ (ptn.match(x) is None) for x in ex]
+#     mcurr = meta.iloc[:,idx]
+#     L = len(mcurr)
+#     for c in mcurr.columns:
+#         mcurr.loc[:,c] = paste0([[c]*L, mcurr[c]],sep='=')
+#     res = (paste0(mcurr.values.T,sep='_'))
+#     return res
+
+def meta2name(meta,exclude='.+?[_/:]',
+#               keys=['gtype','light','Age','ZTime'], 
+             ):    
+    ex = ['{}{}'.format(*x) for x in zip(meta.columns, meta.iloc[0] )]
+    ptn = re.compile(exclude); idx = [ptn.match(x) is None for x in ex ] 
+    mcurr = meta.loc[:,idx] 
+    res = df2flat(mcurr)
     return res
+
+def df2flat(df,keys=None):
+    if keys is None:
+        keys = df.columns
+    lst = [ 
+        paste0( 
+        [ [ k ],df[k] ],
+        '=') 
+           for k in keys]
+    res = paste0( lst,'_')        
+    return res
+
 def unpackFlat(s,seps=['_']):
     '''My first recursive function that unpack a string according to a
     sequence of separators
@@ -782,7 +906,7 @@ def packFlat(s,seps=['_']):
         return s,seps
     else:
         sep,seps = seps[0],seps[1:]
-        s = sep.join([pck(x,seps)[0] for x in s]) 
+        s = sep.join([ str( pck(x,seps)[0] ) for x in s]) 
         return s,seps
 pck = packFlat
         
@@ -800,6 +924,11 @@ def meta2flat(ss,seps= ['_','=']):
         return packFlat(x,seps)[0]
     res = map(f,ss)
     return res
+def dict2flat(dct,sep='_',concat='='): 
+    ''' Pack a depth-1 dictionary into flat string
+    '''
+    s = sep.join(['%s%s%s'%(k,concat,v) for k,v in dct.items()])
+    return s
 
 def metaContrast(mRef,mObs):
     ''' Merge two flattened meta descriptor 
@@ -819,6 +948,65 @@ def metaContrast(mRef,mObs):
     mFlat = meta2flat(mSeq)
     return mFlat
 
+##### Import data
+def guess_ext(fname,force = 0):
+#     print fname
+    gp = fname.rsplit('.',1)
+    if len(gp)>1 and (not force):
+        ext = gp[-1]
+    else:
+        ext = None
+        if force:
+            assert not ext is None,"Can't guess filetype of: '%s'"%fname
+    return ext
+def readData(fname, ext=None, callback=None, addFname=0,guess_index=1, comment='#', **kwargs):
+    ext = ext or guess_ext(fname)
+#     kwargs['comment'] = comment    
+    def case(ext,):
+        if ext == 'csv':
+            res = pd.read_csv(fname, comment = comment, **kwargs)
+        elif ext in ['tsv','tab']:
+            res = pd.read_table(fname, comment = comment, **kwargs)
+        elif ext == 'pk':
+            res = pd.read_pickle(fname,**kwargs)
+        elif ext is None or ext=='txt':
+            ext = guess_ext(fname,force=1)
+            res = case(ext)
+        else:
+            assert 0,"case not specified for: %s"%ext
+        return res
+    res = case(ext)
+    if guess_index:
+        res = guessIndex(res)
+    if callback is not None:
+        res = res.apply(callback)
+    if addFname:
+        res['fname']=fname
+    return res
+def guessIndex(df):
+    if df[df.columns[0]].dtype == 'O':
+        df.set_index(df.columns[0],inplace=1)
+    return df
+def mergeByIndex(left,right,how='outer',as_index = 0, **kwargs):
+    dcts = [{'name': getattr(left,'name','left')},
+            {'name': getattr(right,'name','right')},
+           ]
+    suffixes = ['_%s'%x for x in map(pyutil.dict2flat,dcts)]
+
+    df = pd.DataFrame.merge(left,right,
+                       how = how,
+                        left_index=True,
+                        right_index=True,
+                       suffixes= suffixes
+                      )
+    if as_index:
+        df = df.iloc[:,:1]
+    return df
+def routine_combineData(fnames,ext=None,addFname = 0):
+    dfs = map(lambda x:pyutil.readData(x,ext=ext,addFname = addFname), fnames)
+    idx = reduce(pyutil.functools.partial(pyutil.mergeByIndex,as_index=1,how= 'outer'),dfs)
+    dfs = [df.reindex(idx.index) for df in dfs]
+    return dfs
 #### Bash-like utils
 def head(lst, n ):
     if not isinstance(n,int):
@@ -897,6 +1085,20 @@ def LeafFiles(DIR):
             DIR = dd 
         res = [ '%s/%s'%(DIR,x) for x in LinesNotEmpty(ss)]
         return res
+def LeafDict(d):
+    ''' Walking to leaves of a nested dictionary
+    '''
+    if isinstance(d,dict):
+        res = [LeafDict(dd) for dd in d.values()]
+        res = sum(res,[])
+        return res
+    else:
+        if isinstance(d,list):
+            pass
+        else:
+            d = [d]
+        return d
+    
 if __name__=='__main__':
     def test_d(d):
         try:
@@ -971,4 +1173,97 @@ from numpy_extra import np
 #         return res[0]
 #     else:
 #         return res
-# np.as_2d = as_2d
+# np.as_2d = as_2d# import pymisca.util as pyutil
+# flat = rnaseq.columns
+def flatSubset(flat,keep= None, as_list=0):
+    ''' Take a list of flat identifier and filter in only the
+    ones specified in the 'keep' list
+'''
+    nestList = flat2meta(flat)
+    if keep is None:
+        keep  =[ x[0] for x in nestList[0]]
+#     keep = ['ZTime']
+
+    for i,x in enumerate(nestList):
+        y = []
+        for k in x:
+            if k[0] in keep:
+                y.append(k)
+        nestList[i] = y
+    res = nestList
+    if as_list:
+        pass
+    else:
+        res = meta2flat(res)
+    return res
+# flatSubset(flat,keep = 'ZTime')# import pymisca.util as pyutil
+# flat = rnaseq.columns
+def flatSubset(flat,keep= None, as_list=0, negate=0):
+    ''' Take a list of flat identifier and filter in only the
+    ones specified in the 'keep' list
+'''
+    nestList = flat2meta(flat)
+    if keep is None:
+        keep  =[ x[0] for x in nestList[0]]
+    if keep is str:
+        keep = [keep]
+#     keep = ['ZTime']
+
+    for i,x in enumerate(nestList):
+        y = []
+        for k in x:
+            if negate ^ (k[0] in keep):
+                y.append(k)
+        nestList[i] = y
+    res = nestList
+    if as_list:
+        pass
+    else:
+        res = meta2flat(res)
+    return res
+# flatSubset(flat,keep = 'ZTime')def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
+    addFname=1
+    df = pd.concat(pyutil.routine_combineData(fnames,ext='tsv',addFname = addFname))
+    df = df.reset_index().pivot_table(values = valCol,index = idCol, columns='fname')
+    C1 = scount.countMatrix.from_DataFrame(C1)
+    if match is not None:
+        C1 = C1.filterMatch(match)
+    if callback is not None:
+        C1 = callback(C1)
+    return C1
+# def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
+#     addFname=1
+#     df = pd.concat(pyutil.routine_combineData(fnames,ext='tsv',addFname = addFname))
+#     df = df.reset_index().pivot_table(values = valCol,index = idCol, columns='fname')
+#     C1 = scount.countMatrix.from_DataFrame(C1)
+#     if match is not None:
+#         C1 = C1.filterMatch(match)
+#     if callback is not None:
+#         C1 = callback(C1)
+#     return C1
+
+def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
+    addFname=1
+    df = pd.concat(pyutil.routine_combineData(fnames,ext='tsv',addFname = addFname))
+    df = df.reset_index().pivot_table(values = valCol,index = idCol, columns='fname')
+    if callback is not None:
+        df = callback(df)
+    return df
+Table2Mat = TableToMat
+
+def filterMatch(df,key,negate=0):
+    df = df.loc[bool(negate) ^ df.index.str.match(key)]
+    return df    
+
+def entropise(ct):
+    ''' Transform count into -p *logP, summation of which is entropy
+'''
+    p = ct/sum(ct)
+    logP = np.nan_to_num(np.log2(p))
+    r = p * - logP    
+    return r
+
+def to_tsv(df,fname,header= None,index=None, **kwargs):
+    df.to_csv(fname,sep='\t',header= header, index= index, **kwargs)
+    return fname
+
