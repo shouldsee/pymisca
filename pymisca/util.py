@@ -8,12 +8,17 @@ else:
 cluMap = mpl.colors.ListedColormap(['r', 'g', 'b', 'y', 'w', 'k', 'm'])
 import matplotlib.pyplot as plt
 
+import StringIO
+
+
 import numpy as np
 from oop import *
 from fop import *
 from canonic import *
 
-
+def dictFilter(oldd,keys):
+    d ={k:v for k,v in oldd.iteritems() if k in keys}
+    return d
 import datetime
 def datenow():
     res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -45,6 +50,15 @@ def revSub(ptn, dict):
         , re.VERBOSE)
     res = replacer_regex.sub( lambda m : dict[m.group(1)], ptn)
     return res
+
+def qc_matrix(C):
+    ''' General QC to check matrix is not too big.
+'''
+    d = collections.OrderedDict()
+    d['Mean'],d['Std'],d['Shape'] = C.mean(),C.std(),C.shape
+    s = '[qc_matrix]%s'% pyutil.packFlat([d.items()],seps=['\t','='])[0]
+    return s
+    
 def envSource(sfile,silent=0,dry=0):
 #     import os
     '''Loading environment variables after running a script
@@ -68,6 +82,7 @@ def shellexec(cmd,debug=0):
         try:
             res = subprocess.check_output(cmd,shell=1)
         except subprocess.CalledProcessError as e:
+#         except Execption as e:
 #             print e.output
 #             raise e
             raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
@@ -542,10 +557,14 @@ np.vectorize_lazy = vectorize_lazy
 
 ##### Multiprocessing map
 import multiprocessing as mp
-def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, **kwargs):
+def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, 
+#            kwds = {}, 
+           **kwargs):
     if n_cpu > 1:
         p = mp.Pool(n_cpu,**kwargs)
-        OUTPUT=p.map_async(f,lst, chunksize=chunksize, callback = callback).get(999999999999999999) ## appx. 7.6E11 years
+        OUTPUT=p.map_async(f,lst, chunksize=chunksize, 
+#                            kwds = kwds,
+                           callback = callback).get(999999999999999999) ## appx. 7.6E11 years
 #         OUTPUT = p.map(f,lst)
         p.close()
         p.join()
@@ -597,7 +616,13 @@ print 'is in ipython:',hasIPD
 if hasIPD:
     import IPython.display as ipd
 
-
+def showMD(s):
+    ipd.display(ipd.Markdown(s))
+def MDFile(fname):
+    s='[{0}]({0})'.format(fname)
+    showMD(s)
+    
+    
 def printlines(lst):
     print '\n'.join(map(str,lst))
     
@@ -654,6 +679,13 @@ def fit_exp(ys,xs = None):
     loss = np.mean((yfit-ys)**2)
     return popt,yfit,loss
 
+def escalIndex(N,i):
+    '''
+Pull "i" to the front of a list of N.
+'''
+    l = list(range(N))
+    l.insert(0,l.pop(i))
+    return l
 
 def flat2dict(lst):
     '''
@@ -663,6 +695,26 @@ def flat2dict(lst):
     for i,val in enumerate(lst):
         d[val] = d.get(val,[]) + [i]
     return d
+def DictListInvert(d):
+    '''
+DictList = {
+a:[1,3],
+b:[2,0],
+}
+out = {
+0:a,
+1:a,
+2:b,
+3:a,    
+}
+'''
+    res = {}
+    for k,v in d.items():
+        dd = {x:k for x in v}
+        res.update(dd)
+    return res
+
+
 def appendIndex(lst):
     '''
     Add index to duplicated objects
@@ -704,11 +756,27 @@ def fname2mdpic(fname):
 
 def showsavefig(fname='test.png',fig=None,show=1,**kwargs):
 #     print fname2mdpic(fname)
-    fig = plt.gcf()
+    fig = plt.gcf() if fig is None else fig
     fig.savefig(fname,**kwargs)    
     if show:
         plt.show(fig)
-    return fname2mdpic(fname)
+    else:
+        plt.close(fig)
+    md = fname2mdpic(fname); print(md)
+    if hasIPD:
+        ipd.display(ipd.Markdown(md[1:]))
+    return md
+
+def query2flat(q):
+    qnorm = re.sub('[\" ]','',q).replace('==','=').replace('&','_')
+    return qnorm
+
+# def savePrint(fname,fig = None):
+#     s = showsavefig(fname=fname,fig = fig); print s
+#     ipd.display(pyutil.ipd.Markdown(s[1:]))
+#     return s
+
+
     
 def mat2str(mat,decimal=None,sep='\t',linesep='\n'):
     ''' Converting a numpy array to formatted string
@@ -753,6 +821,39 @@ def wrap_table(tab,caption = '',pos = 'h'):
     s = fmt.format(pos=pos,cap = caption,tab = tab)
     return s
 
+def df2latex(df,fname=None,caption=None,label=None,hsep=r'\\\hline',
+             longtable=0,**kwargs):
+    '''Convert a Data Frame to a latex string
+'''
+    if longtable:
+        raise Exception('Not implemented')
+    if label is None:
+        if fname is not None:
+            label = pyutil.basename(fname)
+    if df.index.name is None:
+        kwargs['index'] = False
+    res = df.to_latex(buf=None,longtable=longtable,
+                      **kwargs)
+    caption = '' if caption is None else caption
+    fmt = r'''
+\begin{table}[h]
+\begin{center}
+\caption{\label{tab:%s}
+%s } 
+%s
+\end{center}
+\end{table}
+'''.strip()
+    res = fmt % (label,caption,res,)
+    res = res.replace(r'\\',hsep)
+    if fname is None:
+        return res    
+    else:
+        with open(fname,'w') as f:
+            f.write(res)
+        s = r'\input{%s}'%fname
+        return s
+
 
 class RedirectStdStreams(object):
     '''Source:https://stackoverflow.com/a/6796752/8083313
@@ -777,11 +878,13 @@ Example:
 def reindexZero(idx):
     ''' Mapped a index to an consecutive integer sequence starting from 0
     '''
+    if isinstance(idx,pd.Series):
+        idx = idx.values        
     uniq = np.unique(idx)
     mapper = { oi:ni for ni,oi in enumerate(uniq)}
     newidx = np.vectorize(mapper.get)(idx)
     return newidx, uniq        
-        
+
 #### R-like utils
 import pandas as pd
 #### Slower implementation
@@ -838,6 +941,9 @@ def pd2md(df):
     df_formatted = pd.concat([df_fmt, df])
     return df_formatted.to_csv(sep="|", index=False)
 
+def columnFilter(df,exclude='_'):
+    df = df.loc[:,df.columns.str.find(exclude) == -1]
+    return df
 
 def explode(df,tosplit, tokeep, sep = ','):
     '''split var1 by separator and keep var2
@@ -959,13 +1065,16 @@ def guess_ext(fname,force = 0):
         if force:
             assert not ext is None,"Can't guess filetype of: '%s'"%fname
     return ext
-def readData(fname, ext=None, callback=None, addFname=0,guess_index=1, comment='#', **kwargs):
+def readData(fname, 
+             ext=None, callback=None, 
+             addFname=0,guess_index=1, 
+             comment='#', **kwargs):
     ext = ext or guess_ext(fname)
 #     kwargs['comment'] = comment    
     def case(ext,):
         if ext == 'csv':
             res = pd.read_csv(fname, comment = comment, **kwargs)
-        elif ext in ['tsv','tab']:
+        elif ext in ['tsv','tab','bed','bdg','narrowPeak']:
             res = pd.read_table(fname, comment = comment, **kwargs)
         elif ext == 'pk':
             res = pd.read_pickle(fname,**kwargs)
@@ -979,7 +1088,8 @@ def readData(fname, ext=None, callback=None, addFname=0,guess_index=1, comment='
     if guess_index:
         res = guessIndex(res)
     if callback is not None:
-        res = res.apply(callback)
+        res = callback(res)
+#         res = res.apply(callback)
     if addFname:
         res['fname']=fname
     return res
@@ -1116,7 +1226,242 @@ if __name__=='__main__':
     # print test_d(d)
     LeafFiles(d)
 
+    
+from linalg import *
+# from numpy_extra import np
 from numpy_extra import np
+pyutil.span = np.span
+
+# from pandas_extra import pd
+from pandas_extra import pd,reset_columns
+
+import textwrap
+def formatName(name,maxLine=8):
+    '''replace '_' by '\n'
+'''
+    name = str(name); lst = name.split('_')
+    lst = textwrap.wrap(lst[0],20) if len(lst) <= 1 else lst
+#     maxLine = 8; 
+    trackName = '\n'.join(lst[:maxLine])        
+    return trackName
+
+
+def d_kldiv(X,Y):
+    '''Estimate KL-divergence between discrete distribs
+'''
+    eps = 1E-8
+    lX = np.log(X+eps)
+    lY = np.log(Y+eps)
+    C = X * ( lX - lY)
+    return np.sum(C)
+
+def d_jsdiv(X, Y, log = 0, base = 2):
+    '''Estimate JS-divergence between discrete distribs
+'''
+    M = (X+Y)/2.
+    d = (d_kldiv(X,M) + d_kldiv(Y,M))/2. 
+    d = d/ np.log(base)
+#     dsq = 1 - np.sum( np.sqrt (X*Y))
+#     d = np.sqrt(dsq)
+    return d
+
+def d_hellinger(X, Y, log = 0):
+    '''Estimate hellinger distance between discrete distribs
+'''
+    dsq = 1 - np.sum( np.sqrt (X*Y))
+    d = np.sqrt(dsq)
+    return dsq
+
+def pdist_worker((i,j),metric=None,X=None):
+    res = metric(i,j)
+#     res = metric(X[i], X[j])
+    return res
+
+def pdist(X,metric,squareform=1,NCORE=1):
+    '''Paralellised variant of scipy.spatial.distance
+'''
+#     X = np.asarray(X,order='c',)
+#     m, n = np.shape(X)
+    m = len(X)
+    print m,
+    ndm = (m * (m - 1))//2  ### length of flat distance vec
+    k = 0
+    it = [None]*ndm
+    for i in xrange(0, m - 1):
+        for j in xrange(i + 1, m):
+#             it.append((k,(i,j)))    
+#             it[k] = (i,j)
+            it[k] = (X[i],X[j])
+            k += 1
+    worker = pyutil.functools.partial(pdist_worker,metric=metric,X=X)
+    dm = pyutil.mp_map(worker,it,n_cpu=NCORE,
+#                        kwds={'X':X,'metric':metric}
+                      )
+    it = [(x,x) for x in X]
+    dg = pyutil.mp_map(worker,it,n_cpu=NCORE,
+#                        kwds={'X':X,'metric':metric}
+                      )    
+    if squareform:
+        D = spdist.squareform(dm)
+        np.fill_diagonal(D,dg)
+        res = D
+    else:
+        res = (dm,dg)
+    return res
+
+def msq(x,y=None,axis=None,keepdims=0):
+    if y is None:
+        y = 0.
+    res = np.mean(np.square(x-y),axis =axis,keepdims = keepdims)
+    return res
+                  
+# pyutil.pdist_worker = pdist_worker
+# pyutil.pdist = pdist
+reload(pyutil)
+def distPseudoInfo(pA,pB,
+    logIN = 0,
+    xlab=None,ylab=None,maxLine=4,vlim = [-2,2],
+    silent=1,short=1,
+):
+
+    if not logIN :
+        lpA = np.log(pA)
+        lpB = np.log(pB)
+    else:
+        lpA = pA
+        lpB = pB
+
+    logC = pyutil.proba_crosstab(lpA,lpB) #### estimate joint distribution of labels
+    margs =pyutil.get_marginal(logC) #### calculate marginal
+    entC = pyutil.wipeMarg(logC,margs =margs)      #### wipe marginals from jointDist
+
+#     MI = pyutil.entExpect(logC)
+    # MI = np.sum(np.exp(logC)*entC)
+    H1 = -pyutil.entExpect(margs[0])
+    H2 = -pyutil.entExpect(margs[1])
+    Hj = -pyutil.entExpect(logC.ravel())
+    MI = H1+ H2 - Hj
+#     Hj = H1 + H2 - MI
+
+    if not silent:
+        print 'MI=',MI
+        print 'H1=',H1
+        print 'H2=',H2
+        fig,axs= plt.subplots(1,2,figsize=[14,4]);axs=axs.ravel()
+        if resA is not None:
+            xlab = resA.formatName(maxLine=maxLine) if xlab is None else xlab
+        if resB is not None:
+            ylab = resB.formatName(maxLine=maxLine) if ylab is None else ylab
+
+        im = entC
+        if CUTOFF is not None:
+            xidx = np.where((np.exp(margs[0].ravel())*N)>CUTOFF)[0]
+            yidx = np.where((np.exp(margs[1].ravel())*N)>CUTOFF)[0]
+            im = im[xidx][:,yidx]
+
+        pyvis.heatmap(logC,transpose=1,cname='log proba', ax=axs[0])
+        pyvis.heatmap(im.T,
+                      vlim=vlim,
+                      cname='log likelihood ratio',
+                      ax=axs[1],
+                      xlab = xlab,
+                      ylab = ylab,
+                      ytick=yidx,
+                      xtick=xidx)
+    if short:
+        if short =='MI':
+            return MI
+        
+        return Hj
+    else:
+        return [H1,H2,Hj,MI], [entC,logC,margs]
+    
+import scipy.spatial.distance as spdist
+def distNormJointH(it,NCORE=1,norm=1,avg='mean'):
+    '''Calculate normalised joint entropy based distance
+    d = 2*H(A,B) / (H(A,A) + H(B,B)) - 1
+'''
+    dm,dg = pyutil.pdist(it,metric=pyutil.distPseudoInfo,NCORE=NCORE,
+                         squareform=0)
+    D = spdist.squareform(dm)
+    np.fill_diagonal(D,dg)
+    
+    Dx = np.array(dg)[:,None]
+    D,Dx =  np.broadcast_arrays(D,Dx)
+    Dy = Dx.T
+    
+    if avg == 'mean':
+        Dn = (Dx+Dy)/2.
+    elif avg =='harm':
+        Dn = 2./(1/Dx + 1/Dy)
+    Z = D - Dn
+    if norm:
+        Z = Z/Dn
+    return Z
+
+def getDim(model):
+    if hasattr(model,'means_'):
+        D = model.means_.shape[-1]
+    if hasattr(model,'cluster_centers_'):
+        D = model.cluster_centers_.shape[-1]
+    return D
+    
+def predict_proba_safe(model,C, hard=0, W = None):
+    Dc = np.shape(C)[-1]
+    Dm = getDim(model)
+    if Dc > Dm:
+        if Dc == Dm +1 :
+            Wn = meanNormBasis(Dc,orthonormal=1)
+            C = np.dot(C,Wn.T)
+    if hasattr(model,'predict_proba'):        
+        clu = model.predict_proba(C)
+        if hard:
+            clu = (clu == np.max(clu,axis = 1,keepdims=1) ).astype('float')
+            clu = clu/np.sum(clu,axis=1,keepdims=1)
+    elif hasattr(model,'predict'):
+        clu = model.predict(C)
+        clu = pyutil.oneHot(clu)
+    if W is not None:
+        clu = clu*W
+    return clu
+
+
+# pyutil.distPseudoInfo = distPseudoInfo
+def attrShape(self):
+    '''map attr to their shapes
+'''
+    res = {k:np.shape(x) for k,x in self.__dict__.items()}
+    return res
+
+def proba2Onehot(A,log=1):
+    '''Convert proba to one-hot vectors
+'''
+    mA = A.max(axis=1,keepdims=1)
+    pA = (A == mA)
+    if log:
+        pA = np.log(pA)
+    return pA
+
+
+
+# def GitemGetter(val):
+#     ''' Custom item getter similar to operator.itemgetter()
+# '''
+#     def itemGetter(data,val=val):
+#         if isinstance(val,int):
+#             res = data[val]
+#         elif isinstance(val,slice):
+#             ### only applicable for list-like data
+#             res = data[val]
+#         elif isinstance(val,pyutil.collections.Iterable):
+#             val = list(val)
+#             if isinstance(data,np.ndarray):
+#                 res = data[val]
+#             else:
+#                 res = [data[i] for i in val]
+# #                 res =np.array(
+#         return res
+#     return itemGetter
 
 # ##### Numpy patches        
 # from numpy import *
@@ -1175,27 +1520,31 @@ from numpy_extra import np
 #         return res
 # np.as_2d = as_2d# import pymisca.util as pyutil
 # flat = rnaseq.columns
-def flatSubset(flat,keep= None, as_list=0):
-    ''' Take a list of flat identifier and filter in only the
-    ones specified in the 'keep' list
-'''
-    nestList = flat2meta(flat)
-    if keep is None:
-        keep  =[ x[0] for x in nestList[0]]
-#     keep = ['ZTime']
 
-    for i,x in enumerate(nestList):
-        y = []
-        for k in x:
-            if k[0] in keep:
-                y.append(k)
-        nestList[i] = y
-    res = nestList
-    if as_list:
-        pass
-    else:
-        res = meta2flat(res)
-    return res
+
+# def flatSubset(flat,keep= None, as_list=0):
+#     ''' Take a list of flat identifier and filter in only the
+#     ones specified in the 'keep' list
+# '''
+#     nestList = flat2meta(flat)
+#     if keep is None:
+#         keep  =[ x[0] for x in nestList[0]]
+# #     keep = ['ZTime']
+
+#     for i,x in enumerate(nestList):
+#         y = []
+#         for k in x:
+#             if k[0] in keep:
+#                 y.append(k)
+#         nestList[i] = y
+#     res = nestList
+#     if as_list:
+#         pass
+#     else:
+#         res = meta2flat(res)
+#     return res
+
+
 # flatSubset(flat,keep = 'ZTime')# import pymisca.util as pyutil
 # flat = rnaseq.columns
 def flatSubset(flat,keep= None, as_list=0, negate=0):
@@ -1221,7 +1570,8 @@ def flatSubset(flat,keep= None, as_list=0, negate=0):
     else:
         res = meta2flat(res)
     return res
-# flatSubset(flat,keep = 'ZTime')def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
+# flatSubset(flat,keep = 'ZTime')
+def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
     addFname=1
     df = pd.concat(pyutil.routine_combineData(fnames,ext='tsv',addFname = addFname))
     df = df.reset_index().pivot_table(values = valCol,index = idCol, columns='fname')
@@ -1242,14 +1592,77 @@ def flatSubset(flat,keep= None, as_list=0, negate=0):
 #         C1 = callback(C1)
 #     return C1
 
+def col2meta(df=None,columns = None):
+    if columns is None:
+        lst = df.columns
+    else:
+        lst = columns
+    meta = map(dict,pyutil.flat2meta(lst))
+    meta = pd.DataFrame(meta)
+    k = 'Unnamed: 0'
+    if k in meta:
+        meta.drop(k,1,inplace=1,)
+    cols = pyutil.meta2name(meta)
+    meta['header_']=cols
+    meta['ZTime_int'] = meta['ZTime'].str.strip('ZT').astype(int)
+    return meta
+
+def argsortByRef(targ,ref):
+    '''Calculating the sorting index to reorder into a reference sequence
+'''
+    assert all(x in ref for x in targ)
+    skey = {k:i for i,k in enumerate(ref)}
+    targ = list(targ)
+    res = sorted(enumerate(targ),
+                 key=lambda x: skey.get(x[1]))
+    od  = [x[0] for x in res] 
+#     res = [targ[x] for x in od] 
+    return od
+
 def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
     addFname=1
-    df = pd.concat(pyutil.routine_combineData(fnames,ext='tsv',addFname = addFname))
-    df = df.reset_index().pivot_table(values = valCol,index = idCol, columns='fname')
+    df = pd.concat([ pyutil.readData(fname=x,ext=ext,addFname=addFname) for x in fnames ],)
+    df = df.pivot_table(values = valCol,index = df.index, columns='fname')
+    od = argsortByRef(df.columns, fnames)
+    df = df.iloc[:,od]
+#     df = df[df.columns[od]]
+    if match is not None:
+        df = df.loc[df.index.str.match(match)]
     if callback is not None:
         df = callback(df)
     return df
+def df2mapper(meta,key='fname_',val='header_'):
+    ''' Convert a dataFrame into a dictionary
+'''
+    for f in [key,val]:
+        assert f in meta
+#     if 'fname_' in meta:
+    mc = meta.set_index(key,drop=0)
+#     else:
+#         mc = meta
+    mapper = dict(zip(mc[key],mc[val]))
+    return mapper
+
+def test_TableToMat():
+    mcurr = meta.query('Age=="Wk2" & gtype== "Bd21"')
+    mcurr = mcurr.query('light=="SD"')
+
+    dfc = dfc.loc[dfc.index.str.match('Bradi')]
+    df1 = dfc.reindex(columns=mcurr.header_)
+    df2 = pyutil.TableToMat(mcurr.fname_,match='Bradi')
+
+    # index = df2.index
+
+    # df1 = df1.reindex(index)
+    C1 = df1.values
+    C2 = df2.values
+    C = C1 - C2
+    assert np.all(C==0)
+    plt.scatter(C1[:1000].ravel(),C2[:1000].ravel(),3)
+
+
 Table2Mat = TableToMat
+
 
 def filterMatch(df,key,negate=0):
     df = df.loc[bool(negate) ^ df.index.str.match(key)]
@@ -1263,7 +1676,130 @@ def entropise(ct):
     r = p * - logP    
     return r
 
+def mapAttr(lst,attr):
+    return [getattr(x,attr) for x in lst]
+
+def get_logP(df=None, mdl=None,X=None,axis=None):
+    '''estimate categorial log-proba but allow arbitrary normalisation 
+    by specifying axis.
+    Assuming "mdl" is equipped with _estimate_weighted_log_prob() [BAD idea]
+'''
+    if df is not None:
+        mdl, X = df.model, df.values
+    M,C = mdl.means_, mdl.covariances_
+    logP = mdl._estimate_weighted_log_prob(X)
+    cluPart = pyutil.logsumexp(logP, axis = axis)
+    logP_cluNorm = logP - cluPart
+    return logP_cluNorm
+
+def proba_crosstab( A, B, as_entrop=0, selfNorm=1,logIN = 1):
+    '''A in shape (n_sample,n_category_a)
+    B in shape (n_sample,n_category_b)
+    Assuming both are column-normalised log probability
+'''
+    if not logIN:
+        A = np.log(A);
+        B = np.log(B)
+
+    if selfNorm:
+        zA = logsumexp(A,axis=1,keepdims=1,log=0)
+        zB = logsumexp(B,axis=1,keepdims=1,log=0)
+        zzA = zA.sum(); zzB = zB.sum()
+        wA,wB = zA/zzA, zB/zzB  ### calculate weights
+        w  = (wA + wB)/2.       ### combine weights
+        A = A - np.log(zA); B = B - np.log(zB) ### convert into conditionals
+        A[np.isnan(A)] = -np.inf
+        B[np.isnan(B)] = -np.inf
+#         print w.mean(),A.mean(),B.mean()
+    else:
+        w = [ [ 1./len(A)] ]*len(A) 
+    lW = np.log( w) [:,:,None]
+        
+    logC = C0 =  ( 
+        A[:,:,None] 
+       + B[:,None] 
+        +  lW
+    )
+    C = logsumexp(logC,axis=0,keepdims=0)
+    
+#     if not selfNorm:
+#         C= C - np.log(len(A))
+    
+    
+#     C = logsumexp(logC,axis=0,keepdims=0) - np.log(len(A))
+    if as_entrop:
+        C = wipeMarg(C,logIN=1)
+    return C
+def wipeMarg(C,logIN=1,margs=None):
+    '''Subtract log-marginals
+'''
+    if not logIN:
+        C = np.log(C)
+    margs = get_marginal(C,logIN=1) if margs is None else margs
+#     margs = 
+    CC = reduce(np.subtract,[C]+margs)
+    return CC
+def get_marginal(C,logIN=1):
+    '''calculate marginals
+'''
+    if not logIN:
+        C = np.log(C)
+    axes = range(C.ndim)
+    lst = []
+    for axre in range(C.ndim):
+        axis = axes[:]; axis.pop(axre)
+        marg = logsumexp(C,axis= tuple(axis),keepdims=1)
+        lst +=[ marg]
+    res = lst
+    return res
+def entExpect(C,logIN=1):
+    '''E(np.exp(C)*C)
+    convert C into log[p/(p-assumed-independency)] if C is multi-axis
+'''
+    if np.squeeze(C).ndim ==1:
+        entC = C
+    else:
+        entC = wipeMarg(C)
+    entC = entC.copy()
+    entC[np.isneginf(entC)] = 0
+    H = np.sum(np.exp(C)*entC)
+    return H
+
+
+
+def logsumexp(X,axis=None,keepdims=1,log=1):
+    '''
+    log( 
+        sum(
+            exp(X)
+            )
+        )
+'''
+    y = np.exp(X) 
+    S = y.sum(axis=axis,keepdims=keepdims)
+    if log:
+        S = np.log(S)    
+    return S
+
+def dist2ppf(vals):
+    '''Estimate percentile locations from a sample from distribution
+'''
+    ### for some reason you need to argsort twice.....
+    idx = np.argsort(np.ravel(vals)).argsort()
+#     od = idx.argsort()
+#     idx = od
+#     idx = np.arange(len(vals))[od]
+    per = (idx+0.5)/(max(idx)+1)
+    return per
+
+def oneHot(values):
+    values = np.ravel(values)
+    n_values = np.max(values) + 1
+    res = np.eye(n_values)[values]
+    return res
+
 def to_tsv(df,fname,header= None,index=None, **kwargs):
     df.to_csv(fname,sep='\t',header= header, index= index, **kwargs)
     return fname
+
 

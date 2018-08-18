@@ -13,7 +13,94 @@ except:
     namedict = {}
     print "[WARN] %s cannot find network" %__name__
 
+    
+import matplotlib.ticker as mticker
+def hide_axis(ax,which='both'):
+    if which in ['x','both']:
+#         ax.get_xaxis().set_visible(False)
+        ax.xaxis.set_major_formatter(mticker.NullFormatter())
+    if which in ['y','both']:
+        ax.yaxis.set_major_formatter(mticker.NullFormatter())
+#         ax.get_yaxis().set_visible(False)    
+    return ax
 
+def hide_ticks(ax,which='both'):
+    if which in ['x','both']:
+        ax.set_xticks([])
+    if which in ['y','both']:
+        ax.set_yticks([])
+    return ax
+
+
+def hide_frame(ax):
+    for spine in ax.spines.values():
+        spine.set_visible(False) 
+    return ax
+
+def hide_Axes(ax,which='both',alpha=0.0):
+    hide_axis(ax)
+    hide_frame(ax)
+    hide_ticks(ax)
+    ax.patch.set_alpha(alpha)
+    return ax
+
+def getLegend(line):
+    res = (line,line.get_label())
+    return res
+def getLegends(lines):
+    res = zip(*map(getLegend,lines))
+    return res
+
+def plotArrow(ax):
+    hide_Axes(ax)
+    ax.arrow(0.,0.5,1.,0.,
+             width = 0.15
+    #         head_width = 0.5,
+            )
+    ax.set_xlim(0,2.)
+    ax.set_ylim(0,1.,)
+    return ax
+
+
+import matplotlib.patches as mpatches
+def legend4Patch(lst,as_patch=0):
+    '''
+    Usage:
+        leg = legend4Patch(
+            (
+                ['blue','Short Day (12:12)'],
+                ['red','Long Day (20:4)'],
+                ['black','Short Day Average']
+            )
+        )
+        plt.gca().legend(*leg)
+        
+'''
+    out = []
+    for color,label in lst:
+        d = {'color':color,'label':label}
+        res = mpatches.Patch(**d)
+        out += [res]
+    patches = out
+    leg = getLegends(patches)
+    if as_patch:
+        res = patches
+    else:
+        res = leg
+    return res
+def test__legend4Patch():
+    leg =out = legend4Patch(
+        (
+            ['blue','Short Day (12:12)'],
+            ['red','Long Day (20:4)'],
+            ['black','Short Day Average']
+        )
+    )
+    plt.gca().legend(*leg)
+if __name__ == '__main__':
+    pass
+
+# pyvis.getLegends = getLegends
 
 def snap_detail(snap,YTICK = 0, truncate = 50, uniq = 1):
     if isinstance(snap,network.hopfield_discrete):
@@ -114,6 +201,8 @@ def snaps_summary(snaps, ax1 = None):
     plt.sca(ax1)
     plt.grid()
     
+
+   
 def plot_CRR(MEAN,STD,xs=None,ys=None,truncate=0,hmap = 1,**kwargs):
     if xs is None:
         xs = np.arange(MEAN.shape[1])
@@ -394,7 +483,9 @@ def phase_plot(sol_lst):
     plt.legend()
     plt.grid()    
 
-def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000, check_ph = 1,levels = None,log = 0,silent = 0,**kwargs):
+def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000,
+            check_ph = 1,levels = None,log = 0,silent = 0,
+            ax= None,**kwargs):
     '''
     Plot a real-valued function on a 2D plane
     '''
@@ -425,6 +516,10 @@ def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000, check_ph = 1,level
 #     print Zs[0]
 #     print len(X)
     imin = np.argmin(Zs)
+    if ax is None:
+        fig,axs = plt.subplots(1,2,figsize=[12,6])
+        ax  = axs[0]
+    plt.sca(ax)
     plt.plot(Xs.flat[imin],Ys.flat[imin],'rx')
     CS = plt.contourf(X,Y,Zs,levels = levels,**kwargs)
     CS2 = plt.contour(CS, levels=CS.levels[::2],
@@ -434,7 +529,7 @@ def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000, check_ph = 1,level
 #     Cs = plt.contour(X,Y,Zs)
     plt.clabel(CS2, inline=1, fontsize=10)
     plt.grid()
-    return Zs,Xs,Ys
+    return (Zs,Xs,Ys),(ax,CS)
 #     return plt.gcf()
 
 def preview(f,xs = None,rg=[0,1],**kwargs):
@@ -479,6 +574,28 @@ def ylim_fromZero(ax):
     ax.set_ylim(bottom = 0,top = ax.get_ylim()[1]*1.1)
     return ax
 
+def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, **kwargs):
+    ''' Estimate density by binning and plot count as line.
+'''
+    if ax is None:
+        ax = plt.gca()
+    xlim = pyutil.span(xs,99.9) if xlim is None else xlim
+    bins = np.linspace(*xlim,
+                      num=100) if bins is None else bins
+    ys,edg = np.histogram(xs,bins)
+    ct = (edg[1:] + edg[:-1])/2
+    if log:
+        ys = np.log1p(ys)
+    else:
+        pass
+    if transpose:
+        ct,ys = ys,ct
+        ax.set_xlabel('count')
+    else:
+        ax.set_ylabel('count')
+    l = ax.plot(ct,ys,**kwargs)
+    return ax
+
 ####### Clustering
 def heatmap(C,
             ax=None,
@@ -492,6 +609,7 @@ def heatmap(C,
             tickMax=100,
             vlim = None,
             cmap = None,
+            figsize=None,
             **kwargs
            ):
     ''' C of shape (xLen,yLen)
@@ -502,8 +620,10 @@ def heatmap(C,
         xtick,ytick = ytick,xtick
         xlab,ylab   = ylab,xlab
     if ax is None:
-        fig,ax = plt.subplots(1,1,figsize=[min(len(C.T)/3.,14),
-                                           min(len(C)/5.,14)])
+        if figsize is None:
+            figsize = [min(len(C.T)/3.,14),
+                       min(len(C)/5.,14)]
+        fig,ax = plt.subplots(1,1,figsize=figsize)
     if vlim is None:
         vlim = np.span(C[~np.isnan(C)],99)
     elif vlim[0] is None:
@@ -541,6 +661,187 @@ def heatmap(C,
         cbar.set_label(cname)
     plt.title(main)    
     return im
+
+def linePlot4DF(df,
+                xs=None,label = None,
+                ax=None,
+             rowName=None,
+             colName= None,ylab = '$y$',
+                which = 'plot',
+                cmap=None,
+                xlab='$x$',
+                xrotation= 'vertical',
+                xshift=None,
+                **kwargs):
+    rowName = df.index if rowName is None else rowName
+    colName = df.columns if colName is None else colName
+    C = df.values
+    if ax is None:
+        fig,axs= plt.subplots(1,2,figsize=[14,4])
+        ax = axs[0]
+#         ax = plt.gca()
+    plt.sca(ax)
+    cmap = plt.get_cmap('Set1')
+    
+    if xs is None:
+        if 1:
+            xs = np.arange(len(C[0]))
+    else:
+        xs = xs
+    
+    if which =='StemWithLine':
+        plotter = pyutil.functools.partial(StemWithLine,
+                                           ax=ax)
+    elif hasattr(ax, which):        
+        plotter =  getattr(ax, which)
+#     plotter = pyutil.functools.partial(plotter,)
+    
+    for i,ys in enumerate(C):
+        if xshift is not None:
+            kwargs['xshift'] = xshift *i
+        plotter(xs,ys,label = rowName[i],color=cmap(i),**kwargs)
+#         ax.plot(xs,ys,label=rowName[i])
+    ax.set_ylabel(ylab)
+    ax.grid(1)
+#     print ax.get_xticks()
+#     print ax.get_xticklabels()
+    L = len(ys)
+    xticks = [ x for x in map(int,ax.get_xticks()) if x>=0 and x<L]
+#     xs = p
+    plt.xticks(xticks,colName[xticks],rotation=xrotation,)
+#     ax.set_xticks(xticks,)
+#     ax.set_xticklabels(colName[xticks])
+    ax.set_xlabel(xlab)
+    return ax
+
+def StemWithLine(xs=None,ys=None,
+                 xshift=0.,
+                 color = None,ax = None,
+                 bottom=0,**kwargs):  
+    if ax is None:
+        fig,axs= plt.subplots(1,2,figsize=[14,4])
+        ax = axs[0]
+    if color is None:
+        color = ax._get_lines.get_next_color()
+
+    xs = np.arange(len(ys)) if xs is None else xs
+    xs = np.array(xs,dtype='float')
+    if xshift:
+        xs += xshift
+#     bottom = 0.5
+
+
+    markerline,stemline,_ = ax.stem(xs,ys,linefmt='--',
+                                    bottom=bottom)
+    [l.set_color(color) for l in [markerline]]
+    [l.set_color(color) for l in stemline]
+    line = ax.plot(xs,ys,color=color,**kwargs)
+    ax.grid(1)
+    return line,ax
+# pyvis.linePlot=linePlot
+
+def matHist(X,idx=None,XLIM=[0,200],nbin=100):    
+    plt.figure(figsize=[12,4])
+    if idx is not None:
+        X = X[idx]
+    MIN,MAX = X.min(),np.percentile(X,99)
+    BINS = np.linspace(MIN,MAX,nbin)
+    for i in range(len(idx)):
+        histoLine(X[i],BINS,alpha=0.4,log=1)
+    plt.xlim(XLIM)
+    plt.grid()
+
+def abline(k=1,y0=0,color = 'b',**kwargs):
+    '''Add a reference line
+    '''
+    MIN,MAX=plt.gca().get_xlim()
+    f = lambda x: k*x+y0
+    plt.plot([MIN,MAX],[f(MIN),f(MAX)],'--',color=color,**kwargs)    
+#     print MIN,MAX
+    ax =plt.gca()
+    return ax
+    
+def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
+            markersize=None,xlim=None,ylim=None,axs = None,
+           xbin = None,
+           ybin =None,
+#            axis = [0,1,2]
+           ):
+    ''' Plot histo/scatter/density qc for two variables
+'''
+    if axs is None:
+        fig,axs= plt.subplots(1,4,figsize=[14,4])
+    axs = list(np.ravel(axs))
+    axs = axs + [None] * (4-len(axs))
+    xs = np.ravel(xs)
+    ys = np.ravel(ys)
+
+    xlim = xlim if xlim is not None else np.span(xs,99.9)
+    ylim = ylim if ylim is not None else np.span(ys,99.9)
+    BX = np.linspace(*xlim, num=30) if xbin is None else xbin
+    BY = np.linspace(*ylim, num=50) if ybin is None else ybin    
+#         xlim = np.span(BX)
+#         ylim = np.span(BY)
+    if clu is not None:
+        pass
+    else:
+        clu = [0]*len(xs)
+    clu = np.ravel(clu)
+    
+    df = pd.DataFrame({'xs':xs,'ys':ys,'clu':clu})
+    nMax = 3000
+    for k, dfc in df.groupby('clu'):
+        if len(dfc)>nMax:
+            dfcc = dfc.sample(nMax)
+        else:
+            dfcc = dfc
+#         print k,dfc
+#         xs,ys,_ = dfcc.values.T
+        xs,ys = dfcc['xs'].values, dfcc['ys'].values
+        xs = xs.ravel()
+        ys = ys.ravel()
+        
+        ax = axs[0];
+        if ax is not None:
+            plt.sca(ax)
+            histoLine  (xs,BX,alpha=0.4)    
+        ax = axs[1];
+        if ax is not None:
+            plt.sca(ax)
+            plt.scatter(xs,ys,markersize,marker='.')
+        ax = axs[2];
+        if ax is not None:
+            plt.sca(ax)
+            histoLine  (ys,BY,alpha=0.4,transpose=1)            
+        ax = axs[3];
+        if ax is not None:
+            plt.sca(ax)
+            ct,BX,BY = np.histogram2d(xs, ys,(BX,BY))
+            plt.pcolormesh(BX,BY,np.log2(1+ct).T,)
+    [ax.grid(1) for ax in axs[:3] if ax is not None]
+    ax = axs[0];
+    if ax is not None:
+        plt.sca(ax)
+        plt.xlabel(xlab)
+        plt.xlim(xlim)
+    ax = axs[2];
+    if ax is not None:
+        plt.sca(ax)
+        plt.ylabel(ylab)
+        plt.ylim(ylim)
+
+    ax = axs[1];
+    if ax is not None:
+        plt.sca(ax)
+        abline()
+        plt.xlabel(xlab);plt.ylabel(ylab)
+        plt.xlim(xlim);plt.ylim(ylim)
+
+    ax = axs[3];
+    if ax is not None:
+        plt.sca(ax)
+        plt.xlabel(xlab); plt.ylabel(ylab)
+    return axs
 # pyvis.heatmap=heatmap
 import random
 def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):

@@ -1,4 +1,5 @@
 import numpy as np
+import collections
 def l1_normF(f):
     g= lambda *args:np.sum(np.abs(f(*args)),axis=-1)
     return g
@@ -71,3 +72,25 @@ def safeMap(f,it):
     except TypeError:
         res = f(it)
     return res
+
+
+
+
+def GitemGetter(val):
+    ''' Custom item getter similar to operator.itemgetter()
+'''
+    def itemGetter(data,val=val):
+        if isinstance(val,int):
+            res = data[val]
+        elif isinstance(val,slice):
+            ### only applicable for list-like data
+            res = data[val]
+        elif isinstance(val, collections.Iterable):
+            val = list(val)
+            if isinstance(data,np.ndarray):
+                res = data[val]
+            else:
+                res = [data[i] for i in val]
+#                 res =np.array(
+        return res
+    return itemGetter
