@@ -1,6 +1,11 @@
 from util import *
 import numpy as np
-import  scipy.cluster.hierarchy as sphclu
+
+try: 
+	import scipy
+	import  scipy.cluster.hierarchy as sphclu
+except:
+	print ('scipy not installed')
 
 try:
     import network

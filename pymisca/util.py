@@ -16,6 +16,20 @@ from oop import *
 from fop import *
 from canonic import *
 
+try: 
+	import scipy
+	from scipy.optimize import curve_fit
+	import scipy.stats as spstat#
+	import scipy.spatial.distance as spd
+	import scipy.spatial.distance as spdist
+except Exception as e:
+	print ('scipy not installed')
+try:
+	from sklearn.metrics import mutual_info_score
+except Exception as e:
+	print ('package not installed:%s'%'sklearn')
+
+
 def dictFilter(oldd,keys):
     d ={k:v for k,v in oldd.iteritems() if k in keys}
     return d
@@ -245,8 +259,6 @@ def bincount(x):
 # x = A[1];y = A[3]
 # # print x.shape
 import collections
-import scipy.stats as spstat#
-import scipy.spatial.distance as spd
 import operator
 def MI_bin(x,y):
     ##### Assume x,y \in (-1,1)
@@ -265,7 +277,6 @@ def MI_bin(x,y):
         mi = 0.5 * g / sum(map(sum,c_xy))    
     return mi
 
-from sklearn.metrics import mutual_info_score
 def MI_sk(x, y, bins=[-2,0,2]):
     c_xy = np.histogram2d(x, y, bins)[0]
     mi = mutual_info_score(None, None, contingency=c_xy)
@@ -319,7 +330,6 @@ def changept(x):
 
 ##### Curve fitting utilities
 import numpy as np
-from scipy.optimize import curve_fit
 
 def sigmoid(x, x0, k, mean,span):
      y = span * np.tanh(k*(x-x0)) + mean
@@ -418,7 +428,6 @@ def suppsign(s):
 
 
 ######## Utilities for signal/dynamical systems
-import scipy.spatial.distance as spdist
 def isPeriodic(sol,radius = 10):
     '''
     Use nearest neighbor to determine whether trajectory matrix of shape (T,N) is periodic
@@ -1376,7 +1385,7 @@ def distPseudoInfo(pA,pB,
     else:
         return [H1,H2,Hj,MI], [entC,logC,margs]
     
-import scipy.spatial.distance as spdist
+
 def distNormJointH(it,NCORE=1,norm=1,avg='mean'):
     '''Calculate normalised joint entropy based distance
     d = 2*H(A,B) / (H(A,A) + H(B,B)) - 1
