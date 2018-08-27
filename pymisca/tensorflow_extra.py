@@ -311,7 +311,7 @@ from tensorflow.contrib import linalg
 from tensorflow.contrib.distributions.python.ops import distribution_util
 from tensorflow.contrib.distributions.python.ops import mvn_linear_operator as mvn_linop
 from tensorflow.python.framework import ops
-
+from tensorflow.python.ops import check_ops
 
 class sphereUniformLRP(distribution.Distribution):
 #         mvn_linop.MultivariateNormalLinearOperator):
@@ -321,9 +321,11 @@ class sphereUniformLRP(distribution.Distribution):
                              scale_identity_multiplier=None,
                              scale_perturb_factor=None,
                              scale_perturb_diag=None,
+                             detPenalty = 0.125,
+                             concentration = None,
+                             rate = None,
                              validate_args=False,
                              allow_nan_stats=True,
-                             detPenalty = 0.125,
                              name="MultivariateNormalDiagPlusLowRank"):
         """Construct Multivariate Normal distribution on `R^k`.
 
@@ -404,8 +406,10 @@ class sphereUniformLRP(distribution.Distribution):
                 
                 self._detPenalty = ops.convert_to_tensor(detPenalty, name="norm",dtype="float32")
                 
-                has_low_rank = (scale_perturb_factor is not None or
+                self.has_low_rank = has_low_rank = (scale_perturb_factor is not None or
                                                 scale_perturb_diag is not None)
+                self.has_gamma = ( concentration is not None and
+                             rate is not None ) 
 
                 scale = distribution_util.make_diag_scale(
                         loc=loc,
@@ -423,7 +427,7 @@ class sphereUniformLRP(distribution.Distribution):
                         scale_perturb_diag,
                         name="scale_perturb_diag")
 
-                if has_low_rank:
+                if self.has_low_rank:
                     scale = linalg.LinearOperatorUDVHUpdate(
                             scale,
                             u=scale_perturb_factor,
@@ -433,12 +437,34 @@ class sphereUniformLRP(distribution.Distribution):
                             is_self_adjoint=True,
                             is_positive_definite=True,
                             is_square=True)
+                else:
+                    raise Exception("must specify Low-rank perturbation...(to be implemented)")
+                if self.has_gamma:
+                    self._concentration = array_ops.identity(
+                        concentration, name="concentration")
+                    self._rate = array_ops.identity(rate, name="rate")
+                    check_ops.assert_same_float_dtype(
+                        [self._concentration, self._rate])
+                else:
+                    #### Assume Uniform distribution on radius xT K x
+                    self._concentration = None
+                    self._rate = None
+                                
 #         seflffffffffffffffff
         self._scale = scale
         if loc is not None:
             self._loc = ops.convert_to_tensor(loc, name="loc",dtype='float32') 
         else:
             self._loc = tf.zeros(scale.shape[0])
+            
+        batch_shape, event_shape = distribution_util.shapes_from_loc_and_scale(
+          self._loc, 
+#             scale,
+            scale,
+        )
+#         self.__batch_shape = batch_shape
+#         self.__event_shape = event_shape
+
 #         super(sphereUniformLRP, self).__init__(
 #                 loc=loc,
 #                 scale=scale,
@@ -473,35 +499,55 @@ class sphereUniformLRP(distribution.Distribution):
     def scale(self):
         """Distribution parameter for standard deviation."""
         return self._scale
+    @property
+    def forwardMat(self):
+        I = tf.eye( self.scale.shape[-1].value)
+        res = self.scale.solve(I)
+#         res = linalg.LinearOperator(res)
+        return res
 
     @property
     def detPenalty(self):
         """Distribution parameter for standard deviation."""
         return self._detPenalty
 
+    @property
+    def concentration(self):
+        """Concentration parameter."""
+        return self._concentration
+
+    @property
+    def rate(self):
+        """Rate parameter."""
+        return self._rate    
+
     def _batch_shape_tensor(self):
         return array_ops.broadcast_dynamic_shape(
-                array_ops.shape(self.loc),
-                array_ops.shape(self.scale))
+#                 array_ops.shape(self.loc),
+                array_ops.shape(self.scale[:-2]),
+                array_ops.shape(self.scale[:-2]),
+        )
 
     def _batch_shape(self):
         return array_ops.broadcast_static_shape(
-                self.loc.get_shape(),
-                self.scale.batch_shape,
+#                 self.loc.get_shape(),
+                self.scale.shape[:-2],
+                self.scale.shape[:-2],
 #                 self.scale.get_shape()
         )
 
     def _event_shape_tensor(self):
 #         res 
-#         res = self.scale.shape[-1:]
-        res = ops.convert_to_tensor(
-        constant_op.constant([], dtype=dtypes.int32))
+        res = self.scale.shape[-1:]
+#         res = ops.convert_to_tensor(
+#         constant_op.constant([], dtype=dtypes.int32))
         return res
 #         return constant_op.constant([], dtype=dtypes.int32)
     def _event_shape(self):
-#         return self._scale.shape[-1:]
+        return self._scale.shape[-1:]
+
 #         return tensor_shape.TensorShape(self._scale.shape[-1])
-        return tensor_shape.scalar()
+#         return tensor_shape.scalar()
 
     
     def _z(self, x):
@@ -512,12 +558,40 @@ class sphereUniformLRP(distribution.Distribution):
             return y
 
     def _sample_n(self, n, seed=None):
-        shape = array_ops.concat([[n], self.batch_shape_tensor(), self.event_shape_tensor()], 0)
+        shape = array_ops.concat([[n], 
+#                                   self.batch_shape_tensor(), 
+                                  self.event_shape_tensor(),
+                                 ], 0)
         sampled = random_ops.random_normal(
             shape=shape, mean=0., stddev=1., 
             dtype=self.loc.dtype, 
             seed=seed)
-        return self._z(sampled)
+        
+#         print ( self.scale.shape)
+#         print ( self.batch_shape_tensor().eval(), 
+#                self.event_shape_tensor().eval(),)
+#         print (self.forwardMat.shape,
+#                tf.transpose(sampled).shape)
+        
+        y = tf.matmul(self.forwardMat, tf.transpose(sampled))
+        sampled_mvn = tf.transpose(y)
+        d = tf.expand_dims(self.kernelDist(sampled_mvn),-1)
+        sampled_mvn = sampled_mvn/tf.sqrt(d)
+#         d1 = self.kernelDist(sampled_mvn )
+#         print (tf.reduce_mean(d1).eval(),tf.reduce_max(d1).eval(),tf.reduce_min(d1).eval())
+        
+        if self.has_gamma:
+            gamma = random_ops.random_gamma(
+                shape=[n],
+                alpha=self.concentration,
+                beta=self.rate,
+                dtype=self.dtype,
+                seed=seed)
+            sampled_mvn = sampled_mvn  * tf.sqrt(gamma)
+
+#         bulkTransform(self.forwardMat,sampled)
+        return sampled_mvn
+#         return self._z(sampled)
 #         return sampled * self.scale + self.loc
 
     def input2batch_shape(self,x):
@@ -528,24 +602,18 @@ class sphereUniformLRP(distribution.Distribution):
 
 
     def _log_unnormalized_prob(self, x):
-        x = self._z(x)
-        res = kernelDist(self.scale, x)
+        d0 = kernelDist(self.scale, x)
+        l2 = tf.reduce_sum(tf.square(x),axis=-1)
+        res =  tf.log(l2) - tf.log(d0)
         
-#         y = tf.transpose(
-#             self.scale.matmul(tf.transpose(x))
-#         )
-#         res = tf.reduce_sum(tf.square(y),axis=-1)
-
-
-#         res = tf.expand_dims(x,axis=-1) * tf.expand_dims(x,axis=-2)
-#         scale = self.scale.to_dense()         
-# #         scale = tf.matrix_diag( scale )
-#         res = res * scale
-#         res = tf.reduce_sum( res,axis=(-1,-2))
+        if self.has_gamma:
+            logGa = (self.concentration - 1.) * math_ops.log(d0) - self.rate * d0
+            res = res +logGa
         
-        
-        return -tf.log(res)
+        return res
+#         return -tf.log(res)
 #         return tf.zeros(shape = self.input2batch_shape(x))
+
 
     def _log_normalization(self):
         #### The 
@@ -555,9 +623,17 @@ class sphereUniformLRP(distribution.Distribution):
 #         c = 0.5
         v =  - math_ops.log(det) * tf.constant([1.0],dtype="float32")
 #         v =  - math_ops.log(det) * tf.constant([0.5],dtype="float32")
-        res = - math_ops.log(det) *  self.detPenalty * 2
-        res = tf.square(res) + v        
+
+        res = - math_ops.log(det) *  self.detPenalty * 2.
+        res = tf.square(res) + v 
+        
+        if self.has_gamma:
+            logGa = (math_ops.lgamma(self.concentration)
+                        - self.concentration * math_ops.log(self.rate))
+            res = res + logGa
+            
         return res
+    
     def _log_prob(self, x):
         return self._log_unnormalized_prob(x) - self._log_normalization()
 
@@ -574,10 +650,9 @@ class sphereUniformLRP(distribution.Distribution):
         return tf.concat( [x.shape[:-1],
                                  self.event_shape_tensor()],
                              0)
+    
     def _covariance(self):
-        I = tf.eye( self.scale.shape[-1].value)
-        res = self.scale.solve(I)
-        res = tf.matmul(res, tf.transpose(res))
+        res = tf.matmul( self.forwardMat, tf.transpose(self.forwardMat))
 #         res = self.scale.matmul(self.scale.to_dense())
 #         return self.scale.to_dense()
         return res
