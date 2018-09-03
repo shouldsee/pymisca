@@ -61,3 +61,21 @@ def span(xs,p=100.):
     MAX = percentile(xs,p)
     return MIN,MAX
 np.span = span
+
+def logsumexp(X,axis=None,keepdims=1,log=1):
+    '''
+    log( 
+        sum(
+            exp(X)
+            )
+        )
+'''
+    xmax = np.max(X)
+    y = np.exp(X-xmax) 
+    S = y.sum(axis=axis,keepdims=keepdims)
+    if log:
+        S = np.log(S)  + xmax
+    else:
+        S = S*np.exp(xmax)
+    return S
+np.logsumexp = logsumexp

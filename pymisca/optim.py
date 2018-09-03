@@ -6,7 +6,7 @@ from fop import *
 from proba import *
 
 
-from gill import * #### Gillespie Algortihm/PoissonEvent
+#from gill import * #### Gillespie Algortihm/PoissonEvent
 
 
 def ackley(x1,x2):

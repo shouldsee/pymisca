@@ -903,7 +903,7 @@ def init_DF(C,rowName= None,colName=None):
 '''
     df = pd.DataFrame(C)
     if rowName is not None:
-        df.set_index(rowName,inplace=1)
+        df.set_index(rowName,inplace=True)
     if colName is not None:
         df.columns = colName
     return df
@@ -1095,7 +1095,7 @@ def readData(fname,
     return res
 def guessIndex(df):
     if df[df.columns[0]].dtype == 'O':
-        df.set_index(df.columns[0],inplace=1)
+        df.set_index(df.columns[0],inplace=True)
     return df
 def mergeByIndex(left,right,how='outer',as_index = 0, **kwargs):
     dcts = [{'name': getattr(left,'name','left')},
@@ -1229,8 +1229,10 @@ if __name__=='__main__':
     
 from linalg import *
 # from numpy_extra import np
-from numpy_extra import np
+from pymisca.numpy_extra import np,logsumexp,span
 pyutil.span = np.span
+from pymisca.mc_integral import *
+
 
 # from pandas_extra import pd
 from pandas_extra import pd,reset_columns
@@ -1601,7 +1603,7 @@ def col2meta(df=None,columns = None):
     meta = pd.DataFrame(meta)
     k = 'Unnamed: 0'
     if k in meta:
-        meta.drop(k,1,inplace=1,)
+        meta.drop(k,1,inplace=True,)
     cols = pyutil.meta2name(meta)
     meta['header_']=cols
     meta['ZTime_int'] = meta['ZTime'].str.strip('ZT').astype(int)
@@ -1767,19 +1769,22 @@ def entExpect(C,logIN=1):
 
 
 
-def logsumexp(X,axis=None,keepdims=1,log=1):
-    '''
-    log( 
-        sum(
-            exp(X)
-            )
-        )
-'''
-    y = np.exp(X) 
-    S = y.sum(axis=axis,keepdims=keepdims)
-    if log:
-        S = np.log(S)    
-    return S
+# def logsumexp(X,axis=None,keepdims=1,log=1):
+#     '''
+#     log( 
+#         sum(
+#             exp(X)
+#             )
+#         )
+# '''
+#     xmax = np.max(X)
+#     y = np.exp(X-xmax) 
+#     S = y.sum(axis=axis,keepdims=keepdims)
+#     if log:
+#         S = np.log(S)  + xmax
+#     else:
+#         S = S*np.exp(xmax)
+#     return S
 
 def dist2ppf(vals):
     '''Estimate percentile locations from a sample from distribution
@@ -1803,3 +1808,67 @@ def to_tsv(df,fname,header= None,index=None, **kwargs):
     return fname
 
 
+def random_covmat(D = 2):
+    matrixSize = D
+    A = np.random.rand(matrixSize,matrixSize) - 0.5
+    B = np.dot(A,A.transpose())
+    C = B
+    return C
+
+random_angle = lambda x: np.random.uniform(0,np.pi*2,size=x) - np.pi
+
+def random_unitary(size=(1,3)):
+    X = np.random.normal(0.,1.,size=size)
+    X = X/ np.linalg.norm(X,axis=1,keepdims=1)
+    return X
+
+
+def detNorm(K):
+    '''Linearly rescale so that det(K)=1
+'''
+    K = random_covmat()
+    det = np.linalg.det(K)
+    K = K / (det ** (1. / len(K)))
+    return K
+def detNorm(K):
+    '''Linearly rescale so that det(K)=1
+'''
+#     K = random_covmat()
+    det = np.linalg.det(K)
+    K = K / (det ** (1. / len(K)))
+    return K
+def detNorm(K):
+    '''Linearly rescale so that det(K)=1
+'''
+#     K = random_covmat()
+    det = np.linalg.det(K)
+    K = K / (det ** (1. / len(K)))
+    return K
+def name2dict(self,names):
+    res = { name:getattr(self,name) for name in names}
+    return res
+
+
+
+def wrapTFmethod(tfunc,sess = None):
+    '''Safely call tensorflow method as np method
+'''
+    def gfunc(x):
+        if isinstance(x,np.ndarray):
+            x = x.astype(np.float32)
+        y = tfunc(x).eval(session = sess)
+        return y
+    return gfunc
+
+def arrayFunc2mgridFunc(arrayFunc):
+    def mgridFunc(*x):
+        ''' x = [xgrid,ygrid]
+'''
+    #     print (map(np.shape,x))
+        shape = x[0].shape 
+        X = np.vstack(map(np.ravel,x)).T ### compatible with TF
+        val = arrayFunc(X,)
+        val = np.reshape(val,shape,)
+        return val
+    mgridFunc.arrayFunc = arrayFunc
+    return mgridFunc

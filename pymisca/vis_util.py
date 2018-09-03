@@ -485,6 +485,7 @@ def phase_plot(sol_lst):
 
 def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000,
             check_ph = 1,levels = None,log = 0,silent = 0,
+            vectorised=False,
             ax= None,**kwargs):
     '''
     Plot a real-valued function on a 2D plane
@@ -497,7 +498,9 @@ def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000,
     Y = np.linspace(*(spany+[Ny]))
     Xs,Ys = np.meshgrid(X,Y)
     if Zs is None:
-        f = np.vectorize_lazy(f)
+        if not vectorised:
+            f = np.vectorize_lazy(f)
+            vectorised = True
     #     print Xs.shape
     #     Zs = map(f,zip(Xs,Ys))
         Zs = f(Xs,Ys)
@@ -574,7 +577,7 @@ def ylim_fromZero(ax):
     ax.set_ylim(bottom = 0,top = ax.get_ylim()[1]*1.1)
     return ax
 
-def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, **kwargs):
+def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1, **kwargs):
     ''' Estimate density by binning and plot count as line.
 '''
     if ax is None:
@@ -582,7 +585,7 @@ def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, **kwargs
     xlim = pyutil.span(xs,99.9) if xlim is None else xlim
     bins = np.linspace(*xlim,
                       num=100) if bins is None else bins
-    ys,edg = np.histogram(xs,bins)
+    ys,edg = np.histogram(xs,bins,normed=normed)
     ct = (edg[1:] + edg[:-1])/2
     if log:
         ys = np.log1p(ys)
