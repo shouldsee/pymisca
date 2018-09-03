@@ -4,7 +4,7 @@ from distutils.core import setup
 setup(
 	name='pymisca',
 	version='0.1',
-	packages=['pymisca',],
+	packages=['pymisca','pymisca.tensorflow_extra_'],
 	license='GPL3',
 	author='Feng Geng',
 	author_email='shouldsee.gem@gmail.com',
