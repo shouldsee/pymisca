@@ -18,19 +18,21 @@ from __future__ import print_function
 
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_util
+
 from tensorflow.python.ops import check_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops.distributions import bijector
+from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import tensor_shape
 
 
 from tensorflow.python.ops import nn
-from tensorflow_probability.python import bijectors
+from tensorflow_probability.python import bijectors; bijector = bijectors
 from tensorflow_probability.python.distributions import TransformedDistribution,Normal
 
-#### allow "simple = True" overider
-from pymisca.tfp_transformed_distribution import TransformedDistribution
+from pymisca.tensorflow_extra_.tfp_transformed_distribution import TransformedDistribution
+from pymisca.tensorflow_extra_.transjector import Transjector
 
 __all__ = [
     "RadialThetaTransform",
@@ -69,11 +71,10 @@ class RadialThetaTransform(bijector.Bijector):
 #     self._D = tf.constant(D,dtype='int32')
     self.debug = debug
     with self._name_scope("init", values=[D]):
-      D = tensor_util.constant_value(
-          ops.convert_to_tensor(D, name="dimension")
-      )
+      D = ops.convert_to_tensor(D, name="dimension")
       self._D = D
-      self.alpha = self._alpha = self._D / array_ops.constant(2.)
+      self.alpha = self._alpha = math_ops.cast(self._D,'float32') / array_ops.constant(2.)
+
 #     if power is None or power < 0:
 #       raise ValueError("`power` must be a non-negative TF constant.")
 #     self._power = power
@@ -85,19 +86,16 @@ class RadialThetaTransform(bijector.Bijector):
         validate_args=validate_args,
         name=name)
 
-
   @property
   def D(self):
     """D as in (D-1)-sphere S^{D-1}"""
-    return self._D
+    return tensor_util.constant_value(self._D)
 
   def _forward(self, x):
     raise Exception ("Not implemented yet")        
     x = self._maybe_assert_valid_x(x)
     normal = Normal(loc=0.,scale=1.,)
 
-#     from pdb import set_trace as bp
-#     bp()
     sp = array_ops.shape(x) ### use dynamical shape
     #### thanks to https://pgaleone.eu/tensorflow/2018/07/28/understanding-tensorflow-tensors-shape-static-dynamic/
 #     sp = x.shape

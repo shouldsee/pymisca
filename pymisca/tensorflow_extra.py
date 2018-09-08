@@ -63,6 +63,8 @@ def op_minimise(loss,
 '''
     train_op = optimizer.minimize(loss=loss)
     grad = tf.gradients( loss,free_params)
+    grad = [x for x in grad if x is not None]
+    
     if sess is None:
         sess = tf.get_default_session()
         if sess is None:
@@ -78,6 +80,7 @@ def op_minimise(loss,
             # gradient step
             sess.run(fetches=train_op, feed_dict=feed_dict)    
             new_loss = sess.run(fetches=loss, feed_dict=feed_dict)
+#             if grad is not None:
             new_grad = sess.run(fetches=grad, feed_dict=feed_dict)
             loss_diff = abs(new_loss - obs_loss[-1])
 
