@@ -49,7 +49,7 @@ import tensorflow as tf
 
 def op_minimise(loss,
                 free_params,                
-                optimizer,
+                optimizer=None,
                 sess = None,
                 MAX_ITER = 4000,
 #                 LEARNING_RATE = 0.1,
@@ -61,6 +61,9 @@ def op_minimise(loss,
     '''
     #### Adapted from: http://kyleclo.github.io/maximum-likelihood-in-tensorflow-pt-1/
 '''
+    if optimizer is None:
+        LEARNING_RATE = 1.0
+        optimizer = tf.train.AdadeltaOptimizer(learning_rate=LEARNING_RATE)
     train_op = optimizer.minimize(loss=loss)
     grad = tf.gradients( loss,free_params)
     grad = [x for x in grad if x is not None]
