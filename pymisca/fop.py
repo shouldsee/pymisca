@@ -17,6 +17,10 @@ def addF(f,g):
 def sumF(Fs):
     outF=  lambda *x: sum( (F(*x) for F in Fs) )
     return outF
+def identity(x):
+    return x
+def none(*x,**kwargs):
+    return None
 
 def make_gradF(f,eps=1E-4):
     def gradF(*x):
@@ -94,3 +98,17 @@ def GitemGetter(val):
 #                 res =np.array(
         return res
     return itemGetter
+
+
+def arrayFunc2mgridFunc(arrayFunc):
+    def mgridFunc(*x):
+        ''' x = [xgrid,ygrid]
+'''
+    #     print (map(np.shape,x))
+        shape = x[0].shape 
+        X = np.vstack(map(np.ravel,x)).T ### compatible with TF
+        val = arrayFunc(X,)
+        val = np.reshape(val,shape,)
+        return val
+    mgridFunc.arrayFunc = arrayFunc
+    return mgridFunc
