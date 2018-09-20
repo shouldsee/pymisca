@@ -30,7 +30,7 @@ from tensorflow_probability.python import bijectors
 from tensorflow_probability.python.distributions import TransformedDistribution,Normal
 
 #### allow "simple = True" overider
-from pymisca.tfp_transformed_distribution import TransformedDistribution
+from pymisca.tensorflow_extra_.tfp_transformed_distribution import TransformedDistribution
 
 __all__ = [
     "RadialCosineTransform",

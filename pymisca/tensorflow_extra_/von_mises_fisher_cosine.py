@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_probability.python.distributions as tfdist
 # VonMisesFisher = tfdist.VonMisesFisher
-from pymisca.von_mises_fisher import VonMisesFisher
+from pymisca.tensorflow_extra_.von_mises_fisher import VonMisesFisher
 
 __all__ = ['VonMisesFisherCosine']
 

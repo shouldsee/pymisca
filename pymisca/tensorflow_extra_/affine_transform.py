@@ -33,8 +33,6 @@ from tensorflow_probability.python import bijectors
 from tensorflow_probability.python.internal import distribution_util
 from tensorflow_probability.python.distributions import TransformedDistribution
 
-# from pymisca.transformed_distribution import TransformedDistribution
-
 __all__ = [
     "AsAffine",
 ]

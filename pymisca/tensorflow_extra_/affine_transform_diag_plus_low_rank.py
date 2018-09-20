@@ -18,7 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from pymisca.affine_transform import AsAffine
+from pymisca.tensorflow_extra_.affine_transform import AsAffine
 
 from tensorflow.contrib import linalg
 from tensorflow.contrib.distributions.python.ops import distribution_util
