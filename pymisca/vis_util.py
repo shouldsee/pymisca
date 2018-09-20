@@ -56,6 +56,28 @@ def getLegends(lines):
     res = zip(*map(getLegend,lines))
     return res
 
+
+def make_subplots(
+    L,
+    ncols = 4,
+    baseRowSep = 4.,
+    baseColSep = 4.,
+    gridspec_kw={'hspace':0.45},
+    **kwargs
+):
+    '''
+    Create a grid of subplots
+'''
+    nrows = L//4+1
+    fig,axs = plt.subplots(ncols=ncols,nrows=nrows,
+                            figsize=[ncols*baseColSep, 
+                                     nrows*baseRowSep],
+                           gridspec_kw=gridspec_kw,                           
+                           **kwargs); 
+    axs = np.ravel(axs)
+    return fig,axs
+
+
 def plotArrow(ax):
     hide_Axes(ax)
     ax.arrow(0.,0.5,1.,0.,
@@ -488,7 +510,8 @@ def phase_plot(sol_lst):
     plt.legend()
     plt.grid()    
 
-def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000,
+def dmet_2d(f,Zs= None,asp=1.,bins = 10,xlim = None,ylim = None,
+            span=[-2,2],N = 1000,
             check_ph = 1,levels = None,log = 0,silent = 0,
             vectorised=False,
             ax= None,**kwargs):
@@ -499,8 +522,13 @@ def dmet_2d(f,Zs= None,asp=1.,bins = 10,span=[-2,2],N = 1000,
     Nx = int(np.sqrt(N))
     Ny = Nx
     spany = [x*asp for x in span]
-    X = np.linspace(*(span+[Nx]))
-    Y = np.linspace(*(spany+[Ny]))
+    if xlim is None:
+        xlim = span
+    if ylim is None:
+        ylim = spany
+        
+    X = np.linspace(*xlim,num = Nx)
+    Y = np.linspace(*ylim,num = Ny)
     Xs,Ys = np.meshgrid(X,Y)
     if Zs is None:
         if not vectorised:
@@ -773,6 +801,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
             markersize=None,xlim=None,ylim=None,axs = None,
            xbin = None,
            ybin =None,
+            nMax=3000,
 #            axis = [0,1,2]
            ):
     ''' Plot histo/scatter/density qc for two variables
@@ -797,7 +826,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     clu = np.ravel(clu)
     
     df = pd.DataFrame({'xs':xs,'ys':ys,'clu':clu})
-    nMax = 3000
+#     nMax = 3000
     for k, dfc in df.groupby('clu'):
         if len(dfc)>nMax:
             dfcc = dfc.sample(nMax)
@@ -864,8 +893,6 @@ def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
         base = plt.get_cmap()
     else:
         base = plt.cm.get_cmap(base_cmap)
-    
-
         
     rg = np.linspace(0, 1, N+1)
     if shuffle:
@@ -876,3 +903,51 @@ def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N+1)
 from mpl_extra import *
+
+def ax_vlines(cutoff,ax = None):
+    if ax is None:
+        ax = plt.gca()
+    lines = ax.vlines(cutoff,*ax.get_ylim())
+    return lines
+
+# from pymisca.util import qc_index
+
+try:
+    import matplotlib_venn as mvenn
+except:
+    print ('[IMPORT] cannot import "matplotlib_venn"')
+    
+def qc_index(ind1,ind2,
+    xlab = 'Group A',
+    ylab = 'Group B',
+    silent= True,
+     ax = None,
+):
+    '''
+    compare two sets 
+'''
+    ind1,ind2 = set(ind1),set(ind2)
+    indAny = ind1 | ind2
+    indAll = ind1 & ind2
+    indnot1 = indAny - ind1
+    indnot2 = indAny - ind2
+    LCL = locals()
+    d = pyutil.collections.OrderedDict()
+#     d = {}
+    for key in ['ind1','ind2','indAll','indAny',
+               'indnot1','indnot2']:
+        ind = LCL.get(key)
+        print (key, len(ind))
+        d[key] = ind
+    print 
+    df = pd.DataFrame(dict([ (k, pd.Series(list(v))) for k,v in d.items() ]))
+    if not silent:
+        if ax is None:
+            fig,axs = plt.subplots(1,3,figsize= [16,4])
+            ax= axs[0]
+        im = mvenn.venn2(subsets = (len(ind1), len(ind2), len(indAll)), 
+                         set_labels = (xlab, ylab),
+                         ax=ax)
+        jind = len(indAll)/float(len(indAny))
+        ax.set_title('Jaccard_index=%.3f%%'%(100*jind))
+    return df,ax
