@@ -41,7 +41,7 @@ class Transjector(bijectors.Bijector):
       x = ops.convert_to_tensor(x, name="x")
       self._maybe_assert_dtype(x)
       if 1: #### No cahcing since this is non-injective
-        
+        return self._forward(x, **kwargs)        
 #   @property
 #   def _is_injective(self):
 #     return False

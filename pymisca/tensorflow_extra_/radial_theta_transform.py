@@ -40,7 +40,7 @@ __all__ = [
 ]
 
 
-class RadialThetaTransform(bijector.Bijector):
+class RadialThetaTransform(Transjector):
   """
   """
 
@@ -202,8 +202,8 @@ class AsRadialTheta(TransformedDistribution):
         bjt = RadialThetaTransform(D = D,debug=debug,)
         super(AsRadialTheta,self).__init__(bijector=bjt,
                                          distribution=distribution,
-                                         event_shape = [D],
-                                         simple=1,
+#                                          event_shape = [D],
+                                         simple=False,
                                          name = name,
                                         )
     @property    

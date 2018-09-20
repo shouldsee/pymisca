@@ -50,37 +50,29 @@ class RadialTransform(Transjector):
 #                event_ndims=1,
                validate_args=False,
                debug = False,
-               name="power_transform"):
-    """Instantiates the `PowerTransform` bijector.
+               name="radial_transform"):
+    """Instantiates the `RadialTransform` bijector.
 
     Args:
-      event_ndims: Python scalar indicating the number of dimensions associated
-        with a particular draw from the distribution.
+      D: number of dimensions associated
+        with a particular draw from the distribution
       validate_args: Python `bool` indicating whether arguments should be
         checked for correctness.
       name: Python `str` name given to ops managed by this object.
-
-    Raises:
-      ValueError: if `power < 0` or is not known statically.
     """
     self._graph_parents = []
     self._name = name
     self._validate_args = validate_args
-#     self._D = tf.constant(D,dtype='int32')
     self.debug = debug
+    
     with self._name_scope("init", values=[D]):
       D = ops.convert_to_tensor(D, name="dimension")
       self._D = D
       self.alpha = self._alpha = math_ops.cast(self._D,'float32') / array_ops.constant(2.)
-#     if power is None or power < 0:
-#       raise ValueError("`power` must be a non-negative TF constant.")
-#     self._power = power
     
     super(RadialTransform, self).__init__(
         forward_min_event_ndims = 0,
         inverse_min_event_ndims = 1,
-#         event_ndims=event_ndims,
-#         is_injective = False,
         validate_args=validate_args,
         name=name)
 
@@ -89,17 +81,6 @@ class RadialTransform(Transjector):
   def D(self):
     """D as in (D-1)-sphere S^{D-1}"""
     return tensor_util.constant_value(self._D)
-
-#   def _call_forward(self, x, name, **kwargs):
-#     with self._name_scope(name, [x]):
-#       x = ops.convert_to_tensor(x, name="x")
-#       self._maybe_assert_dtype(x)
-#       if 1: #### No cahcing since this is non-injective
-#         return self._forward(x, **kwargs)
-
-#   @property
-#   def _is_injective(self):
-#     return False
 
   def _forward(self, x):
     x = self._maybe_assert_valid_x(x)
@@ -140,11 +121,14 @@ class RadialTransform(Transjector):
   def  _forward_event_shape(self,input_shape):    
     e = input_shape.concatenate(
         tensor_shape.as_dimension(self.D))
-#         ee = tf.constant([self._D],dtype ='int32')
-#         e  = array_ops.concat(
-#             [input_shape, ee],
-#             0)
     return e
+
+  def _call_forward(self, x, name, **kwargs):
+    with self._name_scope(name, [x]):
+      x = ops.convert_to_tensor(x, name="x")
+      self._maybe_assert_dtype(x)
+      if 1: #### No cahcing since this is non-injective
+        return self._forward(x, **kwargs)        
 
   def  _inverse_event_shape_tensor(self,input_shape): 
     e = input_shape[:-1]
@@ -205,7 +189,9 @@ class RadialTransform(Transjector):
 class AsRadial(TransformedDistribution):
     ''' Transform a distribution on R^+ to distribution on R^D 
 '''
-    def __init__(self, distribution=None,D=None,debug=False,
+    def __init__(self, distribution=None,
+                 D=None,
+                 debug=False,
                  simple=False,
                  name='AsRadial'):
 #         udist = tf.contrib.distributions.Uniform(low=0.,high=3.) 
@@ -220,3 +206,18 @@ class AsRadial(TransformedDistribution):
     @property    
     def D(self,):
         return self.bijector.D
+    
+    
+if 1:
+  def  _forward_event_shape(self,input_shape):    
+    e = input_shape.concatenate(
+        tensor_shape.as_dimension(self.D))
+    return e
+
+  def _call_forward(self, x, name, **kwargs):
+    with self._name_scope(name, [x]):
+      x = ops.convert_to_tensor(x, name="x")
+      self._maybe_assert_dtype(x)
+      if 1: #### No cahcing since this is non-injective    
+        return self._forward(x)
+    
