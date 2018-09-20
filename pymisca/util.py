@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import os,sys,subprocess
 import json
 import functools, itertools, copy,re
@@ -12,9 +14,9 @@ import StringIO
 
 
 import numpy as np
-from oop import *
-from fop import *
-from canonic import *
+from pymisca.oop import *
+from pymisca.fop import *
+from pymisca.canonic import *
 
 try: 
 	import scipy
@@ -37,7 +39,8 @@ import datetime
 def datenow():
     res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     return res
-
+def lineCount(fname):
+    return int(shellexec('wc -l %s'%fname, silent=1).split()[0])
 
 #### Regex
 def arg2dict(s, as_string=0):
@@ -72,6 +75,11 @@ def qc_matrix(C):
     d['Mean'],d['Std'],d['Shape'] = C.mean(),C.std(),C.shape
     s = '[qc_matrix]%s'% pyutil.packFlat([d.items()],seps=['\t','='])[0]
     return s
+
+
+
+
+
     
 def envSource(sfile,silent=0,dry=0):
 #     import os
@@ -88,8 +96,9 @@ def envSource(sfile,silent=0,dry=0):
         if not dry:
             os.environ[key] = value
     return res
-def shellexec(cmd,debug=0):
-    print cmd
+def shellexec(cmd,debug=0,silent=0):
+    if not silent:
+        print (cmd)
     if debug:
         return 'dbg'
     else:
@@ -245,7 +254,7 @@ def shapeit(A):
 
 
 ##### MI spdist
-from util import *
+# from util import *
 
 def bincount(x):
     L = x.size
@@ -632,8 +641,13 @@ def MDFile(fname):
     showMD(s)
     
     
-def printlines(lst):
-    print '\n'.join(map(str,lst))
+def printlines(lst,fname = None):
+    s = '\n'.join(map(str,lst))
+    if fname is None:
+        print(s)
+    else:
+        with open(fname,'w') as f:
+            print >>f,s
     
 def ppJson(d):
     '''
@@ -755,6 +769,17 @@ def basename(fname):
     bname = fname.split('/')[-1].rsplit('.',1)[0]
     return bname
 
+def dirname(infile,absolute=0):
+    ''' get dirname from pathname
+    [TBC] don't distinguish file from directory
+'''
+    if '/' in infile:
+        DIR = infile.rsplit('/',1)[0]
+    else:
+        DIR = '.'    
+    if absolute:
+        assert 0,'not implemented'
+    return DIR
 
 
 def fname2mdpic(fname):
@@ -917,6 +942,22 @@ def init_DF(C,rowName= None,colName=None):
         df.columns = colName
     return df
 
+def colGroupMean(dfc,axis=1,level=None):
+    '''Group by level 0 index and take average over rows
+'''
+    gp = dfc.T.groupby(level=0)
+    dfc = gp.apply(lambda x:x.mean(axis=axis,level=level)).reset_index(level=0,drop=1)
+    return dfc
+
+def colGroupStd(dfc,axis=1,level=None):
+    '''Group by level 0 index and take average over rows
+'''
+    gp = dfc.T.groupby(level=0)
+    dfc = gp.apply(lambda x:x.std(axis=axis,level=level)).reset_index(level=0,drop=1)
+    return dfc
+
+
+
 def paste0(ss,sep=None,na_rep=None):
     '''Analogy to R paste0
     '''
@@ -1074,9 +1115,34 @@ def guess_ext(fname,force = 0):
         if force:
             assert not ext is None,"Can't guess filetype of: '%s'"%fname
     return ext
+
+def guess_sep(fname):
+    ''' Guess separator from extension
+'''
+    basename,ext = fname.rsplit('.',1)
+    if ext == 'csv':
+        sep = ','
+    elif ext in ['tsv','tab','bed','bdg','narrowPeak']:
+        sep = '\t'
+    else:
+        raise Exception("Cannot guess separator of file type: \
+        '.%s'"%ext)
+    return sep
+    
+    return 
+def file_ncol(fname,silent=1,sep=None):
+    '''Get number of columns of a file
+'''    
+    if sep is None:
+        sep = guess_sep(fname)
+    f = open(fname)
+    line = next(f);f.close()
+    ncol = len(line.split(sep)) 
+    return ncol
+
 def readData(fname, 
              ext=None, callback=None, 
-             addFname=0,guess_index=1, 
+             addFname=0,guess_index=1, columns = None,
              comment='#', **kwargs):
     ext = ext or guess_ext(fname)
 #     kwargs['comment'] = comment    
@@ -1093,7 +1159,17 @@ def readData(fname,
         else:
             assert 0,"case not specified for: %s"%ext
         return res
-    res = case(ext)
+    try:    
+        res = case(ext)
+    except pd.errors.EmptyDataError as e:
+        if columns is None:
+            print('[ERR] Cannot guess columns from the empty datafile: %s'%fname)
+            raise e
+        else:
+            res = pd.DataFrame({},columns=columns)
+    if columns is not None:
+        res.columns = columns
+        
     if guess_index:
         res = guessIndex(res)
     if callback is not None:
@@ -1102,6 +1178,50 @@ def readData(fname,
     if addFname:
         res['fname']=fname
     return res
+
+def readData_multiple(fnames, axis=0, NCORE=1, 
+                      addFname = 1, guess_index=0, **kwargs):
+    '''
+    Convenient function to bulky apply readData()
+'''
+    worker = functools.partial(readData,
+                               addFname=addFname, guess_index=guess_index,
+                               **kwargs)
+    dfs = mp_map(worker,fnames,n_cpu = NCORE)
+    if axis is not None:
+        dfs = pd.concat(dfs,axis=axis)
+    return dfs
+
+def sanitise_query(query):
+    query = query.replace('>','-GT-')
+    query = query.replace('<','-LT-')
+    query = query.replace('==','-EQ-')
+    query = query.replace('.','dot')
+    query = query.replace(' ','')
+    return query
+
+def queryCopy(infile,query, reader=None,inplace=False, **kwargs):
+    '''query a dataset and save as a new copy
+'''
+    if reader is None:
+        reader = readData
+    querySans = sanitise_query(query)
+    DIR = dirname(infile)
+    
+    base = basename(infile)
+    base += '_query=%s'%querySans
+    ofile = base + '.tsv'
+    
+    if inplace:
+        ofile = os.path.join(DIR,ofile)
+
+    df = reader(infile,**kwargs)
+
+    df = df.query(query)
+    df.to_csv(ofile, sep='\t',index=False,header = None)
+    return ofile
+
+
 def guessIndex(df):
     if df[df.columns[0]].dtype == 'O':
         df.set_index(df.columns[0],inplace=True)
@@ -1235,16 +1355,18 @@ if __name__=='__main__':
     # print test_d(d)
     LeafFiles(d)
 
+def log2p1(x):
+    return np.log2(1. + x)
     
-from linalg import *
+from pymisca.linalg import *
 # from numpy_extra import np
 from pymisca.numpy_extra import np,logsumexp,span
 pyutil.span = np.span
 from pymisca.mc_integral import *
 
 
-# from pandas_extra import pd
-from pandas_extra import pd,reset_columns
+from pymisca.pandas_extra import *
+# pd,reset_columns,melt
 
 import textwrap
 def formatName(name,maxLine=8):
@@ -1645,6 +1767,8 @@ def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',
 def df2mapper(meta,key='fname_',val='header_'):
     ''' Convert a dataFrame into a dictionary
 '''
+    if meta.index.name is not None:
+        meta = meta.reset_index()
     for f in [key,val]:
         assert f in meta
 #     if 'fname_' in meta:
@@ -1869,15 +1993,85 @@ def wrapTFmethod(tfunc,sess = None):
         return y
     return gfunc
 
-def arrayFunc2mgridFunc(arrayFunc):
-    def mgridFunc(*x):
-        ''' x = [xgrid,ygrid]
-'''
-    #     print (map(np.shape,x))
-        shape = x[0].shape 
-        X = np.vstack(map(np.ravel,x)).T ### compatible with TF
-        val = arrayFunc(X,)
-        val = np.reshape(val,shape,)
-        return val
-    mgridFunc.arrayFunc = arrayFunc
-    return mgridFunc
+# def arrayFunc2mgridFunc(arrayFunc):
+#     def mgridFunc(*x):
+#         ''' x = [xgrid,ygrid]
+# '''
+#     #     print (map(np.shape,x))
+#         shape = x[0].shape 
+#         X = np.vstack(map(np.ravel,x)).T ### compatible with TF
+#         val = arrayFunc(X,)
+#         val = np.reshape(val,shape,)
+#         return val
+#     mgridFunc.arrayFunc = arrayFunc
+#     return mgridFunc
+
+def firstByKey(fname=None,df=None,keys = ['feature_acc','FC'],guess_index=0,save=1,
+              header = 0,**kwargs):
+    if df is None:
+        assert fname is not None
+        df = readData(fname,guess_index=guess_index,header=header,**kwargs)
+    dfc = df.sort_values(keys,ascending=False)
+    dfcc = dfc.groupby(keys[0],sort=True).first()
+#     dfcc.hist('FC')
+    ofname = basename(fname) + '_type=firstByKey' +'.tsv'
+    if save:
+        dfcc.to_csv(ofname, sep='\t')
+        return ofname
+    else:
+        return dfcc
+
+import sys
+import urllib2
+def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
+    if gids is None:
+        assert buf is not None
+        gids = buf.strip().splitlines()
+    string_api_url = "https://string-db.org/api"
+    output_format = "tsv"
+    method = "enrichment"
+    my_app  = "www.newflaw.com"
+
+
+    spec2id = {'Ath':3702,
+               'Bd':15368,
+              'Dmel':7227,
+               None:None,}
+
+    specID = spec2id.get(species,None)
+    assert specID is not None
+
+
+    ## Construct the request
+
+    request_url = string_api_url + "/" + output_format + "/" + method + "?"
+    request_url += "identifiers=" + "%0d".join(gids)
+    request_url += "&" + "species=" + str(specID)
+    request_url += "&" + "caller_identity=" + my_app
+
+    ## Call STRING
+
+    try:
+        response = urllib2.urlopen(request_url)
+    except urllib2.HTTPError as err:
+        error_message = err.read()
+        print error_message
+        sys.exit()
+
+    ## Read and parse the results
+
+    result = response.readline()
+
+    if result:
+        header = result.split('\t')
+
+    df= pd.DataFrame.from_csv(response,sep='\t',header=None,index_col=None)
+    df.columns = header
+    df.sort_values(['category','fdr'],inplace=True)
+    if ofname is not None:
+        df.to_csv(ofname)
+        return ofname
+    else:
+        return df
+from pymisca.vis_util import qc_index    
+    
