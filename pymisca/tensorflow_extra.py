@@ -174,4 +174,17 @@ ed.models = pyutil.util_obj()
 ed.models.PointMass = dummyF
 ed.PointMass = dummyF
 
+
+
+import tensorflow_probability.python.distributions as tfdist
+import numpy as np
+
+def quick_eval(v):
+    if isinstance(v,np.ndarray):
+        res =  v
+    elif isinstance(v, tfdist.Distribution):
+        res = v
+    else:
+        res = v.eval()
+    return res
 # from pymisca.affine_transform_diag import *
