@@ -55,11 +55,12 @@ class GammaRadialTheta_VIMAP(BaseModel):
     emDist = GammaRadialTheta
     
     def __init__(self,D=None,K=20,
-                 debug=False,
+                 debug=False,NCORE=1,
                  *args,**kwargs):
         super(
             GammaRadialTheta_VIMAP,
             self).__init__(*args,**kwargs)
+        self.NCORE= NCORE
         self.K = K
         self.D = D
         self.initialised = False
@@ -405,16 +406,17 @@ class GammaRadialTheta_VIMAP(BaseModel):
 #         fitted_vars_dict = {k:x.value() for k,x in 
 #                        self.post.__dict__.iteritems() 
 #                        if not isinstance(x,list) and k in self.param_key}
-
+        self.sess = pytf.newSession(NCORE=self.NCORE)
         sess, last_vars, hist_loss, opt = pytf.op_minimise(
             loss,
             self.freeVarDict('post').values(),
             optimizer = optimizer,
             feed_dict = self.feed_dict,
+            sess = self.sess,
             **kwargs
             
         )
-        self.sess = sess
+#         self.sess = sess
         return mdl,(last_vars, hist_loss, opt)
 
     

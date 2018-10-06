@@ -46,6 +46,13 @@ __all__ = [
 ]
 
 import tensorflow as tf
+def newSession(NCORE=4):
+    config = tf.ConfigProto()
+    if NCORE > 1:
+        config.intra_op_parallelism_threads = NCORE
+        config.inter_op_parallelism_threads = NCORE
+    sess = tf.Session(config=config)
+    return sess
 
 def op_minimise(loss,
                 free_params,                
@@ -72,6 +79,7 @@ def op_minimise(loss,
         sess = tf.get_default_session()
         if sess is None:
             sess = tf.Session()
+
     if 1:
 #     with tf.Session() as sess:
         
