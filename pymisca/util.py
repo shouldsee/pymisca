@@ -25,11 +25,11 @@ try:
 	import scipy.spatial.distance as spd
 	import scipy.spatial.distance as spdist
 except Exception as e:
-	print ('scipy not installed')
+	sys.stderr.write('scipy not installed \n')
 try:
 	from sklearn.metrics import mutual_info_score
 except Exception as e:
-	print ('package not installed:%s'%'sklearn')
+	sys.stderr.write('package not installed:%s \n'%'sklearn' )
 
 
 def dictFilter(oldd,keys):
@@ -630,7 +630,8 @@ def is_ipython():
     except:
         return 0
 hasIPD = is_ipython()
-print 'is in ipython:',hasIPD
+
+sys.stderr.write('is in ipython: %s \n'%hasIPD)
 if hasIPD:
     import IPython.display as ipd
 
@@ -932,6 +933,13 @@ import pandas as pd
 #     return res
 # pasteA=paste0
 
+def get_cluCount(clu):
+    ''' Count occurences of elements
+'''
+    cluCount = clu.groupby('clu').apply(len).reset_index()
+    cluCount.columns = ['clu','count']
+    return cluCount
+
 def init_DF(C,rowName= None,colName=None):
     '''Conveniently initialise a pandas.DataFrame from a matrix "C"
 '''
@@ -1105,16 +1113,19 @@ def metaContrast(mRef,mObs):
     return mFlat
 
 ##### Import data
-def guess_ext(fname,force = 0):
+def guess_ext(fname,check = 1):
 #     print fname
     gp = fname.rsplit('.',1)
-    if len(gp)>1 and (not force):
-        ext = gp[-1]
+    if len(gp)>1:
+        fname,ext = gp
+#         ext = gp[-1]
     else:
+        fname = fname
         ext = None
-        if force:
-            assert not ext is None,"Can't guess filetype of: '%s'"%fname
-    return ext
+    if check:
+        assert ext is not None,"Can't guess filetype of: '%s'"%fname
+        
+    return (fname,ext)
 
 def guess_sep(fname):
     ''' Guess separator from extension
@@ -1144,20 +1155,42 @@ def readData(fname,
              ext=None, callback=None, 
              addFname=0,guess_index=1, columns = None,
              comment='#', **kwargs):
-    ext = ext or guess_ext(fname)
+    if ext is not None:
+        pass
+        fhead = fname
+    else:
+        fhead,ext = guess_ext(fname,check = 1)
+#     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
+    class temp:
+        fheadd = fhead
     def case(ext,):
+
         if ext == 'csv':
             res = pd.read_csv(fname, comment = comment, **kwargs)
-        elif ext in ['tsv','tab','bed','bdg','narrowPeak']:
+        elif ext in ['tsv','tab','bed','bdg','narrowPeak',
+                     'count', ### stringtie output
+                     'txt', ### cufflinks output
+                    'stringtie']:
             res = pd.read_table(fname, comment = comment, **kwargs)
+            if ext in ['count', 'stringtie','tab',]:
+                res.rename(columns={'Gene ID':'gene_id',
+                                   'Gene Name':'gene_name',
+                                   },inplace=True)
+            if ext == 'cufflinks':
+                pass
+            
         elif ext == 'pk':
             res = pd.read_pickle(fname,**kwargs)
-        elif ext is None or ext=='txt':
-            ext = guess_ext(fname,force=1)
-            res = case(ext)
+            
         else:
-            assert 0,"case not specified for: %s"%ext
+            temp.fheadd, ext = guess_ext(temp.fheadd, check=1)            
+            res = case(ext,)
+#             if ext is None:
+#         elif ext is None:            
+#         or ext=='txt':
+#         else:
+#             assert 0,"case not specified for: %s"%ext
         return res
     try:    
         res = case(ext)
@@ -1241,6 +1274,30 @@ def mergeByIndex(left,right,how='outer',as_index = 0, **kwargs):
     if as_index:
         df = df.iloc[:,:1]
     return df
+
+
+def propose_mergeDB(mcurr,dataFile,force=0):
+    '''
+    propose merging DataFrame "mcurr" to an existing database "dataFile"
+'''
+    tempFile = dataFile+'.tmp'
+    meta = readData(dataFile,)
+#     meta.index.name='DataAcc'
+    DUP = mcurr.index.isin(meta.index)
+    print DUP
+#     meta.drop(index=mcurr.index[DUP],inplace=True)
+    assert mcurr.index.is_unique
+    if not force:
+        assert not (DUP.any())
+    mc = mcurr.loc[~DUP]
+    meta = pd.concat([meta,mc],sort=False)
+    meta.index.name='DataAcc'
+    meta.ZTime_int = meta.ZTime_int.fillna(-100).astype(int)
+#     assert meta.index.is_unique
+    
+    meta.to_csv(tempFile, sep='\t',index=True)
+    return (dataFile,tempFile)
+
 def routine_combineData(fnames,ext=None,addFname = 0):
     dfs = map(lambda x:pyutil.readData(x,ext=ext,addFname = addFname), fnames)
     idx = reduce(pyutil.functools.partial(pyutil.mergeByIndex,as_index=1,how= 'outer'),dfs)
@@ -1450,7 +1507,7 @@ def msq(x,y=None,axis=None,keepdims=0):
                   
 # pyutil.pdist_worker = pdist_worker
 # pyutil.pdist = pdist
-reload(pyutil)
+# reload(pyutil)
 def distPseudoInfo(pA,pB,
     logIN = 0,
     xlab=None,ylab=None,maxLine=4,vlim = [-2,2],
@@ -1800,7 +1857,10 @@ Table2Mat = TableToMat
 
 
 def filterMatch(df,key,negate=0):
-    df = df.loc[bool(negate) ^ df.index.str.match(key)]
+
+    MATCH = df.index.str.match(key)
+#     print '[TYPE]',type(MATCH)
+    df = df.loc[bool(negate) ^ MATCH]
     return df    
 
 def entropise(ct):
@@ -2023,7 +2083,8 @@ def firstByKey(fname=None,df=None,keys = ['feature_acc','FC'],guess_index=0,save
 
 import sys
 import urllib2
-def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
+def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
+                       nMax=800):
     if gids is None:
         assert buf is not None
         gids = buf.strip().splitlines()
@@ -2035,7 +2096,7 @@ def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
 
     spec2id = {'Ath':3702,
                'Bd':15368,
-              'Dmel':7227,
+               'Dmel':7227,
                None:None,}
 
     specID = spec2id.get(species,None)
@@ -2045,7 +2106,7 @@ def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
     ## Construct the request
 
     request_url = string_api_url + "/" + output_format + "/" + method + "?"
-    request_url += "identifiers=" + "%0d".join(gids)
+    request_url += "identifiers=" + "%0d".join(gids[:nMax])
     request_url += "&" + "species=" + str(specID)
     request_url += "&" + "caller_identity=" + my_app
 
@@ -2055,8 +2116,9 @@ def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
         response = urllib2.urlopen(request_url)
     except urllib2.HTTPError as err:
         error_message = err.read()
-        print error_message
-        sys.exit()
+        print(error_message)
+        return None
+#         sys.exit()
 
     ## Read and parse the results
 
@@ -2064,14 +2126,16 @@ def string_goenrichment(buf =None,gids= None, species=None, ofname = None):
 
     if result:
         header = result.split('\t')
-
-    df= pd.DataFrame.from_csv(response,sep='\t',header=None,index_col=None)
-    df.columns = header
+    df = readData(response,ext='tsv',header=None,index_col = None,columns = header)
+#     df= pd.DataFrame.from_csv(response,sep='\t',header=None,index_col=None)
+#     df.columns = header
     df.sort_values(['category','fdr'],inplace=True)
+    
     if ofname is not None:
         df.to_csv(ofname)
         return ofname
     else:
         return df
-from pymisca.vis_util import qc_index    
+    
+# from pymisca.vis_util import qc_index    
     

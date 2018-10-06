@@ -1,4 +1,5 @@
 from util import *
+# import pymisca.util as pyutil
 import numpy as np
 
 try: 
@@ -476,6 +477,15 @@ def add_arrow(line, position=None, direction='right', size=15, color=None):
         size=size
     )
 
+def add_text(xs,ys,labs,ax= None,**kwargs):
+    '''Vectorised text annotation
+'''
+    if ax is None:
+        ax = plt.gca()
+    for xx,yy,tt in zip(xs,ys,labs):
+        ax.text(xx,yy,tt,**kwargs)
+    return ax    
+    
 
 if __name__=='__main__':
     t = np.linspace(-2, 2, 100)
@@ -686,6 +696,7 @@ def heatmap(C,
         if len(xtick) <= tickMax:
             plt.xticks(range(len(C.T)), xtick,
                       rotation='vertical')
+    
     if ytick is not None:
         if len(ytick) <= tickMax:
             plt.yticks(range(len(C)),ytick)
@@ -945,7 +956,7 @@ def qc_index(ind1,ind2,
         if ax is None:
             fig,axs = plt.subplots(1,3,figsize= [16,4])
             ax= axs[0]
-        im = mvenn.venn2(subsets = (len(ind1), len(ind2), len(indAll)), 
+        im = mvenn.venn2(subsets = (len(indnot2), len(indnot1), len(indAll)), 
                          set_labels = (xlab, ylab),
                          ax=ax)
         jind = len(indAll)/float(len(indAny))
