@@ -60,7 +60,7 @@ def op_minimise(loss,
                 sess = None,
                 MAX_ITER = 4000,
 #                 LEARNING_RATE = 0.1,
-                TOL_LOSS = 1e-8,
+                TOL_LOSS = 1e-2,
                 TOL_PARAM = 1e-8,
                 TOL_GRAD = 1e-8,
                 feed_dict= {}
@@ -96,11 +96,19 @@ def op_minimise(loss,
             loss_diff = abs(new_loss - obs_loss[-1])
 
             obs_loss.append(new_loss)
+            
             if not i%100:
                 print ('Iter %d'%i, new_loss)
-            if loss_diff < TOL_LOSS:
-                print('Loss function convergence in {} iterations!: {}'.format(i,new_loss))
-                break
+            if i > 50:
+#             if max(obs_loss[-10:]) - TOL_LOSS < new_loss:
+                minA = min(obs_loss[-20:])
+                minB = min(obs_loss[-10:])
+#                 if minA + TOL_LOSS < minB:
+                if minB - minA > TOL_LOSS:
+                        print('Loss function convergence in {} iterations!: {}'.format(i,new_loss))
+                        print( minA,minB)
+                        break
+            
         last_vars = sess.run(fetches=free_params)
     
     return sess,last_vars, obs_loss, optimizer
@@ -187,4 +195,55 @@ def quick_eval(v):
     else:
         res = v.eval()
     return res
+
+
+
+
+def getSimp_(shape,name, mode = None,method='l2norm'):
+    if mode is None:
+        mode = method
+    x_raw = tf.get_variable(shape=shape,name = name)
+    eps = tf.constant(1E-07)
+    if mode == 'l2norm':
+        x_simp = tf.square(tf.nn.l2_normalize( 
+            x_raw,
+            axis= -1,
+        ))
+    elif mode == 'expnorm':
+        x_simp = tf.nn.softmax( 
+#                         -tf.nn.softplus(
+                x_raw,
+#                         ),
+            axis= -1,
+        )
+    elif mode == 'logitnorm':
+        x_raw = tf.log_sigmoid(x_raw)
+        x_simp = tf.nn.softmax(x_raw,axis=-1)
+#                     x_simp = x_raw / (tf.reduce_sum(x_raw,axis=-1,keepdims = True) + eps
+    elif mode == 'logit':
+        x_raw = tf.sigmoid(x_raw)
+        x_simp = x_raw
+
+    elif mode == 'beta':
+        x_raw = tf.log_sigmoid(x_raw)
+        x_raw = tf.cumsum(x_raw,axis=-1)
+#                     x_raw = tf.exp(x_raw)
+        ones = tf.ones(shape=x_raw.shape[:-1].as_list() +  [1,] )
+#                     ones = tf.ones(shape=x_raw.shape[:-1] + [1,])
+        x_p  = tf.concat([ ones, tf.exp(x_raw) + eps ],axis=-1)
+#                                tf.gather(x_raw,
+#                                          range(0,x_raw.shape[-1]),
+#                                         axis=-1)],axis=-1)
+        L = x_p.shape[-1]
+        x_p = tf.gather(
+            x_p, range(0,L-1),axis=-1) - tf.gather(
+            x_p,range(1,L),axis=-1) 
+#                     x_p = tf.diff(x_p,axis=-1)
+
+        x_simp = x_p
+#                     x_simp = tf.gather(x_p,)
+#                     x_raw = 
+    else:
+        raise Exception('mode not implemented:%s'%mode)
+    return x_simp
 # from pymisca.affine_transform_diag import *

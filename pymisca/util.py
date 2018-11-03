@@ -639,16 +639,18 @@ def showMD(s):
     ipd.display(ipd.Markdown(s))
 def MDFile(fname):
     s='[{0}]({0})'.format(fname)
-    showMD(s)
+    return showMD(s)
     
     
-def printlines(lst,fname = None):
+def printlines(lst,fname = None,callback=MDFile):
     s = '\n'.join(map(str,lst))
     if fname is None:
         print(s)
     else:
         with open(fname,'w') as f:
             print >>f,s
+        if callback is not None:
+            callback(fname)
     
 def ppJson(d):
     '''
@@ -666,6 +668,29 @@ def invert_interp(F):
                       fp=F.keywords['xp'],                     
                      )
     return Fi
+
+import scipy.interpolate as spinter
+
+def interp_bytime(rnac,ts = None, n=100, **kwargs):
+    '''Average the data over time assuming it is a time-series.
+    Columns should be numerics in hours
+'''
+#     rnac = rnaseq_wk2sd.relabel('ZTime_int')
+#     interpF = make_ZTime_interpolater(rnac,ts = ts, n=n, **kwargs)
+    if ts is None:
+        ts = rnac.columns
+    tss = np.linspace(0,24,n)
+    fs = rnac.values
+    ts = np.hstack([ts-24., ts ,ts + 24.])
+    fs = np.hstack([fs,fs,fs])
+
+    interpF = spinter.interp1d(ts, fs)
+    vals= interpF(tss)
+    if hasattr(rnac,'setDF'):
+        res=  rnac.setDF(vals)
+    else:
+        res = pd.DataFrame(vals, index=rnac.index, columns = tss )
+    return res
 
 def mat2str(mat,decimal=None,sep='\t'):
     if not isinstance(mat,np.ndarray):
@@ -953,14 +978,14 @@ def init_DF(C,rowName= None,colName=None):
 def colGroupMean(dfc,axis=1,level=None):
     '''Group by level 0 index and take average over rows
 '''
-    gp = dfc.T.groupby(level=0)
-    dfc = gp.apply(lambda x:x.mean(axis=axis,level=level)).reset_index(level=0,drop=1)
+    gp = dfc.groupby(axis=axis,level=0,sort=False)
+    dfc = gp.apply(lambda x:x.mean(axis=axis))
     return dfc
 
 def colGroupStd(dfc,axis=1,level=None):
     '''Group by level 0 index and take average over rows
 '''
-    gp = dfc.T.groupby(level=0)
+    gp = dfc.T.groupby(level=0,sort=False)
     dfc = gp.apply(lambda x:x.std(axis=axis,level=level)).reset_index(level=0,drop=1)
     return dfc
 
@@ -1133,7 +1158,8 @@ def guess_sep(fname):
     basename,ext = fname.rsplit('.',1)
     if ext == 'csv':
         sep = ','
-    elif ext in ['tsv','tab','bed','bdg','narrowPeak']:
+    elif ext in ['tsv','tab','bed','bdg','narrowPeak',
+                'summit','promoter',]:
         sep = '\t'
     else:
         raise Exception("Cannot guess separator of file type: \
@@ -1169,6 +1195,7 @@ def readData(fname,
         if ext == 'csv':
             res = pd.read_csv(fname, comment = comment, **kwargs)
         elif ext in ['tsv','tab','bed','bdg','narrowPeak',
+                     'summit','promoter',
                      'count', ### stringtie output
                      'txt', ### cufflinks output
                     'stringtie']:
@@ -1988,6 +2015,8 @@ def dist2ppf(vals):
 #     idx = od
 #     idx = np.arange(len(vals))[od]
     per = (idx+0.5)/(max(idx)+1)
+    if isinstance(vals,pd.Series):
+        per = pd.Series(per,index=vals.index, name='per')
     return per
 
 def oneHot(values):

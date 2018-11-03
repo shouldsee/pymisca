@@ -89,7 +89,7 @@ def plotArrow(ax):
     ax.set_ylim(0,1.,)
     return ax
 
-
+#### mpatches
 import matplotlib.patches as mpatches
 def legend4Patch(lst,as_patch=0):
     '''
@@ -125,8 +125,60 @@ def test__legend4Patch():
         )
     )
     plt.gca().legend(*leg)
+
+def add_harrow(x_tail,x_head,mutation_scale=100,ycent=0.,
+               head_length = None, height = 0.5, head_width = None, text=None,
+               length_includes_head=True,
+               ax=None,**kwargs):
+    y_tail = y_head = ycent
+#     height = .5
+    tail_width = height /2.
+    if head_length is None:
+        head_length = abs(x_head - x_tail)/5.
+    if head_width is None:
+        head_width = tail_width
+    if ax is None:
+        ax = plt.gca()
+    dx = x_head - x_tail
+    dy = y_head - y_tail
+        
+#     print dx
+#     print x_tail,x_head
+    if 0:
+        arrowstyle = mpatches.ArrowStyle('Simple',
+                                         head_length= head_length, 
+                                         head_width = head_width,
+                                         tail_width = tail_width)
+        arrow = mpatches.FancyArrowPatch( (x_tail, y_tail), (x_head, y_head),
+                                         mutation_scale=mutation_scale,arrowstyle=arrowstyle,
+                                         shrinkB =0. ,shrinkA=0., 
+                                         **kwargs)
+
+#     kwargs.update(arrowStyle)
+#     arrow = mpatches.Arrow( (x_tail, y_tail), (x_head, y_head),
+#                                      mutation_scale=mutation_scale,arrowstyle=arrowstyle,
+#                                      shrinkB =0. ,shrinkA=0., 
+#                                      **kwargs)    
+    arrow = mpatches.FancyArrow(x_tail, y_tail, dx, dy,
+                               head_length= head_length, 
+                                head_width = head_width,
+                                length_includes_head=length_includes_head,
+                                width = tail_width,**kwargs
+#                                 tail_width = tail_width
+                               )
+    ax.add_patch(arrow)
+    if text is not None:
+        ax.text(x_tail, height * 0.75 ,text)
+    return arrow,ax
+
+def add_hbox(xleft,xright,head_length = 0.00001,
+             **kwargs):
+    return add_harrow(xleft, xright, head_length = head_length,  **kwargs)
+    
 if __name__ == '__main__':
     pass
+
+#######
 
 # pyvis.getLegends = getLegends
 
@@ -477,15 +529,18 @@ def add_arrow(line, position=None, direction='right', size=15, color=None):
         size=size
     )
 
-def add_text(xs,ys,labs,ax= None,**kwargs):
+def add_text(xs,ys,labs,ax= None,checkNA =1, **kwargs):
     '''Vectorised text annotation
 '''
     if ax is None:
         ax = plt.gca()
+    if checkNA:
+        xs,ys,labs = pd.concat([xs,ys,labs],axis=1,join='inner').dropna().values.T
     for xx,yy,tt in zip(xs,ys,labs):
         ax.text(xx,yy,tt,**kwargs)
     return ax    
     
+
 
 if __name__=='__main__':
     t = np.linspace(-2, 2, 100)
@@ -952,6 +1007,8 @@ def qc_index(ind1,ind2,
         d[key] = ind
     print 
     df = pd.DataFrame(dict([ (k, pd.Series(list(v))) for k,v in d.items() ]))
+    df['ind1=%s'%xlab]=np.nan
+    df['ind2=%s'%ylab]=np.nan    
     if not silent:
         if ax is None:
             fig,axs = plt.subplots(1,3,figsize= [16,4])
