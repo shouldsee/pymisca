@@ -96,7 +96,8 @@ def envSource(sfile,silent=0,dry=0):
         if not dry:
             os.environ[key] = value
     return res
-def shellexec(cmd,debug=0,silent=0):
+
+def shellexec(cmd,debug=0,silent=0,):
     if not silent:
         print (cmd)
     if debug:
@@ -104,12 +105,47 @@ def shellexec(cmd,debug=0,silent=0):
     else:
         try:
             res = subprocess.check_output(cmd,shell=1)
+
+#             p.stdin.close()
+            return res
         except subprocess.CalledProcessError as e:
 #         except Execption as e:
 #             print e.output
 #             raise e
             raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
         return res
+def shellpopen(cmd,debug=0,silent=0,):
+    if not silent:
+        print (cmd)
+    if debug:
+        return 'dbg'
+    else:
+        p = subprocess.Popen(
+                     cmd,
+                     shell=1,
+                     bufsize=1,
+                     stdout=subprocess.PIPE,
+                     stdin=subprocess.PIPE)
+        res = p.communicate()[0]
+
+        return res,p.returncode
+    
+# def mapRNA(data,dbg=0):
+#     p = subprocess.Popen(['RNAfold','--noPS'],
+#                          bufsize=1,
+#                          stdout=subprocess.PIPE,
+#                          stdin=subprocess.PIPE)
+#     s = '\n' + data['data']
+    
+
+#     if s is None:
+#         res = None
+#     else:
+#         res = p.communicate(s)[0]
+
+#     data['data'] = res
+#     p.stdin.close()
+#     return data    
     
     
 def nTuple(lst,n,silent=1):
@@ -636,13 +672,16 @@ if hasIPD:
     import IPython.display as ipd
 
 def showMD(s):
-    ipd.display(ipd.Markdown(s))
+    if pyutil.hasIPD:
+        ipd.display(ipd.Markdown(s))
+        
 def MDFile(fname):
     s='[{0}]({0})'.format(fname)
     return showMD(s)
     
     
-def printlines(lst,fname = None,callback=MDFile):
+def printlines(lst,fname = None,
+               callback=MDFile):
     s = '\n'.join(map(str,lst))
     if fname is None:
         print(s)
@@ -1452,6 +1491,16 @@ from pymisca.mc_integral import *
 from pymisca.pandas_extra import *
 # pd,reset_columns,melt
 
+def columns__makeContrast(contrast = None,treatment=None,control=None):
+    if treatment is None or control is None:
+        assert contrast is not None,"Must specify contrast dataframe\
+        when any other variable is missing"
+        treatment = contrast.treatment
+        control = contrast.control
+    cols = pyutil.paste0([['TREAT:'],treatment,['__CONTROL:'],control])
+    return cols
+
+
 import textwrap
 def formatName(name,maxLine=8):
     '''replace '_' by '\n'
@@ -2019,6 +2068,28 @@ def dist2ppf(vals):
         per = pd.Series(per,index=vals.index, name='per')
     return per
 
+def areaRatio(xs):
+    '''
+    Extract the tail information by observing the ratio bewtween the
+ cumulative integral and the minimum.
+    '''
+    od = np.argsort(xs)[::-1]
+    ood = np.argsort(od)
+#     per_x = pyutil.dist2ppf(xs)
+    MAX = max(xs)
+    xmax = MAX -xs
+    nseq = np.arange(len(xs))
+    xavg=(xmax[od].cumsum()\
+           / ( 1 + nseq))
+#     xmed = xmax[od] [ nseq //2][ood]
+#     res = xmed/xavg
+
+    res = xavg / xmax[od]
+    res[xmax[od]==0]=0.
+    res = np.maximum.accumulate(res)
+    res = res[ood]
+    return res
+
 def oneHot(values):
     values = np.ravel(values)
     n_values = np.max(values) + 1
@@ -2165,6 +2236,35 @@ def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
         return ofname
     else:
         return df
-    
+
+import tempfile 
+
+def make__tempDIR(DIR,silent=1,**kwargs):
+    pyutil.shellexec('mkdir -p %s'%DIR,silent=silent)
+    DIR= tempfile.mkdtemp(dir=DIR)
+    return DIR
+
+def saveFigDict(figs,DIR=None,exts=['svg'],silent=1):
+    if DIR is None:
+        DIR=pyutil.os.environ.get('HOME',None)
+        assert DIR is not None, 'cannot get environment variable:$HOME'
+        DIR = '%s/cache/plots' % (DIR)
+        DIR = make__tempDIR(DIR)
+    pyutil.shellexec('mkdir -p %s'%DIR,silent=silent)
+        
+    ofnames = []
+    for bname,fig in figs.items():
+        for ext in exts:
+            ofname = '%s/%s.%s'%(DIR.rstrip('/'),bname,ext)           
+            fig.savefig(ofname)
+            ofnames += [ofname]
+    fignames = ofnames
+    l = locals()
+    return {x: l.get(x) for x in ['DIR','fignames']}
+
+try:
+    from jinja2_util import *
+except Exception as e:
+     sys.stderr.write('[WARN]%s\n'%e)
 # from pymisca.vis_util import qc_index    
     
