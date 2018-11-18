@@ -1030,14 +1030,15 @@ def colGroupStd(dfc,axis=1,level=None):
 
 
 
-def paste0(ss,sep=None,na_rep=None):
+def paste0(ss,sep=None,na_rep=None,castF=unicode):
     '''Analogy to R paste0
     '''
     if sep is None:
         sep=''
+    
     L = max([len(e) for e in ss])
     it = itertools.izip(*[itertools.cycle(e) for e in ss])
-    res = [sep.join(str(s) for s in next(it) ) for i in range(L)]
+    res = [castF(sep).join(castF(s) for s in next(it) ) for i in range(L)]
     res = pd.Series(res)
     return res
 pasteB = paste0
