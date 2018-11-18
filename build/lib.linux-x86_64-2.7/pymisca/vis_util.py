@@ -42,6 +42,7 @@ def hide_frame(ax):
     for spine in ax.spines.values():
         spine.set_visible(False) 
     return ax
+<<<<<<< HEAD
 
 def hide_Axes(ax,which='both',alpha=0.0):
     hide_axis(ax)
@@ -89,6 +90,55 @@ def plotArrow(ax):
     ax.set_ylim(0,1.,)
     return ax
 
+=======
+
+def hide_Axes(ax,which='both',alpha=0.0):
+    hide_axis(ax)
+    hide_frame(ax)
+    hide_ticks(ax)
+    ax.patch.set_alpha(alpha)
+    return ax
+
+def getLegend(line):
+    res = (line,line.get_label())
+    return res
+def getLegends(lines):
+    res = zip(*map(getLegend,lines))
+    return res
+
+
+def make_subplots(
+    L,
+    ncols = 4,
+    baseRowSep = 4.,
+    baseColSep = 4.,
+    gridspec_kw={'hspace':0.45},
+    **kwargs
+):
+    '''
+    Create a grid of subplots
+'''
+    nrows = L//4+1
+    fig,axs = plt.subplots(ncols=ncols,nrows=nrows,
+                            figsize=[ncols*baseColSep, 
+                                     nrows*baseRowSep],
+                           gridspec_kw=gridspec_kw,                           
+                           **kwargs); 
+    axs = np.ravel(axs)
+    return fig,axs
+
+
+def plotArrow(ax):
+    hide_Axes(ax)
+    ax.arrow(0.,0.5,1.,0.,
+             width = 0.15
+    #         head_width = 0.5,
+            )
+    ax.set_xlim(0,2.)
+    ax.set_ylim(0,1.,)
+    return ax
+
+>>>>>>> 41f9b008f727fe4eeea84ebd841e503aa58f5de9
 #### mpatches
 import matplotlib.patches as mpatches
 def legend4Patch(lst,as_patch=0):
@@ -674,6 +724,7 @@ def ylim_fromZero(ax):
     '''
     ax.set_ylim(bottom = 0,top = ax.get_ylim()[1]*1.1)
     return ax
+<<<<<<< HEAD
 
 def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1, **kwargs):
     ''' Estimate density by binning and plot count as line.
@@ -978,6 +1029,320 @@ def ax_vlines(cutoff,ax = None):
 
 # from pymisca.util import qc_index
 
+=======
+
+def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1, **kwargs):
+    ''' Estimate density by binning and plot count as line.
+'''
+    if ax is None:
+        ax = plt.gca()
+    xlim = pyutil.span(xs,99.9) if xlim is None else xlim
+    bins = np.linspace(*xlim,
+                      num=100) if bins is None else bins
+    ys,edg = np.histogram(xs,bins,normed=normed)
+    ct = (edg[1:] + edg[:-1])/2
+    if log:
+        ys = np.log1p(ys)
+    else:
+        pass
+    if transpose:
+        ct,ys = ys,ct
+        ax.set_xlabel('count')
+    else:
+        ax.set_ylabel('count')
+    l = ax.plot(ct,ys,**kwargs)
+    return ax
+
+####### Clustering
+def heatmap(C,
+            ax=None,
+            xlab = '',
+            ylab = '',
+            main='',
+            xtick = None,
+            ytick = None,
+            transpose=0,
+            cname=None,
+            tickMax=100,
+            vlim = None,
+            cmap = None,
+            figsize=None,
+            **kwargs
+           ):
+    ''' C of shape (xLen,yLen)
+    '''
+#     print kwargs.keys()
+    if transpose:
+        C = C.T
+        xtick,ytick = ytick,xtick
+        xlab,ylab   = ylab,xlab
+    if ax is None:
+        if figsize is None:
+            figsize = [min(len(C.T)/3.,14),
+                       min(len(C)/5.,14)]
+        fig,ax = plt.subplots(1,1,figsize=figsize)
+    if vlim is None:
+        vlim = np.span(C[~np.isnan(C)],99)
+    elif vlim[0] is None:
+        pass
+    else:
+        if cmap is None:
+            if vlim[0] * vlim[1]>=0:
+                cmap = plt.get_cmap('viridis')
+            else:
+                avg = abs( vlim[1] - vlim[0] )/2.
+                vlim = -avg,avg
+                cmap = plt.get_cmap('PiYG')
+            cmap.set_bad('black',1.)
+    C = np.ma.array (C, mask=np.isnan(C))
+    if cmap is not None:
+        cmap.set_bad('black',1.)
+    kwargs['vmin'],kwargs['vmax'] = vlim
+
+    plt.sca(ax)
+    im = ax.matshow(C,aspect='auto', cmap = cmap, **kwargs)
+    ax.xaxis.tick_bottom()
+
+    if xtick is not None:
+        if len(xtick) <= tickMax:
+            plt.xticks(range(len(C.T)), xtick,
+                      rotation='vertical')
+    
+    if ytick is not None:
+        if len(ytick) <= tickMax:
+            plt.yticks(range(len(C)),ytick)
+
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
+    if cname is not None:
+        cbar = plt.colorbar(im)
+        cbar.set_label(cname)
+    plt.title(main)    
+    return im
+
+def linePlot4DF(df,
+                xs=None,
+                y2 = None,
+                label = None,
+                ax=None,
+             rowName=None,
+             colName= None,ylab = '$y$',
+                which = 'plot',
+#                 cmap=None,
+                xlab='$x$',
+                xrotation= 'vertical',
+                xshift=None,
+                cmap = 'Set1',
+                **kwargs):
+    rowName = df.index if rowName is None else rowName
+    colName = df.columns if colName is None else colName
+    C = df.values
+    if isinstance(y2,pd.DataFrame):
+        y2 = y2.values    
+    
+    if ax is None:
+        fig,axs= plt.subplots(1,2,figsize=[14,4])
+        ax = axs[0]
+    plt.sca(ax)    
+    cmap = plt.get_cmap(cmap)
+    
+    if xs is None:
+        xs = np.arange(len(C[0]))
+    
+    if which =='StemWithLine':
+        plotter = pyutil.functools.partial(StemWithLine,
+                                           ax=ax)
+    elif hasattr(ax, which):        
+        plotter =  getattr(ax, which)
+#     plotter = pyutil.functools.partial(plotter,)
+    
+    for i,ys in enumerate(C):
+        if xshift is not None:
+            kwargs['xshift'] = xshift *i
+#         if which=='fill_between'
+        if which=='fill_between':
+            assert y2 is not None,'y2 must be specified for fill between'
+            plotter(xs,y1=ys, y2=y2[i], color=cmap(i),**kwargs)
+        else:
+            plotter(xs,ys,label = rowName[i],color=cmap(i),**kwargs)
+#         ax.plot(xs,ys,label=rowName[i])
+    ax.set_ylabel(ylab)
+    ax.grid(1)
+    L = len(ys)
+    
+    xticks = [ x for x in map(int,ax.get_xticks()) if x>=0 and x<L]
+#     ax.set_xticks(xticks)
+#     ax.set_xticklabels(colName[xticks])
+#     ax.tick_params(axis='x', rotation=xrotation)    
+    plt.xticks(xticks,colName[xticks],rotation=xrotation,)
+#     ax.set_xticks(xticks,)
+#     ax.set_xticklabels(colName[xticks])
+    ax.set_xlabel(xlab)
+    return ax
+
+def StemWithLine(xs=None,ys=None,
+                 xshift=0.,
+                 color = None,ax = None,
+                 bottom=0,**kwargs):  
+    if ax is None:
+        fig,axs= plt.subplots(1,2,figsize=[14,4])
+        ax = axs[0]
+    if color is None:
+        color = ax._get_lines.get_next_color()
+
+    xs = np.arange(len(ys)) if xs is None else xs
+    xs = np.array(xs,dtype='float')
+    if xshift:
+        xs += xshift
+#     bottom = 0.5
+
+
+    markerline,stemline,_ = ax.stem(xs,ys,linefmt='--',
+                                    bottom=bottom)
+    [l.set_color(color) for l in [markerline]]
+    [l.set_color(color) for l in stemline]
+    line = ax.plot(xs,ys,color=color,**kwargs)
+    ax.grid(1)
+    return line,ax
+# pyvis.linePlot=linePlot
+
+def matHist(X,idx=None,XLIM=[0,200],nbin=100):    
+    plt.figure(figsize=[12,4])
+    if idx is not None:
+        X = X[idx]
+    MIN,MAX = X.min(),np.percentile(X,99)
+    BINS = np.linspace(MIN,MAX,nbin)
+    for i in range(len(idx)):
+        histoLine(X[i],BINS,alpha=0.4,log=1)
+    plt.xlim(XLIM)
+    plt.grid()
+
+def abline(k=1,y0=0,color = 'b',**kwargs):
+    '''Add a reference line
+    '''
+    MIN,MAX=plt.gca().get_xlim()
+    f = lambda x: k*x+y0
+    plt.plot([MIN,MAX],[f(MIN),f(MAX)],'--',color=color,**kwargs)    
+#     print MIN,MAX
+    ax =plt.gca()
+    return ax
+    
+def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
+            markersize=None,xlim=None,ylim=None,axs = None,
+           xbin = None,
+           ybin =None,
+            nMax=3000,
+#            axis = [0,1,2]
+           ):
+    ''' Plot histo/scatter/density qc for two variables
+'''
+    if axs is None:
+        fig,axs= plt.subplots(1,4,figsize=[14,4])
+    axs = list(np.ravel(axs))
+    axs = axs + [None] * (4-len(axs))
+    xs = np.ravel(xs)
+    ys = np.ravel(ys)
+
+    xlim = xlim if xlim is not None else np.span(xs,99.9)
+    ylim = ylim if ylim is not None else np.span(ys,99.9)
+    BX = np.linspace(*xlim, num=30) if xbin is None else xbin
+    BY = np.linspace(*ylim, num=50) if ybin is None else ybin    
+#         xlim = np.span(BX)
+#         ylim = np.span(BY)
+    if clu is not None:
+        pass
+    else:
+        clu = [0]*len(xs)
+    clu = np.ravel(clu)
+    
+    df = pd.DataFrame({'xs':xs,'ys':ys,'clu':clu})
+#     nMax = 3000
+    for key, dfc in df.groupby('clu'):
+        if len(dfc)>nMax:
+            dfcc = dfc.sample(nMax)
+        else:
+            dfcc = dfc
+#         print k,dfc
+#         xs,ys,_ = dfcc.values.T
+        xs,ys = dfcc['xs'].values, dfcc['ys'].values
+        xs = xs.ravel()
+        ys = ys.ravel()
+        
+        ax = axs[0];
+        if ax is not None:
+            plt.sca(ax)
+            histoLine  (xs,BX,alpha=0.4)    
+        ax = axs[1];
+        if ax is not None:
+            plt.sca(ax)
+            plt.scatter(xs,ys,markersize,label=key, marker='.')
+        ax = axs[2];
+        if ax is not None:
+            plt.sca(ax)
+            histoLine  (ys,BY,alpha=0.4,transpose=1)            
+        ax = axs[3];
+        if ax is not None:
+            plt.sca(ax)
+            ct,BX,BY = np.histogram2d(xs, ys,(BX,BY))
+            plt.pcolormesh(BX,BY,np.log2(1+ct).T,)
+    [ax.grid(1) for ax in axs[:3] if ax is not None]
+    ax = axs[0];
+    if ax is not None:
+        plt.sca(ax)
+        plt.xlabel(xlab)
+        plt.xlim(xlim)
+    ax = axs[2];
+    if ax is not None:
+        plt.sca(ax)
+        plt.ylabel(ylab)
+        plt.ylim(ylim)
+
+    ax = axs[1];
+    if ax is not None:
+        plt.sca(ax)
+        abline()
+        plt.xlabel(xlab);plt.ylabel(ylab)
+        plt.xlim(xlim);plt.ylim(ylim)
+
+    ax = axs[3];
+    if ax is not None:
+        plt.sca(ax)
+        plt.xlabel(xlab); plt.ylabel(ylab)
+    return axs
+# pyvis.heatmap=heatmap
+import random
+def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
+    """Create an N-bin discrete colormap from the specified input map
+    Source: https://gist.github.com/jakevdp/91077b0cae40f8f8244a
+    """
+
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+    if base_cmap is None:
+        base = plt.get_cmap()
+    else:
+        base = plt.cm.get_cmap(base_cmap)
+        
+    rg = np.linspace(0, 1, N+1)
+    if shuffle:
+        if seed is not None:
+            np.random.seed(seed)
+        np.random.shuffle(rg)
+    color_list = base(rg)
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N+1)
+from mpl_extra import *
+
+def ax_vlines(cutoff,ax = None):
+    if ax is None:
+        ax = plt.gca()
+    lines = ax.vlines(cutoff,*ax.get_ylim())
+    return lines
+
+# from pymisca.util import qc_index
+
+>>>>>>> 41f9b008f727fe4eeea84ebd841e503aa58f5de9
 try:
     import matplotlib_venn as mvenn
 except:
