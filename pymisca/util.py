@@ -7,8 +7,13 @@ if 'matplotlib' not in sys.modules:
     import matplotlib as mpl; mpl.use('Agg')
 else:
     mpl = sys.modules['matplotlib']
+try:
+    mpl.use('Agg')
+    import matplotlib.pyplot as plt
+except Exception as e:
+    sys.stderr.write('[WANR]%s\n'%e)
+    
 cluMap = mpl.colors.ListedColormap(['r', 'g', 'b', 'y', 'w', 'k', 'm'])
-import matplotlib.pyplot as plt
 
 import StringIO
 
