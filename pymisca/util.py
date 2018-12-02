@@ -97,14 +97,15 @@ def envSource(sfile,silent=0,dry=0):
             os.environ[key] = value
     return res
 
-def shellexec(cmd,debug=0,silent=0,):
+def shellexec(cmd,debug=0,silent=0,executable='/bin/bash'):
     if not silent:
         print (cmd)
     if debug:
         return 'dbg'
     else:
         try:
-            res = subprocess.check_output(cmd,shell=1)
+            res = subprocess.check_output(cmd,shell=1,
+                                         executable=executable)
 
 #             p.stdin.close()
             return res
@@ -114,7 +115,7 @@ def shellexec(cmd,debug=0,silent=0,):
 #             raise e
             raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
         return res
-def shellpopen(cmd,debug=0,silent=0,):
+def shellpopen(cmd,debug=0,silent=0,executable='/bin/bash'):
     if not silent:
         print (cmd)
     if debug:
@@ -124,6 +125,7 @@ def shellpopen(cmd,debug=0,silent=0,):
                      cmd,
                      shell=1,
                      bufsize=1,
+                     executable=executable,
                      stdout=subprocess.PIPE,
                      stdin=subprocess.PIPE)
         res = p.communicate()[0]
@@ -681,13 +683,16 @@ def MDFile(fname):
     
     
 def printlines(lst,fname = None,
-               callback=MDFile):
-    s = '\n'.join(map(str,lst))
+               callback=MDFile,encoding='utf8'):
+    s = u'\n'.join(map(unicode,lst))
     if fname is None:
         print(s)
     else:
+# f = open('test', 'w')
+# f.write(foo.encode('utf8'))
+# f.close()
         with open(fname,'w') as f:
-            print >>f,s
+            print >>f,s.encode(encoding)
         if callback is not None:
             callback(fname)
     
@@ -1041,6 +1046,53 @@ def paste0(ss,sep=None,na_rep=None):
     res = pd.Series(res)
     return res
 pasteB = paste0
+
+def df__paste0(df,keys,sep='',headerFmt='[{key}]',debug=0,):
+    '''Calling paste0 with df.eval()
+'''
+#     if 'index' in keys:        
+#     vals = df.get(keys).values
+#     for key, val in zip(keys,vals):
+#         lst += [['[%s]'%key], val]
+    lst = []
+    lstStr = ''
+#     quoteFmt = '"[{key}]"'
+#     quoteFmt = "" 
+    fmt = '["%s"], {key},' % headerFmt
+    for key in keys:
+        lstStr += fmt.format(**locals())
+    cmd = '@pyutil.paste0([{lstStr}],sep="{sep}")'.format(**locals())
+    if debug:
+        print (cmd)
+    res = df.eval(cmd)
+#     res = pyutil.paste0(lst, sep=sep)
+    return res
+
+def df__makeContrast(dfc,
+                     contrast=None,
+                     treatment=None,
+                     control=None,
+                     func = lambda t,c:t-c):
+    '''Use the supplied control/treatment to make contrasted values
+'''
+    if treatment is None or control is None:
+        assert contrast is not None,"Must specify contrast dataframe\
+        when any other variable is missing"
+        treatment = contrast.treatment
+        control = contrast.control
+    vtreat = dfc.reindex(columns = treatment)
+    vcontrol = dfc.reindex(columns = control)    
+    vdiff = func(vtreat.values,vcontrol.values)    
+    columns = pyutil.columns__makeContrast(treatment=treatment,control=control)
+    dfdiff = pd.DataFrame(vdiff,index=dfc.index,columns=columns)
+    return dfdiff
+
+def df2multiIndex(df):
+    '''Source:https://stackoverflow.com/a/33143219/8083313
+    '''
+    multi=df.set_index(df.columns.tolist(), inplace=False).index
+#     print multi
+    return multi
 
 def gQuery(gQuery,gRef,id_col='ID'):
     ''' Query a DataFrame with a set of ID's
@@ -1480,7 +1532,12 @@ if __name__=='__main__':
 
 def log2p1(x):
     return np.log2(1. + x)
-    
+
+def log2p1_ln2(x):
+    y  = np.log2(1 + np.log(2)*x)
+    return y
+
+
 from pymisca.linalg import *
 # from numpy_extra import np
 from pymisca.numpy_extra import np,logsumexp,span
@@ -2239,7 +2296,7 @@ def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
 
 import tempfile 
 
-def make__tempDIR(DIR,silent=1,**kwargs):
+def make__tempDIR(DIR,silent=1, **kwargs):
     pyutil.shellexec('mkdir -p %s'%DIR,silent=silent)
     DIR= tempfile.mkdtemp(dir=DIR)
     return DIR
