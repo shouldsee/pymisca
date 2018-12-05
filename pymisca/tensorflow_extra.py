@@ -138,7 +138,8 @@ def kernelDist( linop,x):
 
 
 
-
+from pymisca.tensorflow_extra_.hyper_plane import *
+from pymisca.tensorflow_extra_.gaussian_field import GaussianField
 from pymisca.tensorflow_extra_.affine_transform import *
 from pymisca.tensorflow_extra_.affine_transform_diag import *
 from pymisca.tensorflow_extra_.affine_transform_diag_plus_low_rank import *
@@ -197,53 +198,5 @@ def quick_eval(v):
     return res
 
 
+from pymisca.tensorflow_util import *
 
-
-def getSimp_(shape,name, mode = None,method='l2norm'):
-    if mode is None:
-        mode = method
-    x_raw = tf.get_variable(shape=shape,name = name)
-    eps = tf.constant(1E-07)
-    if mode == 'l2norm':
-        x_simp = tf.square(tf.nn.l2_normalize( 
-            x_raw,
-            axis= -1,
-        ))
-    elif mode == 'expnorm':
-        x_simp = tf.nn.softmax( 
-#                         -tf.nn.softplus(
-                x_raw,
-#                         ),
-            axis= -1,
-        )
-    elif mode == 'logitnorm':
-        x_raw = tf.log_sigmoid(x_raw)
-        x_simp = tf.nn.softmax(x_raw,axis=-1)
-#                     x_simp = x_raw / (tf.reduce_sum(x_raw,axis=-1,keepdims = True) + eps
-    elif mode == 'logit':
-        x_raw = tf.sigmoid(x_raw)
-        x_simp = x_raw
-
-    elif mode == 'beta':
-        x_raw = tf.log_sigmoid(x_raw)
-        x_raw = tf.cumsum(x_raw,axis=-1)
-#                     x_raw = tf.exp(x_raw)
-        ones = tf.ones(shape=x_raw.shape[:-1].as_list() +  [1,] )
-#                     ones = tf.ones(shape=x_raw.shape[:-1] + [1,])
-        x_p  = tf.concat([ ones, tf.exp(x_raw) + eps ],axis=-1)
-#                                tf.gather(x_raw,
-#                                          range(0,x_raw.shape[-1]),
-#                                         axis=-1)],axis=-1)
-        L = x_p.shape[-1]
-        x_p = tf.gather(
-            x_p, range(0,L-1),axis=-1) - tf.gather(
-            x_p,range(1,L),axis=-1) 
-#                     x_p = tf.diff(x_p,axis=-1)
-
-        x_simp = x_p
-#                     x_simp = tf.gather(x_p,)
-#                     x_raw = 
-    else:
-        raise Exception('mode not implemented:%s'%mode)
-    return x_simp
-# from pymisca.affine_transform_diag import *

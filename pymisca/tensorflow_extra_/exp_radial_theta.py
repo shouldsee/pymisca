@@ -4,6 +4,7 @@
 import tensorflow_probability.python.distributions as tfdist
 
 import pymisca.tensorflow_extra as pytf
+import pymisca.tensorflow_util as pytfu
 ed = edm = pytf.ed
 tf = pytf.tf;
 
@@ -21,12 +22,11 @@ def GammaRadialTheta( self,
                       D = None
                     ):
     D = self.D if D is None else D
-    if gamma_concentration is None:
-        gamma_concentration = tf.ones([]) * self.D/2.
 #     mean_direction = tf.convert_to_tensor( (mean_direction),dtype='float32')
 
     dist_rsqTheta = mdl=  pytf.JointDist(
         [
+#             tddist.Exp(),
             tfdist.Gamma(gamma_concentration, 
                          gamma_rate,
                          name='r_squared'),
@@ -181,6 +181,7 @@ class GammaRadialTheta_VIMAP(BaseModel):
 #             prior.vm_direction =  edm.Uniform(*[0.001,100000.],sample_shape=(K,D))
             
             i += 1            
+            
             post.gamma_concentration  = edm.PointMass(
                 tf.nn.softplus(
 #                     tf.Variable(name="concentration",initial_value = self.random([K]) ),
@@ -426,4 +427,4 @@ class GammaRadialTheta_VIMAP(BaseModel):
 #         self.sess = sess
         return mdl,(last_vars, hist_loss, opt)
 
-main = GammaRadialTheta_VIMAP
+    

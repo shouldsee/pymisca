@@ -4,6 +4,7 @@
 import tensorflow_probability.python.distributions as tfdist
 
 import pymisca.tensorflow_extra as pytf
+import pymisca.tensorflow_util as pytfu
 ed = edm = pytf.ed
 tf = pytf.tf;
 
@@ -13,56 +14,37 @@ np = pyutil.np
 from pymisca.models import BaseModel
 
 
-def GammaRadialTheta( self, 
-                      gamma_concentration = None,
-                      gamma_rate = None,
-                      vm_concentration = None,
-                      vm_direction = None,
-                      D = None
-                    ):
-    D = self.D if D is None else D
-    if gamma_concentration is None:
-        gamma_concentration = tf.ones([]) * self.D/2.
-#     mean_direction = tf.convert_to_tensor( (mean_direction),dtype='float32')
+# def GammaRadialTheta( self, 
+#                       gamma_concentration = None,
+#                       gamma_rate = None,
+#                       vm_concentration = None,
+#                       vm_direction = None,
+#                       D = None
+#                     ):
+ 
+#     #### Use a bijector to calculate P(x) from P(r^2)
+#     dist_xyz = mdl = pytf.AsRadialTheta(
+#         distribution=mdl,
+#         D=D)
 
-    dist_rsqTheta = mdl=  pytf.JointDist(
-        [
-            tfdist.Gamma(gamma_concentration, 
-                         gamma_rate,
-                         name='r_squared'),
-            pytf.VonMisesFisher(
-                concentration = vm_concentration,
-                mean_direction = vm_direction
-                                 )
-        ])
 
-    #### Use a bijector to calculate P(x) from P(r^2)
-    dist_xyz = mdl = pytf.AsRadialTheta(
-        distribution=mdl,
-        D=D)
+#     return mdl
 
-    ### Allow an affine transformation y = M x + x_0
-#     dist_aff = mdl = pytf.AffineTransformDiag(distribution=dist_xyz,
-#                                         scale_diag=sigma,)
-    # gaussian_dist = tf.contrib.distributions.Normal(loc=mu, scale=sigma)
-    # emission  = dist_rsq
-    
-    return mdl
-
-class GammaRadialTheta_VIMAP(BaseModel):
+class HyperPlaneMixture_VIMAP(BaseModel):
     
     bkd    = tfdist
-    emDist = GammaRadialTheta
+    emDist = pytf.HyperPlane
     
     def __init__(self,D=None,K=20,
-                 debug=False,NCORE=1,
+                 debug=False,NCORE=1,L2loss=0.,
                  *args,**kwargs):
         super(
-            GammaRadialTheta_VIMAP,
+            HyperPlaneMixture_VIMAP,
             self).__init__(*args,**kwargs)
         self.NCORE= NCORE
         self.K = K
         self.D = D
+        self.L2loss = float(L2loss)
         self.initialised = False
         self.sess = None
         self.feed_dict = None
@@ -72,10 +54,8 @@ class GammaRadialTheta_VIMAP(BaseModel):
             self.init_model(D=D)  
                         
     em_key =[
-        'gamma_concentration',
-        'gamma_rate',
-        'vm_concentration',
-        'vm_direction',
+        'L2loss',
+        'mean',
         ]
     mix_key = [
             'weight',
@@ -95,10 +75,10 @@ class GammaRadialTheta_VIMAP(BaseModel):
         D = self.D
         K = self.K
         alpha = self.D/2.
-#         diriAlpha = self.K /10.
 #         diriAlpha = 1.
 
-        diriAlpha = 0.001
+        diriAlpha = 1.
+#         diriAlpha = 0.001
 #         diriAlpha = 0.00001
 #         diriAlpha = 0.0000000000000000000000000000000001        
 #         diriAlpha = 10.
@@ -119,13 +99,8 @@ class GammaRadialTheta_VIMAP(BaseModel):
 #             prior.gamma_concentration = edm.Normal(tf.zeros(D), tf.ones(D), sample_shape=K)            
 #             prior.loc =  edm.Uniform(*uspan,sample_shape=(K,D))
 
-
-            
-#             prior.vm_direction = edm.Normal(tf.zeros(D), tf.ones(D), sample_shape=K)      
- 
-#             prior.weight =  edm.Uniform(*[0.001,100000.],sample_shape=(K,))
-            prior.weight = pi = edm.Dirichlet( float(diriAlpha)/K * tf.ones(K) )            
-
+            prior.weight = pi = tfdist.Dirichlet( float(diriAlpha)/K * tf.ones(K) )            
+    
 #             prior.cat = edm.Categorical(weight = post.weight)
         return prior
     
@@ -149,82 +124,27 @@ class GammaRadialTheta_VIMAP(BaseModel):
             ##### Posterior
             i = -1
             i += 1
-#             post.weight = edm.PointMass(
-#                 tf.nn.softmax(
-#                     tf.get_variable(str(i), shape=[K]), 
-#                     name = 'weight',
-# #                     tf.Variable(name="q_pi",initial_value = self.random([K]) ),
-#                 )
-#             )
-            
-            post.weight = edm.PointMass(
-                tf.square(
-                    tf.nn.l2_normalize(
-                        tf.get_variable(str(i), shape=[K]), 
-                    ),
-                    name = 'weight',
-#                     tf.Variable(name="q_pi",initial_value = self.random([K]) ),
-                )
-            )     
+#             post.weight =  tf.ones(shape=[K,]) * 1.
+            post.weight = pytfu.getSimp_(shape=[K],name = 'weight',method='expnorm')
 
-
-#             post.cat = edm.PointMass(
-#                 tf.nn.softmax(
-#                     tf.get_variable("cat",[K]),
-# #                     tf.Variable(name="q_pi",initial_value = self.random([K]) ),
-#                 )
-#             )    
-
-#             prior.gamma_concentration =  edm.Uniform(*[0.001,1000.],sample_shape=(K,))
-#             prior.gamma_rate =  edm.Uniform(*[0.001,100000.],sample_shape=(K,))
-#             prior.vm_concentration =  edm.Uniform(*[0.001,100000.],sample_shape=(K,))
-#             prior.vm_direction =  edm.Uniform(*[0.001,100000.],sample_shape=(K,D))
             
             i += 1            
-            post.gamma_concentration  = edm.PointMass(
-                tf.nn.softplus(
-#                     tf.Variable(name="concentration",initial_value = self.random([K]) ),
-                    tf.get_variable(str(i),shape=[K,]),
-                    name = 'gamma_concentration',
-                              ),
-            )
-
-            i += 1
-            post.gamma_rate  = edm.PointMass(
-                tf.nn.softplus(
-#                     tf.Variable(name="concentration",initial_value = self.random([K]) ),
-                    tf.get_variable(str(i),shape=[K,]),
-                    name = 'gamma_rate',
-                              ),
-            )
-            
-            i += 1
-            post.vm_concentration = tf.constant([1.],name=str(i)) * tf.ones(shape=[K,])
-#             post.vm_concentration  = edm.PointMass(
-#                 1 
-#                 0.0 + tf.nn.softplus(
-#                     30. -  tf.nn.softplus(
-#     #                     tf.Variable(name="concentration",initial_value = self.random([K]) ),
-#                         tf.get_variable(str(i),shape=[K,]),
-                        
-#                                   ),
-#                 name = 'vm_concentration',)
-#             )            
-            
-#             post.vm_concentration  = edm.PointMass(
-#                 10. *  tf.nn.sigmoid(
-# #                     tf.Variable(name="concentration",initial_value = self.random([K]) ),
-#                     tf.get_variable('vm_concentration',shape=[K,])
-#                               ),
-#             )            
-            i += 1
-            post.vm_direction = edm.PointMass(
-                tf.nn.l2_normalize(
-                    tf.get_variable(str(i), [K,D]),
-                    axis = -1,
-                    name = "vm_direction",
-                ),
-            )
+#             post.mean = tf.get_variable(str(i), shape =[K,self.D])
+#             post.mean = pytfu.getSimp_(shape=[K,self.D],name = str(i),method='l2norm')
+    
+            post.mean = tf.get_variable(str(i), shape =[K,self.D])
+            l2_mean = tf.reduce_mean(tf.square(post.mean),
+                                  axis=-1,keepdims=True) 
+            post.mean = post.mean/tf.sqrt(l2_mean)
+            post.L2loss = tf.ones(shape=[K,]) * self.L2loss
+#             i += 1
+#             post.vm_direction = edm.PointMass(
+#                 tf.nn.l2_normalize(
+#                     tf.get_variable(str(i), [K,D]),
+#                     axis = -1,
+#                     name = "vm_direction",
+#                 ),
+#             )
             
 #             post.rate  = edm.PointMass(
 #                 tf.nn.softplus(
@@ -387,14 +307,16 @@ class GammaRadialTheta_VIMAP(BaseModel):
             
     def _fit_MAP(self,x_obs, optimizer = None, **kwargs):
         mdl = self.build_likelihood(X=x_obs,env='post')
-        x_place = tf.placeholder(dtype='float32')
+#         x_place = tf.placeholder(dtype='float32')
+        x_place = tf.placeholder(shape=x_obs.shape,dtype='float32')
+        
         
         ### prior likelihood
         self.lp_param = lp_param = [
             tf.reduce_sum(
-                k.distribution.log_prob(v)  ### ed.RandomVariable.value()
+                k.log_prob(v)  ### ed.RandomVariable.value()
             ) 
-            if k.distribution.__class__.__name__ != 'Uniform' 
+            if k.__class__.__name__ != 'Uniform' 
             else 0.
             for k,v in self.paramDict.items()]
 #         print (tf.reduce_sum(lp_param))
@@ -425,5 +347,5 @@ class GammaRadialTheta_VIMAP(BaseModel):
         )
 #         self.sess = sess
         return mdl,(last_vars, hist_loss, opt)
-
-main = GammaRadialTheta_VIMAP
+main = HyperPlaneMixture_VIMAP
+    
