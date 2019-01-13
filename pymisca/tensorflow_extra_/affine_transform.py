@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 from tensorflow.contrib import linalg
+# from tensorflow.python.ops import linalg
 # from tensorflow.contrib.distributions.python.ops import bijectors
 # from tensorflow.contrib.distributions.python.ops import distribution_util
 from tensorflow.python.framework import ops
