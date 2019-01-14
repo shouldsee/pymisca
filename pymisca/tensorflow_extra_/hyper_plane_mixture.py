@@ -99,7 +99,8 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 #             prior.gamma_concentration = edm.Normal(tf.zeros(D), tf.ones(D), sample_shape=K)            
 #             prior.loc =  edm.Uniform(*uspan,sample_shape=(K,D))
 
-            prior.weight = pi = tfdist.Dirichlet( float(diriAlpha)/K * tf.ones(K) )            
+#             prior.weight = pi = tfdist.Dirichlet( float(diriAlpha)/K * tf.ones(K) )            
+            prior.weight = pi = tfdist.Dirichlet(  tf.ones(K) )            
     
 #             prior.cat = edm.Categorical(weight = post.weight)
         return prior
@@ -133,9 +134,11 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 #             post.mean = pytfu.getSimp_(shape=[K,self.D],name = str(i),method='l2norm')
     
             post.mean = tf.get_variable(str(i), shape =[K,self.D])
-            l2_mean = tf.reduce_mean(tf.square(post.mean),
+#             l2_mean = tf.reduce_mean(tf.square(post.mean),
+#                                   axis=-1,keepdims=True) 
+            l2_sum = tf.reduce_sum(tf.square(post.mean),
                                   axis=-1,keepdims=True) 
-            post.mean = post.mean/tf.sqrt(l2_mean)
+            post.mean = post.mean/tf.sqrt(l2_sum)
             post.L2loss = tf.ones(shape=[K,]) * self.L2loss
 #             i += 1
 #             post.vm_direction = edm.PointMass(
