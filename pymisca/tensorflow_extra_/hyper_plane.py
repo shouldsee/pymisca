@@ -84,10 +84,12 @@ class HyperPlane(distribution.Distribution):
 '''
     def __init__(self,
                  mean,
+                 bias = 0.,
                  L2loss = 0.,
                  radius = None,
 #                  scale,
                  D = None,
+                 normalize= False,
 #                  mean = 
 #                  subDists,
                  validate_args=False,
@@ -105,11 +107,14 @@ class HyperPlane(distribution.Distribution):
 #         #### Managing event shapes
         self.mean = tf.convert_to_tensor(mean,
                                         dtype='float32')
+        self.bias = tf.convert_to_tensor(bias,
+                                        dtype='float32')
         if radius is not None:
             self.radius = float(radius)
             self.mean = tf.mod(self.mean, self.radius*2. , ) - self.radius
         self.D = int(self.mean.shape[0])
         self.L2loss = tf.convert_to_tensor(L2loss,)
+        self.normalize = normalize
 #         if not fixScale:
 #             self.scale = tf.convert_to_tensor(scale,
 #                                               dtype='float32')
@@ -125,7 +130,7 @@ class HyperPlane(distribution.Distribution):
             validate_args=validate_args,
             allow_nan_stats=allow_nan_stats,
             parameters=parameters,
-            graph_parents=[self.mean],
+            graph_parents=[self.mean, self.bias],
             name=name)
     def _L2_penalty(self,):
         penalty = self.L2loss *(tf.reduce_mean(tf.square(self.mean),) - 1.)**2
@@ -146,9 +151,17 @@ class HyperPlane(distribution.Distribution):
     
 #         X = X - self.mean[None]
 #         X = X - self.mean[None]
-        
-        dotProd = tf.tensordot(X, self.mean,axes=1)
-        logP = dotProd   - self._L2_penalty()
+        if self.normalize:
+            xsum = tf.reduce_sum(X,axis=-1,keepdims=True)
+            nonZero = tf.logical_not( tf.equal(tf.squeeze(xsum), 0.))
+            X = tf.boolean_mask(X,nonZero,0) / tf.boolean_mask(xsum,nonZero,0)
+#             X = X / tf.reduce_sum(X,axis=-1,keepdims=True)
+            X = tf.sqrt(X )
+            pass
+        dotProd = tf.tensordot(X, self.mean,axes=1) #+ self.bias
+        logP = dotProd + self.bias
+#         logP = dotProd   - self._L2_penalty()
+
 #         pdX = X[:,:,None] - X[:,None,:]
 #         f = functools.partial(pytfu.take_tril, 
 #                       n = self.D, k=-1,transpose=False)

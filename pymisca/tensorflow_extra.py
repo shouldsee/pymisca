@@ -63,54 +63,82 @@ def op_minimise(loss,
                 TOL_LOSS = 1e-2,
                 TOL_PARAM = 1e-8,
                 TOL_GRAD = 1e-8,
-                feed_dict= {}
+                feed_dict= {},
+                variable_scope= None,
+                batchMaker = None,
+                autoStop = True,
                 ):
     '''
     #### Adapted from: http://kyleclo.github.io/maximum-likelihood-in-tensorflow-pt-1/
 '''
-    if optimizer is None:
-        LEARNING_RATE = 1.0
-        optimizer = tf.train.AdadeltaOptimizer(learning_rate=LEARNING_RATE)
-    train_op = optimizer.minimize(loss=loss)
-    grad = tf.gradients( loss,free_params)
-    grad = [x for x in grad if x is not None]
-    
-    if sess is None:
-        sess = tf.get_default_session()
-        if sess is None:
-            sess = tf.Session()
-
+    if batchMaker is False:
+        batchMaker = None
+#     if variable_scope is None:
+#         name = 'op_minimise'
+#         variable_scope = tf.variable_scope(name, reuse=False)
+#     else:
+#         pass
+#     with variable_scope:
     if 1:
-#     with tf.Session() as sess:
-        
-            # initialize
-        sess.run(fetches=tf.global_variables_initializer())
-        obs_loss = sess.run(fetches=[loss], feed_dict=feed_dict)
-        obs_vars = sess.run(fetches=free_params)
-        for i in range(MAX_ITER):
-            # gradient step
-            sess.run(fetches=train_op, feed_dict=feed_dict)    
-            new_loss = sess.run(fetches=loss, feed_dict=feed_dict)
-#             if grad is not None:
-            new_grad = sess.run(fetches=grad, feed_dict=feed_dict)
-            loss_diff = abs(new_loss - obs_loss[-1])
+        if optimizer is None:
+            LEARNING_RATE = 1.0
+            optimizer = tf.train.AdadeltaOptimizer(learning_rate=LEARNING_RATE)
+        train_op = optimizer.minimize(loss=loss)
+        grad = tf.gradients( loss,free_params)
+        grad = [x for x in grad if x is not None]
 
-            obs_loss.append(new_loss)
+        if sess is None:
+            sess = tf.get_default_session()
+            if sess is None:
+                sess = tf.Session()
+
+        def getFeedDict(i):
+            if batchMaker is not None:
+                feed_curr = {k:batchMaker(v,i) for k,v in feed_dict.iteritems()}
+            else:
+                feed_curr = feed_dict
+            return feed_curr
+        if 1:
+    #     with tf.Session() as sess:
+
+                # initialize
+            sess.run(fetches=tf.global_variables_initializer())
             
-            if not i%100:
-                print ('Iter %d'%i, new_loss)
-            if i > 50:
-#             if max(obs_loss[-10:]) - TOL_LOSS < new_loss:
-                minA = min(obs_loss[-20:])
-                minB = min(obs_loss[-10:])
-#                 if minA + TOL_LOSS < minB:
-                if minB - minA > TOL_LOSS:
-                        print('Loss function convergence in {} iterations!: {}'.format(i,new_loss))
-                        print( minA,minB)
-                        break
             
-        last_vars = sess.run(fetches=free_params)
-    
+#             i = 0
+#             obs_loss = sess.run(fetches=[loss], feed_dict=getFeedDict(0))
+#             obs_vars = sess.run(fetches=free_params)
+        
+            obs_loss = []
+            obs_vars = []
+            for i in range(MAX_ITER):
+                feed_curr = getFeedDict(i)
+                
+               # gradient step
+                sess.run(fetches=train_op, feed_dict=feed_curr)    
+                new_loss = sess.run(fetches=loss, feed_dict=feed_curr)
+    #             if grad is not None:
+                new_grad = sess.run(fetches=grad, feed_dict=feed_curr)
+                obs_loss.append(new_loss)
+                if i!=0:
+                    loss_diff = abs(new_loss - obs_loss[-1])
+
+                    if not i%100:
+                        print ('Iter %d'%i, new_loss)
+                    if autoStop:
+                        if i > 50:
+            #             if max(obs_loss[-10:]) - TOL_LOSS < new_loss:
+                            minA = min(obs_loss[-20:])
+                            minB = min(obs_loss[-10:])
+            #                 if minA + TOL_LOSS < minB:
+                            if minB - minA > TOL_LOSS:
+                                    print('Loss function converged\
+                                    in {} iterations!: {}'.format(i,new_loss))
+                                    print( minA,minB)
+                                    break
+
+            last_vars = sess.run(fetches=free_params)
+
     return sess,last_vars, obs_loss, optimizer
 
 
