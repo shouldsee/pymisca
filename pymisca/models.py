@@ -16,21 +16,21 @@ class BaseModel(object):
                   **kwargs)
         return res
     
-    def predict_proba(self,X,norm = 1,log=1):
+    def predict_proba(self,X,norm = 1,log=1, **kwargs):
         X = self.sanitise(X)
-        prob = self._predict_proba(X)
+        prob = self._predict_proba(X,**kwargs)
         if norm:
             prob = prob - pynp.logsumexp( prob, axis =1,keepdims=1)
         if not log:
             prob = np.exp(log)
         return prob
-    def score(self,X,keepdims=0):
-        prob = self.predict_proba(X,norm=0,log=1)
+    def score(self,X,keepdims=0, **kwargs):
+        prob = self.predict_proba(X,norm=0,log=1,**kwargs)
         score = pynp.logsumexp( prob, axis =1,keepdims=keepdims)
         return score
     
-    def predict(self,X):
-        proba = self.predict_proba(X,norm = 0)
+    def predict(self,X, **kwargs):
+        proba = self.predict_proba(X,norm = 0,**kwargs)
         clu = np.argmax(proba,axis = 1)
         return clu
     
