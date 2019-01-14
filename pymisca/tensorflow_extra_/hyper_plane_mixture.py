@@ -186,7 +186,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
                 if self.meanNorm:
                     ### Make sure each signature sums to zero
                     post.mean = post.mean - tf.reduce_mean(post.mean,axis=-1,keepdims=True)
-                l2_mean = tf.reduce_mean(tf.square(post.mean),
+                l2_mean = tf.reduce_sum(tf.square(post.mean),
                                       axis=-1,keepdims=True) 
                 post.mean = post.mean/tf.sqrt(l2_mean)
 #                 if self.normalize
