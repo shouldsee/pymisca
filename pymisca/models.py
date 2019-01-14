@@ -42,5 +42,3 @@ class BaseModel(object):
                    [1, 1, self.K, 1])
         return X_bdc
     
-    
-from pymisca.tensorflow_extra_.gamma_radial_theta import *
