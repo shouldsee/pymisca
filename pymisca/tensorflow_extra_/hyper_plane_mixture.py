@@ -27,7 +27,21 @@ from pymisca.models import BaseModel
 #         distribution=mdl,
 #         D=D)
 
-
+def mixture_logProbComponents(self, x):
+    '''Hacked to return logprob before logsumexp across components
+    '''
+    with tf.control_dependencies(self._assertions):
+        x = tf.convert_to_tensor(x, name="x")
+        distribution_log_probs = [d.log_prob(x) for d in self.components]
+        cat_log_probs = self._cat_probs(log_probs=True)
+        final_log_probs = [
+          cat_lp + d_lp
+          for (cat_lp, d_lp) in zip(cat_log_probs, distribution_log_probs)
+        ]
+        concat_log_probs = tf.stack(final_log_probs, -1)
+#      log_sum_exp = tf.reduce_logsumexp(concat_log_probs, [0])
+    return concat_log_probs
+pytf.mixture_logProbComponents = mixture_logProbComponents
 #     return mdl
 
 class HyperPlaneMixture_VIMAP(BaseModel):
@@ -37,6 +51,13 @@ class HyperPlaneMixture_VIMAP(BaseModel):
     
     def __init__(self,D=None,K=20,
                  debug=False,NCORE=1,L2loss=0.,
+                 meanNorm = 1,
+                 variable_scope=None,
+                 alpha = None,
+                 nConv=  1,
+                 normalize = False,
+                 threshold = None,
+                 weighted=  True,
                  *args,**kwargs):
         super(
             HyperPlaneMixture_VIMAP,
@@ -49,17 +70,40 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         self.sess = None
         self.feed_dict = None
         self.debug = debug
-        
+        self.meanNorm  = meanNorm
+        self.nConv = nConv
+        self.emission = None
+        self.normalize = normalize
+        self.threshold = threshold
+        self.weighted = weighted
+#         if alpha is None:
+        if alpha is None:
+            alpha = float(self.K)
+        self.alpha = float(alpha)
+        if variable_scope is None:
+            self.variable_scope = self.getScope()
+        else:
+            self.variable_scope =  variable_scope
         if D is not None:
             self.init_model(D=D)  
                         
     em_key =[
         'L2loss',
         'mean',
+        'bias',
         ]
     mix_key = [
             'weight',
         ]
+    def getScope(self):
+        try:
+            tf.get_variable(self.name+'/post',[1])
+            reuse = None
+        except:
+            reuse = True
+        print ('reuse',reuse)
+        variable_scope =  tf.variable_scope(self.name, reuse=reuse)
+        return variable_scope
     
     def random(self,size):
         '''
@@ -76,8 +120,8 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         K = self.K
         alpha = self.D/2.
 #         diriAlpha = 1.
-
-        diriAlpha = 1.
+        diriAlpha = self.alpha
+#         diriAlpha = 1.
 #         diriAlpha = 0.001
 #         diriAlpha = 0.00001
 #         diriAlpha = 0.0000000000000000000000000000000001        
@@ -85,23 +129,16 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 
         name = self.name
         self.prior = prior = pyutil.util_obj()
-        try:
-            tf.get_variable(name+'/prior',[1])
-            reuse = None
-        except:
-            reuse = True
-        print ('reuse',reuse)
 
-        with tf.variable_scope(name, reuse=reuse):
+        with self.variable_scope:
             
             uspan = [-1E5,1E5]
             ##### Prior
 #             prior.gamma_concentration = edm.Normal(tf.zeros(D), tf.ones(D), sample_shape=K)            
 #             prior.loc =  edm.Uniform(*uspan,sample_shape=(K,D))
 
-#             prior.weight = pi = tfdist.Dirichlet( float(diriAlpha)/K * tf.ones(K) )            
-            prior.weight = pi = tfdist.Dirichlet(  tf.ones(K) )            
-    
+            prior.weight = pi = tfdist.Dirichlet( float(diriAlpha) * tf.ones(K)/float(K) )            
+#             prior.weight = 
 #             prior.cat = edm.Categorical(weight = post.weight)
         return prior
     
@@ -112,34 +149,53 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         name = self.name
         self.post = post = pyutil.util_obj()
         prior = self.prior
-        try:
-            tf.get_variable(name+'/post',[1])
-            reuse = None
-        except:
-            reuse = True
-        print ('reuse',reuse)
 
-        with tf.variable_scope(name, reuse=reuse):
+        with self.variable_scope:
             
             uspan = [-1E5,1E5]
             ##### Posterior
             i = -1
             i += 1
 #             post.weight =  tf.ones(shape=[K,]) * 1.
-            post.weight = pytfu.getSimp_(shape=[K],name = 'weight',method='expnorm')
+            if self.weighted:
+                post.weight = pytfu.getSimp_(shape=[K],name = 'weight',method='expnorm')
+            else:
+                post.weight = tf.constant([1.] * K, name ='weight')
 
             
             i += 1            
 #             post.mean = tf.get_variable(str(i), shape =[K,self.D])
 #             post.mean = pytfu.getSimp_(shape=[K,self.D],name = str(i),method='l2norm')
     
-            post.mean = tf.get_variable(str(i), shape =[K,self.D])
-#             l2_mean = tf.reduce_mean(tf.square(post.mean),
-#                                   axis=-1,keepdims=True) 
-            l2_sum = tf.reduce_sum(tf.square(post.mean),
-                                  axis=-1,keepdims=True) 
-            post.mean = post.mean/tf.sqrt(l2_sum)
-            post.L2loss = tf.ones(shape=[K,]) * self.L2loss
+#             if self.normalize:
+# #                 post.mean = pytfu.getSimp
+#                 post.mean = tf.get_variable(str(i), shape =[K,self.D])
+#                 meanSq  = tf.square(post.mean)
+#                 l2_mean = tf.reduce_mean(meanSq,
+#                                       axis=-1,keepdims=True) 
+#                 if self.meanNorm:
+#                     ### Make sure each signature sums to zero
+#                     post.mean = post.mean - tf.reduce_mean(post.mean,axis=-1,keepdims=True)
+#                 post.mean = meanSq/tf.sqrt(l2_mean)
+#                 post.mean = tf.abs(post.mean)
+#                 #### make sure sq sum to 1.
+#             else:
+#             if self.normalize:
+            if 1:
+                post.mean = tf.get_variable(str(i), shape =[K,self.D])
+                if self.meanNorm:
+                    ### Make sure each signature sums to zero
+                    post.mean = post.mean - tf.reduce_mean(post.mean,axis=-1,keepdims=True)
+                l2_mean = tf.reduce_sum(tf.square(post.mean),
+                                      axis=-1,keepdims=True) 
+                post.mean = post.mean/tf.sqrt(l2_mean)
+#                 if self.normalize
+#                 post.L2loss = tf.ones(shape=[K,]) * self.L2loss
+            if self.threshold is not None:
+                post.mean  = tf.concat([post.mean[:-1], 
+                                        tf.zeros(shape=[1,self.D])],axis=0)
+                post.bias = tf.constant( [0.] * (self.K - 1) + [self.threshold], )
+    
 #             i += 1
 #             post.vm_direction = edm.PointMass(
 #                 tf.nn.l2_normalize(
@@ -200,6 +256,8 @@ class HyperPlaneMixture_VIMAP(BaseModel):
              for key,v in post.__dict__.items() 
              if key in self.em_key} 
             for k in range(K)]
+        const  = {'normalize':self.normalize}
+        [d.update(const) for d in cDicts]
         self.post.components = [self.emDist(**d) for d in cDicts]
         
 
@@ -212,7 +270,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         elif isinstance(env,str):
             env = getattr(self,env)
         K = self.K
-        N = len(X)
+#         N = len(X)
 #         env,cat = bkd
 
         ### build 
@@ -233,7 +291,8 @@ class HyperPlaneMixture_VIMAP(BaseModel):
             cat = env.cat, 
             components=env.components,
 #             sample_shape=N,
-        )        
+        )       
+        self.emission = env.emission
         return env.emission
     
     def _fit(self,X, 
@@ -245,6 +304,11 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         
         K = self.K
         N = len(X)
+        D = X.shape[-1]
+        if self.D is not None:
+            assert D == self.D
+        else:
+            self.D = D
 #         emission = self.build_likelihood(X,env=env)
         self.init_model()
     
@@ -270,7 +334,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
     def weights_(self):
         res = self.post.weight.eval(session=self.sess)
         return res
-    def _predict_proba(self,X, N=None, norm = 0):
+    def _predict_proba(self,X, N=None, norm = 0, nConv = None):
         ''' self.emission does not work, manually build posterior
 '''
         assert self.sess is not None,"\"self.sess\" is None, please fit the model first with a tf.Session()"
@@ -279,10 +343,10 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 #         X_bdc = self.expand_input(X)
         
 
-        ll = tf.concat([ comp.log_prob(X)[:,None]
-                        for comp in self.post.components],axis=1) 
-        ll = ll + tf.log( self.post.weight )
-        
+#         ll = tf.concat([ comp.log_prob(X)[:,None]
+#                         for comp in self.post.components],axis=1) 
+#         ll = ll + tf.log( self.post.weight )
+        ll = self.getProba(X,nConv = nConv)
 ##         ll = tf.reduce_mean(ll,axis=1)  ### over posterior samples
     #     ll = tf.reduce_sum(ll,axis=-1)  ### over dimensions
         logP = ll.eval(session=self.sess,
@@ -307,48 +371,109 @@ class HyperPlaneMixture_VIMAP(BaseModel):
                        if not isinstance(x,list) and k in self.param_key}            
         return odict
         
+    def getProba(self,x,nConv= None):
+        if self.emission is None:
+            self.emission  = mdl = self.build_likelihood(X=x,env='post')
+        if nConv is None:
+            nConv = self.nConv
             
-    def _fit_MAP(self,x_obs, optimizer = None, **kwargs):
-        mdl = self.build_likelihood(X=x_obs,env='post')
-#         x_place = tf.placeholder(dtype='float32')
-        x_place = tf.placeholder(shape=x_obs.shape,dtype='float32')
-        
-        
-        ### prior likelihood
-        self.lp_param = lp_param = [
-            tf.reduce_sum(
-                k.log_prob(v)  ### ed.RandomVariable.value()
-            ) 
-            if k.__class__.__name__ != 'Uniform' 
-            else 0.
-            for k,v in self.paramDict.items()]
-#         print (tf.reduce_sum(lp_param))
-        ### data likelihood
-        self.lp_data = lp_data = tf.reduce_sum(
-            mdl.log_prob(x_place)
-        )
-        lp = tf.reduce_sum(
-            map(tf.reduce_sum,[lp_param,lp_data])
-        )
-        loss = -lp
-#         loss = 0.
-#         loss += tf.reduce_sum(-lp_param) + tf.reduce_sum()
+#             self.lp_data = 
+        proba = pytf.mixture_logProbComponents(self.emission,x)
+        if nConv > 1:
 
-        self.feed_dict = {x_place:x_obs}
-#         fitted_vars_dict = {k:x.value() for k,x in 
-#                        self.post.__dict__.iteritems() 
-#                        if not isinstance(x,list) and k in self.param_key}
-        self.sess = pytf.newSession(NCORE=self.NCORE)
-        sess, last_vars, hist_loss, opt = pytf.op_minimise(
-            loss,
-            self.freeVarDict('post').values(),
-            optimizer = optimizer,
-            feed_dict = self.feed_dict,
-            sess = self.sess,
-            **kwargs
+            im  =  tf.expand_dims( proba, axis = 0)
+            fir =  tf.tile([tf.eye(self.K,)],(nConv,1,1))/float(nConv)
+#                 assert 0
+            proba = tf.nn.convolution(
+                im,fir,
+#                     tf.ones((self.nConv,self.K,self.K)) / float(self.nConv),
+                padding= 'SAME',
+                strides=None,
+                dilation_rate=None,
+                name=None,
+                data_format=None
+            )
+            proba = proba[0]
+#         proba = lp_data
+        return proba
             
-        )
-#         self.sess = sess
-        return mdl,(last_vars, hist_loss, opt)
+    def _fit_MAP(self,x_obs, optimizer = None, batchMaker = None, nConv = None, **kwargs):
+        if batchMaker == 'auto':
+            batchMaker = pytfu.batchMaker__random(batchSize=500, 
+#                                                         windowSize=20,
+                                                 )
+#             batchMaker = pytfu.batchMaker__randomWindow(batchSize=100, 
+#                                                         windowSize=20,)
+            
+#         if nConv is None:
+#             nConv = self.nConv
+        with self.variable_scope:
+#             self.emission  = mdl = self.build_likelihood(X=x_obs,env='post')
+#             self.emission = 
+    #         x_place = tf.placeholder(dtype='float32')
+            x_place = tf.placeholder(shape=(None, ) + x_obs.shape[1:],dtype='float32')
+
+
+            ### prior likelihood
+            self.lp_param = lp_param = [
+                tf.reduce_sum(
+                    k.log_prob(v)  ### ed.RandomVariable.value()
+                ) 
+                if k.__class__.__name__ != 'Uniform' 
+                else 0.
+                for k,v in self.paramDict.items()]
+    #         print (tf.reduce_sum(lp_param))
+            ### data likelihood
+#             self.lp_data = lp_data = mdl.log_prob(x_place)
+            self.proba = self.getProba(x_place, nConv = nConv)
+            self.lp_data = tf.reduce_logsumexp(self.proba, [-1])
+            lp = tf.reduce_sum(
+                map(tf.reduce_sum,[self.lp_param,
+                                   self.lp_data])
+            )
+            loss = -lp
+    #         loss = 0.
+    #         loss += tf.reduce_sum(-lp_param) + tf.reduce_sum()
+
+            self.feed_dict = {x_place:x_obs}
+    #         fitted_vars_dict = {k:x.value() for k,x in 
+    #                        self.post.__dict__.iteritems() 
+    #                        if not isinstance(x,list) and k in self.param_key}
+            self.sess = pytf.newSession(NCORE=self.NCORE)
+            sess, last_vars, hist_loss, opt = pytf.op_minimise(
+                loss,
+                self.freeVarDict('post').values(),
+                optimizer = optimizer,
+                feed_dict = self.feed_dict,
+                sess = self.sess,
+                batchMaker = batchMaker,
+                **kwargs
+
+            )
+            post = self.getPost()
+    #         self.sess = sess
+        return self.emission,(last_vars, hist_loss, opt)
+
+    def getPost(self):
+        '''Move to tfModel in the future'''
+        assert self.sess is not None
+        with self.sess.as_default():
+            post = pyutil.util_obj(**{k:pytf.quick_eval(v) for k,v in self.params.items()})
+            self.post.__dict__.update(post.__dict__)
+            return self.post
+        
+    @property
+    def params(self): 
+        '''[FRAGILE] move distributions to a separate dict'''
+        d = {}
+        for k,v in self.post.__dict__.items():
+            if not (isinstance(v, tfdist.Distribution) or  isinstance(v,list)):
+                d[k] = v
+        return d
+        
+#         params = {k:pytf.quick_eval(self.post[k])
+#                 for k in self.post.__dict__ 
+#                 if k != 'components'}
+#         return params
 main = HyperPlaneMixture_VIMAP
     
