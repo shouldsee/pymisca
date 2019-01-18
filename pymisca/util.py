@@ -3,25 +3,38 @@ from __future__ import absolute_import
 import os,sys,subprocess
 import json
 import functools, itertools, copy,re
+import urllib2,urllib,io    
+
 if 'matplotlib' not in sys.modules:
-    import matplotlib as mpl; mpl.use('Agg')
+    import matplotlib; mpl = matplotlib; mpl.use('Agg')
 else:
-    mpl = sys.modules['matplotlib']
-try:
-    mpl.use('Agg')
+    matplotlib = mpl = sys.modules['matplotlib']
+plt = getattr(matplotlib,'pyplot',None)
+if plt is None:
     import matplotlib.pyplot as plt
-except Exception as e:
-    sys.stderr.write('[WANR]%s\n'%e)
+#     try:
+#         plt = matplotlib.pyplot
+#     except Exception as e:
+#         import matplotlib.pyplot as plt
+    
+# try:
+#     mpl.use('Agg')
+#     import matplotlib.pyplot as plt
+# except Exception as e:
+#     sys.stderr.write('[WANR]%s\n'%e)
     
 cluMap = mpl.colors.ListedColormap(['r', 'g', 'b', 'y', 'w', 'k', 'm'])
 
 import StringIO
 
+from pymisca.jbrowse import *
 
 import numpy as np
 from pymisca.oop import *
 from pymisca.fop import *
 from pymisca.canonic import *
+from pymisca.shell import *
+from pymisca.ext import *
 
 try: 
 	import scipy
@@ -36,9 +49,53 @@ try:
 except Exception as e:
 	sys.stderr.write('package not installed:%s \n'%'sklearn' )
 
+import warnings
+def silentWarning():
+    ###### Disable some warnings
+    warnings.filterwarnings("ignore", 
+                            message="Pandas doesn't allow columns to be created via a new attribute name")
+    warnings.filterwarnings("ignore", 
+                            module='matplotlib',
+                           message = 'Unable to find pixel distance along axis for interval padding of ticks;')
+    return 
+silentWarning()
 
+pyutil = sys.modules[__name__]
+def tsv__getColumns(fname,ext='tsv',silent=1,
+#                     reader = pyutil.readData
+                   ):
+#     pyutil.readData()
+    res = file__header(fname,silent=silent,head=1)
+#     res = res.read().split()
+#     return res
+    df = pyutil.readData(res,ext=ext,guess_index=0)
+    return df.columns.tolist()
+
+def df__addCol(df,name = 'testCol', expr='index==index' ):
+    df[name] = df.eval(expr)
+    return df
+
+def df__iterdict(df):
+    it = df.itertuples()
+    it = (x.__dict__ for x in it)
+    return it
+
+def localise(uri,ofname= None,silent = 1):
+    if ofname is None:
+        ofname = uriBase = pyutil.os.path.basename(uri)
+    assert len(uri) > 0
+    if uri[0] in [ '.','/' ]:
+        uri = 'file://' + uri
+    cmd = 'curl -L "{uri}" -o {ofname}'.format(**locals())
+    log = pyutil.shellexec(cmd,silent=silent)
+    return ofname
+
+
+    
 def dictFilter(oldd,keys):
-    d ={k:v for k,v in oldd.iteritems() if k in keys}
+    d =collections.OrderedDict( 
+        ((k,v) for k,v in oldd.iteritems() if k in keys) 
+    )
     return d
 import datetime
 def datenow():
@@ -46,6 +103,19 @@ def datenow():
     return res
 def lineCount(fname):
     return int(shellexec('wc -l %s'%fname, silent=1).split()[0])
+
+def grepFileByKeys(fname,keys,ofname = None, silent=1):
+    ''' grep a given file using a list of keys
+'''
+    if ofname is None:
+        ofname = 'greped__' + pyutil.os.path.basename(fname)
+#     expr = u'\|'.join(keys)
+    tempFile = pyutil.tempfile.mktemp()
+    pyutil.printlines(keys,fname = tempFile)
+
+    cmd = 'grep {fname} -f {tempFile} >{ofname}'.format(**locals())
+    res = pyutil.shellexec(cmd,silent=silent)
+    return ofname
 
 #### Regex
 def arg2dict(s, as_string=0):
@@ -56,6 +126,11 @@ def arg2dict(s, as_string=0):
     dct = {k: (v if as_string else eval(v) ) for k,v in lst}
     return dct
 retype = type(re.compile('hello, world'))
+
+ptn = util_obj()
+s = '\{([^\{\}]+)\}'
+ptn.templateKW =  re.compile(s)
+
 def revSub(ptn, dict):
     '''Reverse filling a regex matcher.
     Adapted from: https://stackoverflow.com/a/13268043/8083313
@@ -83,59 +158,6 @@ def qc_matrix(C):
 
 
 
-
-
-    
-def envSource(sfile,silent=0,dry=0):
-#     import os
-    '''Loading environment variables after running a script
-    '''
-    command = 'bash -c "source %s&>/dev/null ;env -0" ' % sfile
-    # print command
-    res = subprocess.check_output(command,stderr=subprocess.STDOUT,shell=1)
-    
-    for line in res.split('\x00'):
-        (key, _, value) = line.strip().partition("=")
-        if not silent:
-            print key,'=',value
-        if not dry:
-            os.environ[key] = value
-    return res
-
-def shellexec(cmd,debug=0,silent=0,executable='/bin/bash'):
-    if not silent:
-        print (cmd)
-    if debug:
-        return 'dbg'
-    else:
-        try:
-            res = subprocess.check_output(cmd,shell=1,
-                                         executable=executable)
-
-#             p.stdin.close()
-            return res
-        except subprocess.CalledProcessError as e:
-#         except Execption as e:
-#             print e.output
-#             raise e
-            raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
-        return res
-def shellpopen(cmd,debug=0,silent=0,executable='/bin/bash'):
-    if not silent:
-        print (cmd)
-    if debug:
-        return 'dbg'
-    else:
-        p = subprocess.Popen(
-                     cmd,
-                     shell=1,
-                     bufsize=1,
-                     executable=executable,
-                     stdout=subprocess.PIPE,
-                     stdin=subprocess.PIPE)
-        res = p.communicate()[0]
-
-        return res,p.returncode
     
 # def mapRNA(data,dbg=0):
 #     p = subprocess.Popen(['RNAfold','--noPS'],
@@ -155,20 +177,7 @@ def shellpopen(cmd,debug=0,silent=0,executable='/bin/bash'):
 #     return data    
     
     
-def nTuple(lst,n,silent=1):
-    """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
-    
-    Group a list into consecutive n-tuples. Incomplete tuples are
-    discarded e.g.
-    
-    >>> group(range(10), 3)
-    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
-    """
-    if not silent:
-        L = len(lst)
-        if L % n != 0:
-            print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
-    return zip(*[lst[i::n] for i in range(n)])
+
 
 import itertools
 def window(seq, n=2,step=1,fill=None,keep=0):
@@ -576,12 +585,7 @@ def f_2d(f,transpose = 0):
         return lambda x,y:f((x,y))
 
 
-def repeatF(f,n):
-    of = composeF([f]*n)
-    return of
-def composeF(lst):
-    return reduce(lambda f,g: lambda x:g(f(x)),lst,lambda x:x)
-compositeF = composeF
+
 # def compositeF(lst):
 #     return reduce(lambda f,g: lambda x:g(f(x)),lst,lambda x:x)
 def transform_linear(x,W = None,b = None):
@@ -616,41 +620,7 @@ np.vectorize_lazy = vectorize_lazy
 
 
 
-##### Multiprocessing map
-import multiprocessing as mp
-def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, 
-#            kwds = {}, 
-           **kwargs):
-    if n_cpu > 1:
-        p = mp.Pool(n_cpu,**kwargs)
-        OUTPUT=p.map_async(f,lst, chunksize=chunksize, 
-#                            kwds = kwds,
-                           callback = callback).get(999999999999999999) ## appx. 7.6E11 years
-#         OUTPUT = p.map(f,lst)
-        p.close()
-        p.join()
-    else:
-        OUTPUT = map(f,lst)
-    return OUTPUT
 
-def MapWithCache(f,it,ALI='Test',nCPU=1,force=0):
-    print '[MSG] Mapping function:   Under cahce alias: %s'%(ALI)
-    fmt = '%s_%%05d'%(ALI)
-    def cb(resLst):
-        for i,res in enumerate(resLst):
-            fname = pyutil.canonic_npy([fmt%i])[0]
-            np.save(fname,res)    
-            print 'Saving to %s'%fname
-        return resLst
-    fname = pyutil.canonic_npy([fmt%0])[0]
-    print fname
-    if os.path.exists(fname) and not force:
-        res = np.load(fname).tolist()
-        p = None
-    else:        
-        p = mp.pool.ThreadPool(nCPU)        
-        res = p.map_async(f,it,callback=cb)
-    return res,p
 
 if __name__ == '__main__':
     def f(IN):
@@ -688,8 +658,9 @@ def MDFile(fname):
     
     
 def printlines(lst,fname = None,
-               callback=MDFile,encoding='utf8'):
-    s = u'\n'.join(map(unicode,lst))
+               callback=MDFile,encoding='utf8',
+              lineSep='\n',castF=unicode):
+    s = castF(lineSep).join(map(castF,lst))
     if fname is None:
         print(s)
     else:
@@ -837,12 +808,13 @@ def expand(rg,rd=None):
     if rd is None:
         rd = np.diff(rg)/5.
     return (rg[0]-rd,rg[-1]+rd)
-def basename(fname):
+def getBname(fname):
     '''
     Extract "bar" from "/foo/bar.ext"
     '''
     bname = fname.split('/')[-1].rsplit('.',1)[0]
     return bname
+basename = getBname ###legacy
 
 def dirname(infile,absolute=0):
     ''' get dirname from pathname
@@ -1014,6 +986,13 @@ def get_cluCount(clu):
     cluCount.columns = ['clu','count']
     return cluCount
 
+def getConfusionMat(y_pred,y_true,):
+#     pred_targ = mdl.predict(test_data)
+    dfc = pd.DataFrame(dict(pred=y_pred, ground=y_true))
+    dfc['num'] = 1
+    confusion = dfc.pivot_table(index='ground',columns='pred',values='num',aggfunc='sum').fillna(0.)
+    return confusion
+
 def init_DF(C,rowName= None,colName=None):
     '''Conveniently initialise a pandas.DataFrame from a matrix "C"
 '''
@@ -1044,7 +1023,7 @@ def paste0(ss,sep=None,na_rep=None,castF=unicode):
     '''Analogy to R paste0
     '''
     if sep is None:
-        sep=''
+        sep=u''
     
     L = max([len(e) for e in ss])
     it = itertools.izip(*[itertools.cycle(e) for e in ss])
@@ -1053,8 +1032,13 @@ def paste0(ss,sep=None,na_rep=None,castF=unicode):
     return res
 pasteB = paste0
 
-def df__paste0(df,keys,sep='',headerFmt='[{key}]',debug=0,):
+def df__paste0(df,keys,
+#                sep='',
+               sep = '',
+#                headerFmt='[{key}]',
+               debug=0,):
     '''Calling paste0 with df.eval()
+    sep: accept '{key}' as keyword, try sep='[{key}]'
 '''
 #     if 'index' in keys:        
 #     vals = df.get(keys).values
@@ -1062,12 +1046,14 @@ def df__paste0(df,keys,sep='',headerFmt='[{key}]',debug=0,):
 #         lst += [['[%s]'%key], val]
     lst = []
     lstStr = ''
-#     quoteFmt = '"[{key}]"'
-#     quoteFmt = "" 
-    fmt = '["%s"], {key},' % headerFmt
-    for key in keys:
+    sep0 = ''
+    for i, key in enumerate(keys):
+        if i==0:
+            fmt = '{key},'
+        else:
+            fmt = '["%s"], {key},' % sep
         lstStr += fmt.format(**locals())
-    cmd = '@pyutil.paste0([{lstStr}],sep="{sep}")'.format(**locals())
+    cmd = '@pyutil.paste0([{lstStr}],sep="{sep0}")'.format(**locals())
     if debug:
         print (cmd)
     res = df.eval(cmd)
@@ -1092,6 +1078,24 @@ def df__makeContrast(dfc,
     columns = pyutil.columns__makeContrast(treatment=treatment,control=control)
     dfdiff = pd.DataFrame(vdiff,index=dfc.index,columns=columns)
     return dfdiff
+
+def df__fillTemplate(dfc,template,force = 0):
+    '''Fill a templated string with context dictionary contained in a DataFrame
+'''
+    kwSet = set(pyutil.ptn.templateKW.findall(template))
+    if force:
+        #### set Default
+        for k in kwSet.difference(dfc.columns):
+            dfc[k] = '{%s}'%k
+        # dfcc[list(kwSet.difference(dfc.columns)]
+    assert kwSet.issubset(dfc.columns),'keys not found in dataframe: %s' %kwSet.difference(dfc.columns)
+
+    res = []
+    for row in dfc.itertuples():
+        s = template.format(**row.__dict__)
+        res += [s]
+        
+    return pd.DataFrame({'softText':res},index=dfc.index)
 
 def df2multiIndex(df):
     '''Source:https://stackoverflow.com/a/33143219/8083313
@@ -1274,19 +1278,41 @@ def file_ncol(fname,silent=1,sep=None):
     ncol = len(line.split(sep)) 
     return ncol
 
+def read__remote( reader=None,):
+    with io.BytesIO(urllib.urlopen(url).read()) as f:
+        res = reader(f)
+    return res            
 def readData(fname, 
              ext=None, callback=None, 
              addFname=0,guess_index=1, columns = None,
+             localise = False,
+             remote = None,
              comment='#', **kwargs):
+            
     if ext is not None:
         pass
         fhead = fname
     else:
         fhead,ext = guess_ext(fname,check = 1)
+        
+    if isinstance(fname,basestring):
+        if localise:
+            #### download data if matching protocol
+            protocols = [ 'http://','ftp://' ] 
+            if fname[:4] in [ x[:4] for x in protocols ]:
+                fname = pyutil.localise(fname)
+        if remote is None:
+            protocols = [ 'http://','ftp://' ] 
+            if fname[:4] in [ x[:4] for x in protocols ]:
+                remote = True
+        if remote:
+            f = fname = io.BytesIO(urllib.urlopen(fname).read())
+        
 #     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
     class temp:
         fheadd = fhead
+        
     def case(ext,):
 
         if ext == 'csv':
@@ -1295,18 +1321,33 @@ def readData(fname,
                      'summit','promoter',
                      'count', ### stringtie output
                      'txt', ### cufflinks output
-                    'stringtie']:
+                     'stringtie',
+                     'star-quantseq',
+                     'excel',
+                    ]:
             res = pd.read_table(fname, comment = comment, **kwargs)
             if ext in ['count', 'stringtie','tab',]:
                 res.rename(columns={'Gene ID':'gene_id',
                                    'Gene Name':'gene_name',
                                    },inplace=True)
+            ### for tophat
+            for col in ['tracking_id','Gene ID']:
+                if col in res.columns:
+                    res['gene_id'] =res[col]
+#             if 'tracking_id' in res.columns:
+#                 res['gene_id'] = res['tracking_id']
+#             if 'Gene ID' in res.columns
             if ext == 'cufflinks':
                 pass
             
         elif ext == 'pk':
             res = pd.read_pickle(fname,**kwargs)
-            
+        elif ext == 'json':
+            res = pd.read_json(fname,**kwargs)
+        elif ext == 'npy':
+            res = np.load(fname)
+            guess_index=0
+#             .tolist()
         else:
             temp.fheadd, ext = guess_ext(temp.fheadd, check=1)            
             res = case(ext,)
@@ -1315,9 +1356,15 @@ def readData(fname,
 #         or ext=='txt':
 #         else:
 #             assert 0,"case not specified for: %s"%ext
-        return res
+        if remote:
+            f.close()
+        return res,ext
+    
     try:    
-        res = case(ext)
+        res,ext = case(ext)
+        if ext in ['npy',]:
+            guess_index=0
+            
     except pd.errors.EmptyDataError as e:
         if columns is None:
             print('[ERR] Cannot guess columns from the empty datafile: %s'%fname)
@@ -1335,6 +1382,39 @@ def readData(fname,
     if addFname:
         res['fname']=fname
     return res
+
+def fileDict__load(fname):
+    fdir = pyutil.os.path.dirname(fname) 
+#     with open(fname,'r') as f:
+#         dd = json.load_ordered(f,)
+    dd = pd.read_json(fname, typ='records'
+                     ).to_dict(into=collections.OrderedDict)
+    dd = collections.OrderedDict([(k,pyutil.os.path.join(fdir,v)) 
+                                  for k,v in dd.items()])
+    dd = pyutil.util_obj(**dd)
+    return dd
+
+json.load_ordered= functools.partial(json.load,
+                                    object_pairs_hook=collections.OrderedDict,)
+json.loads_ordered= functools.partial(json.loads,
+                                    object_pairs_hook=collections.OrderedDict,)
+# def jsonLoad(f,object_pairs_hook=collections.OrderedDict,**kwargs):
+#     return json.load(f,object_pairs_hook=object_pairs_hook,**kwargs)
+# def jsonLoads(f,object_pairs_hook=collections.OrderedDict,**kwargs):
+#     return json.loads(f,object_pairs_hook=object_pairs_hook,**kwargs)
+def fileDict__save(fname,d=None,keys=None):
+    assert d is not None,'set d=locals() if unsure'
+    d = collections.OrderedDict(d)
+    if keys is not None:
+        d  = pyutil.dictFilter(d,keys)
+    if os.path.exists(fname):
+        with open(fname,'r') as f:
+            res = json.load_ordered(f,)
+            res.update(d)
+            d = res
+    with open(fname,'w') as f:
+        pyutil.json.dump(d,f)
+    return fname
 
 def readData_multiple(fnames, axis=0, NCORE=1, 
                       addFname = 1, guess_index=0, **kwargs):
@@ -1355,6 +1435,7 @@ def sanitise_query(query):
     query = query.replace('==','-EQ-')
     query = query.replace('.','dot')
     query = query.replace(' ','')
+    query = re.sub('[@\(\)\[\]]','-',query)
     return query
 
 def queryCopy(infile,query, reader=None,inplace=False, **kwargs):
@@ -1482,66 +1563,8 @@ if __name__=='__main__':
     test(tail)
 
 
-def LinesNotEmpty(sub):
-    sub = [ x for x in sub.splitlines() if x]
-    return sub
 
-def LeafFiles(DIR):
-    ''' Drill down to leaf files of a directory tree if the path is unique.
-    '''
-    assert os.path.exists(DIR),'%s not exist'%DIR
-    DIR = DIR.rstrip('/')
-    if not os.path.isdir(DIR):
-        return [DIR]
-    else:
-        cmd = 'ls -LR %s'%DIR
-        res = subprocess.check_output(cmd,shell=1)
-        res = re.split(r'([^\n]*):',res)[1:]
-        it = pyutil.nTuple(res,2,silent=0)
-        DIR, ss = it[0];
-        for dd,ss in it[1:]:
-            NEWDIR, ALI = dd.rsplit('/',1)
-            assert NEWDIR == DIR, 'Next directory %s not contained in %s'%(dd,DIR)
-            DIR = dd 
-        res = [ '%s/%s'%(DIR,x) for x in LinesNotEmpty(ss)]
-        return res
-def LeafDict(d):
-    ''' Walking to leaves of a nested dictionary
-    '''
-    if isinstance(d,dict):
-        res = [LeafDict(dd) for dd in d.values()]
-        res = sum(res,[])
-        return res
-    else:
-        if isinstance(d,list):
-            pass
-        else:
-            d = [d]
-        return d
-    
-if __name__=='__main__':
-    def test_d(d):
-        try:
-            return LeafFiles(d)
-        except Exception as e:
-            print e
-    ##### To be refactored to work everywhere
-    d = '/home/feng/test_envs/tdir/something/A/B/C/D/'
-    test_d(d)
-    d = '/home/feng/test_envs/tdir/something/'
-    print test_d(d)
-    d = '/home/feng/syno3/PW_HiSeq_data/ChIP-seq/Raw_data/182C/Bd_ELF3-44645602/FASTQ_Generation_2018-06-06_03_43_21Z-101158414/182C_721_L001-ds.e1f926b50b5f4efd99bcffeca5fb75a0'
-    print test_d(d)
-    d = '/home/feng/syno3/PW_HiSeq_data/ChIP-seq/Raw_data/182C/Bd_ELF3-44645602/FASTQ_Generation_2018-06-06_03_43_21Z-101158414/182C_721_L001-ds.e1f926b50b5f4efd99bcffeca5fb75a0/Bd-ELF3OX-SD-ZT16-_S2_L001_R1_001.fastq.gz'
-    # print test_d(d)
-    LeafFiles(d)
 
-def log2p1(x):
-    return np.log2(1. + x)
-
-def log2p1_ln2(x):
-    y  = np.log2(1 + np.log(2)*x)
-    return y
 
 
 from pymisca.linalg import *
@@ -1560,7 +1583,7 @@ def columns__makeContrast(contrast = None,treatment=None,control=None):
         when any other variable is missing"
         treatment = contrast.treatment
         control = contrast.control
-    cols = pyutil.paste0([['TREAT:'],treatment,['__CONTROL:'],control])
+    cols = pyutil.paste0([['TREAT_'],treatment,['__CONTROL_'],control])
     return cols
 
 
@@ -2002,13 +2025,8 @@ def filterMatch(df,key,negate=0):
     df = df.loc[bool(negate) ^ MATCH]
     return df    
 
-def entropise(ct):
-    ''' Transform count into -p *logP, summation of which is entropy
-'''
-    p = ct/sum(ct)
-    logP = np.nan_to_num(np.log2(p))
-    r = p * - logP    
-    return r
+
+
 
 def mapAttr(lst,attr):
     return [getattr(x,attr) for x in lst]
@@ -2314,12 +2332,20 @@ def saveFigDict(figs,DIR=None,exts=['svg'],silent=1):
         DIR = '%s/cache/plots' % (DIR)
         DIR = make__tempDIR(DIR)
     pyutil.shellexec('mkdir -p %s'%DIR,silent=silent)
-        
+    DIR = DIR.rstrip('/')
     ofnames = []
     for bname,fig in figs.items():
+        noEXT = '%s/%s' % (DIR,bname)
+        DDIR = pyutil.dirname(noEXT)
+        if not pyutil.os.path.exists(DDIR):
+            pyutil.os.makedirs(DDIR,)
+#         pyutil.shellexec('mkdir -p %s'%DIR,silent=silent)
+        
         for ext in exts:
-            ofname = '%s/%s.%s'%(DIR.rstrip('/'),bname,ext)           
-            fig.savefig(ofname)
+            ofname = '%s.%s'%(noEXT,ext)           
+            fig.savefig(ofname,
+                        bbox_inches='tight',
+                       )
             ofnames += [ofname]
     fignames = ofnames
     l = locals()

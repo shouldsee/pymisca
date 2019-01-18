@@ -70,7 +70,7 @@ def logsumexp(X,axis=None,keepdims=1,log=1):
             )
         )
 '''
-    xmax = np.max(X)
+    xmax = np.max(X,axis=axis, keepdims=1)
     y = np.exp(X-xmax) 
     S = y.sum(axis=axis,keepdims=keepdims)
     if log:

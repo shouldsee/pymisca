@@ -1,5 +1,13 @@
 import numpy as np
 import collections
+
+def repeatF(f,n):
+    of = composeF([f]*n)
+    return of
+def composeF(*lst):
+    return reduce(lambda f,g: lambda *x:g(*f(*x)),lst, lambda *x:x)
+compositeF = composeF
+
 def l1_normF(f):
     g= lambda *args:np.sum(np.abs(f(*args)),axis=-1)
     return g
@@ -17,7 +25,7 @@ def addF(f,g):
 def sumF(Fs):
     outF=  lambda *x: sum( (F(*x) for F in Fs) )
     return outF
-def identity(x):
+def identity(*x):
     return x
 def none(*x,**kwargs):
     return None
