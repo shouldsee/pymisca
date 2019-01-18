@@ -1,7 +1,8 @@
 from util import *
 # import pymisca.util as pyutil
 import numpy as np
-
+import sys
+pyvis = sys.modules[__name__]
 try: 
 	import scipy
 	import  scipy.cluster.hierarchy as sphclu
@@ -19,6 +20,11 @@ except:
     namedict = {}
     print "[WARN] %s cannot find network" %__name__
 
+try: 
+    import plotly.offline as opy
+    import plotly.graph_objs as go
+except Exception as e:
+    print ('[WARN]:%s')
     
 import matplotlib.ticker as mticker
 def hide_axis(ax,which='both'):
@@ -50,12 +56,14 @@ def hide_Axes(ax,which='both',alpha=0.0):
     ax.patch.set_alpha(alpha)
     return ax
 
-def getLegend(line):
+def line__getLegend(line):
     res = (line,line.get_label())
     return res
-def getLegends(lines):
+getLegend = line__getLegend
+def line__getLegends(lines):
     res = zip(*map(getLegend,lines))
     return res
+getLegends = line__getLegends
 
 
 def make_subplots(
@@ -77,6 +85,7 @@ def make_subplots(
                            **kwargs); 
     axs = np.ravel(axs)
     return fig,axs
+get_subplotGrid = make_subplots
 
 
 def plotArrow(ax):
@@ -683,7 +692,8 @@ def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1
     xlim = pyutil.span(xs,99.9) if xlim is None else xlim
     bins = np.linspace(*xlim,
                       num=100) if bins is None else bins
-    ys,edg = np.histogram(xs,bins,normed=normed)
+#     ys,edg = np.histogram(xs,bins,normed=normed)
+    ys,edg = np.histogram(xs,bins,density=normed)
     ct = (edg[1:] + edg[:-1])/2
     if log:
         ys = np.log1p(ys)
@@ -697,12 +707,14 @@ def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1
     l = ax.plot(ct,ys,**kwargs)
     return ax
 
+
+
 ####### Clustering
 def heatmap(C,
             ax=None,
             xlab = '',
             ylab = '',
-            main='',
+            main = '',
             xtick = None,
             ytick = None,
             transpose=0,
@@ -711,6 +723,9 @@ def heatmap(C,
             vlim = None,
             cmap = None,
             figsize=None,
+            marginInSquare=(2,2),
+            squareSize = (0.2,0.2),
+            
             **kwargs
            ):
     ''' C of shape (xLen,yLen)
@@ -718,13 +733,27 @@ def heatmap(C,
 #     print kwargs.keys()
     if transpose:
         C = C.T
-        xtick,ytick = ytick,xtick
-        xlab,ylab   = ylab,xlab
+#         xtick,ytick = ytick,xtick
+#         xlab,ylab   = ylab,xlab
     if ax is None:
-        if figsize is None:
-            figsize = [min(len(C.T)/3.,14),
-                       min(len(C)/5.,14)]
-        fig,ax = plt.subplots(1,1,figsize=figsize)
+        ##### Create default axis
+        shape = C.T.shape  #### transpose is crucial due to pcolormesh
+
+        ## Old
+#         if figsize is None:
+#             figsize = [min(len(C.T)/3.,14),
+#                        min(len(C)/5.,14)]
+#         fig,ax = plt.subplots(1,1,figsize=figsize)
+    
+        ## New 
+        fig,ax = getMarginedAxis(shape,
+            squareSize = squareSize,
+            marginInSquare= marginInSquare,figsize=figsize)
+        
+
+    if vlim is not None:
+        if any([x is None for x in vlim]):
+            vlim = None
     if vlim is None:
         vlim = np.span(C[~np.isnan(C)],99)
     elif vlim[0] is None:
@@ -765,31 +794,33 @@ def heatmap(C,
     return im
 
 def linePlot4DF(df,
-                xs=None,label = None,
+                xs=None,
+                y2 = None,
+                label = None,
                 ax=None,
              rowName=None,
              colName= None,ylab = '$y$',
                 which = 'plot',
-                cmap=None,
+#                 cmap=None,
                 xlab='$x$',
                 xrotation= 'vertical',
                 xshift=None,
+                cmap = 'Set1',
                 **kwargs):
     rowName = df.index if rowName is None else rowName
     colName = df.columns if colName is None else colName
     C = df.values
+    if isinstance(y2,pd.DataFrame):
+        y2 = y2.values    
+    
     if ax is None:
         fig,axs= plt.subplots(1,2,figsize=[14,4])
         ax = axs[0]
-#         ax = plt.gca()
-    plt.sca(ax)
-    cmap = plt.get_cmap('Set1')
+    plt.sca(ax)    
+    cmap = plt.get_cmap(cmap)
     
     if xs is None:
-        if 1:
-            xs = np.arange(len(C[0]))
-    else:
-        xs = xs
+        xs = np.arange(len(C[0]))
     
     if which =='StemWithLine':
         plotter = pyutil.functools.partial(StemWithLine,
@@ -798,23 +829,31 @@ def linePlot4DF(df,
         plotter =  getattr(ax, which)
 #     plotter = pyutil.functools.partial(plotter,)
     
+    handles = []
     for i,ys in enumerate(C):
         if xshift is not None:
             kwargs['xshift'] = xshift *i
-        plotter(xs,ys,label = rowName[i],color=cmap(i),**kwargs)
+#         if which=='fill_between'
+        if which=='fill_between':
+            assert y2 is not None,'y2 must be specified for fill between'
+            h = plotter(xs,y1=ys, y2=y2[i], color=cmap(i),**kwargs)
+        else:
+            h = plotter(xs,ys,label = rowName[i],color=cmap(i),**kwargs)
+        handles.append(h)
 #         ax.plot(xs,ys,label=rowName[i])
     ax.set_ylabel(ylab)
     ax.grid(1)
-#     print ax.get_xticks()
-#     print ax.get_xticklabels()
     L = len(ys)
+    
     xticks = [ x for x in map(int,ax.get_xticks()) if x>=0 and x<L]
-#     xs = p
+#     ax.set_xticks(xticks)
+#     ax.set_xticklabels(colName[xticks])
+#     ax.tick_params(axis='x', rotation=xrotation)    
     plt.xticks(xticks,colName[xticks],rotation=xrotation,)
 #     ax.set_xticks(xticks,)
 #     ax.set_xticklabels(colName[xticks])
     ax.set_xlabel(xlab)
-    return ax
+    return handles
 
 def StemWithLine(xs=None,ys=None,
                  xshift=0.,
@@ -853,14 +892,24 @@ def matHist(X,idx=None,XLIM=[0,200],nbin=100):
     plt.xlim(XLIM)
     plt.grid()
 
-def abline(k=1,y0=0,color = 'b',**kwargs):
+def abline(k=1,y0=0,x0 = None, color = 'b', ax = None,**kwargs):
     '''Add a reference line
     '''
-    MIN,MAX=plt.gca().get_xlim()
-    f = lambda x: k*x+y0
-    plt.plot([MIN,MAX],[f(MIN),f(MAX)],'--',color=color,**kwargs)    
+    if ax is None:
+        ax = plt.gca()
+    MIN,MAX=ax.get_xlim()
+    xs = MIN,MAX
+    if k is None:
+        assert x0 is not None
+        xs = (x0,x0)
+        ys = ax.get_ylim()
+    else:
+        assert x0 is None
+        f = lambda x: k*x+y0
+        ys =  map(f,xs)
+    ax.plot( xs, ys,'--',color=color,**kwargs)    
 #     print MIN,MAX
-    ax =plt.gca()
+#     ax =plt.gca()
     return ax
     
 def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
@@ -878,6 +927,9 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     axs = axs + [None] * (4-len(axs))
     xs = np.ravel(xs)
     ys = np.ravel(ys)
+    
+    if nMax <0 :
+        nMax= len(xs)
 
     xlim = xlim if xlim is not None else np.span(xs,99.9)
     ylim = ylim if ylim is not None else np.span(ys,99.9)
@@ -893,7 +945,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     
     df = pd.DataFrame({'xs':xs,'ys':ys,'clu':clu})
 #     nMax = 3000
-    for k, dfc in df.groupby('clu'):
+    for key, dfc in df.groupby('clu'):
         if len(dfc)>nMax:
             dfcc = dfc.sample(nMax)
         else:
@@ -911,7 +963,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
         ax = axs[1];
         if ax is not None:
             plt.sca(ax)
-            plt.scatter(xs,ys,markersize,marker='.')
+            plt.scatter(xs,ys,markersize,label=key, marker='.')
         ax = axs[2];
         if ax is not None:
             plt.sca(ax)
@@ -983,7 +1035,8 @@ try:
 except:
     print ('[IMPORT] cannot import "matplotlib_venn"')
     
-def qc_index(ind1,ind2,
+def qc_index(ind1=None,ind2=None,
+             subsets = None,
     xlab = 'Group A',
     ylab = 'Group B',
     silent= True,
@@ -992,30 +1045,262 @@ def qc_index(ind1,ind2,
     '''
     compare two sets 
 '''
-    ind1,ind2 = set(ind1),set(ind2)
-    indAny = ind1 | ind2
-    indAll = ind1 & ind2
-    indnot1 = indAny - ind1
-    indnot2 = indAny - ind2
-    LCL = locals()
-    d = pyutil.collections.OrderedDict()
-#     d = {}
-    for key in ['ind1','ind2','indAll','indAny',
-               'indnot1','indnot2']:
-        ind = LCL.get(key)
-        print (key, len(ind))
-        d[key] = ind
-    print 
-    df = pd.DataFrame(dict([ (k, pd.Series(list(v))) for k,v in d.items() ]))
-    df['ind1=%s'%xlab]=np.nan
-    df['ind2=%s'%ylab]=np.nan    
+    if subsets is None:
+        ind1,ind2 = set(ind1),set(ind2)
+        indAny = ind1 | ind2
+        indAll = ind1 & ind2
+        indnot1 = indAny - ind1
+        indnot2 = indAny - ind2
+        LCL = locals()
+        d = pyutil.collections.OrderedDict()
+    #     d = {}
+        for key in ['ind1','ind2','indAll','indAny',
+                   'indnot1','indnot2']:
+            ind = LCL.get(key)
+            print (key, len(ind))
+            d[key] = ind
+        print 
+        df = pd.DataFrame(dict([ (k, pd.Series(list(v))) for k,v in d.items() ]))
+        df['ind1=%s'%xlab]=np.nan
+        df['ind2=%s'%ylab]=np.nan    
+        Lnot2 = len(indnot2)
+        Lnot1 = len(indnot1)
+        Lall  = len(indAll)
+        subsets = (Lnot2, Lnot1, Lall)
+    else:
+        (Lnot2, Lnot1, Lall) = subsets
+        df = subsets
+    ### Lall is the lenght of intersection
     if not silent:
         if ax is None:
             fig,axs = plt.subplots(1,3,figsize= [16,4])
             ax= axs[0]
-        im = mvenn.venn2(subsets = (len(indnot2), len(indnot1), len(indAll)), 
+        im = mvenn.venn2(subsets = subsets, 
                          set_labels = (xlab, ylab),
                          ax=ax)
-        jind = len(indAll)/float(len(indAny))
+        jind = Lall/float(Lnot2 + Lnot1 + Lall)
         ax.set_title('Jaccard_index=%.3f%%'%(100*jind))
     return df,ax
+
+def qc__mapVenn(plotter,indVenn,figsize=[16,6]):
+    fig,axs = plt.subplots(1,3,figsize=figsize);
+    i= -1
+    xlab,ylab = indVenn.columns[-2],indVenn.columns[-1]
+    xlab = xlab.split('=',1)[-1]
+    ylab = ylab.split('=',1)[-1]
+    
+    i += 1;ax=axs[i];plt.sca(ax)
+    ax = plotter(indVenn.ind1,xlab,ax=ax)
+
+    i += 1;ax=axs[i];plt.sca(ax)
+    ax = plotter(indVenn.indAll, ' and '.join([xlab,ylab]),ax=ax)
+    
+    i += 1;ax=axs[i];plt.sca(ax)
+    ax = plotter(indVenn.ind2, ylab ,ax=ax)
+    return fig
+
+if 'plotly.offline' in sys.modules:
+
+    def plotly__scatter3D(dataDF=None,x=None,y=None,z=None,
+                          text=None,color=None,index=None,
+                          filename=None):
+        '''
+        Generate a Plotly Scatter3D object
+        '''
+        if dataDF is None:
+            if index is None:
+                index = color.index
+            dataDF =  pd.DataFrame(dict(x=x,y=y,z=z,text=text.tolist(),color=color),index=index)
+
+        colorscale = 'Rainbow'
+        colorFct = dataDF.color.astype('category')
+        cat = colorFct.cat
+        color = cat.codes
+        symbol = None
+        markerSize=5
+        xlim = None
+        ylim = None
+        zlim = None
+
+
+        traces = []
+        for color,(key,df) in enumerate(dataDF.groupby(colorFct)):
+    #         color = vals.categories.get_loc('190RQ')
+            trace = go.Scatter3d(
+                name = key,
+                x=df.x,
+                y=df.y,
+                z=df.z,
+                text=df.text,
+                mode='markers',
+                marker=dict(
+                    size=markerSize,
+                    color=color,
+                    symbol = symbol,
+                    colorscale = colorscale,
+                    opacity=0.8
+                )
+            )
+            traces += [trace]
+        layout = go.Layout(  
+                showlegend = True,
+            scene = dict(
+            xaxis=dict(
+                range=xlim,
+                title='PC1',
+            ),
+            yaxis=dict(
+                title='PC2',
+                range=ylim
+            ),
+            zaxis=dict(
+                title='PC3',
+                range=zlim
+            )
+            ),
+        )
+        fig = go.Figure(data=traces, layout=layout)
+        return plotly__output(fig,ofname=filename)
+#         if filename is not None:
+#             graphObj = opy.plot(fig, filename=filename, output_type='file')
+#             return filename
+#         else:
+#             return fig
+    def plotly__output(figure, ofname=None,auto_open=False,**kwargs):
+        if ofname is not None:
+            graphObj = opy.plot(figure, 
+                                filename=ofname, 
+                                auto_open=auto_open,
+                                output_type='file')
+            graphObj = ofname
+        else:
+            graphObj = opy.plot(figure,  
+                               auto_open=auto_open,
+                                output_type='div',)
+        return graphObj
+            
+    def plotly__heatmap(z,
+                        xticks=None,
+                        yticks=None,
+                       ofname = None,
+                       title = '',):
+        title = unicode(title)
+    #     xticks = list(xticks) if xticks is not None else None
+    #     yticks = list(yticks) if yticks is not None else None
+        data = [
+            go.Heatmap(
+                z = z,
+                x = xticks,
+                y = yticks,
+    #             x=date_list,
+    #             y=programmers,
+                colorscale='Viridis',
+            )
+        ]
+
+        layout = go.Layout(
+            title=title,
+    #         xaxis = dict(ticks=xticks,),
+    #         yaxis = dict(ticks=yticks )
+        )    
+        figure = go.Figure(data=data, layout=layout)
+        return plotly__output(figure,ofname=ofname)
+#         graph = opy.plot(figure, auto_open=False, output_type='div')
+#         return graph    
+
+    def plotly__linePlot(dfc,ofname = None, auto_open=False,
+                        xticks=None,title = None,showlegend=True,
+                        ):
+        title = unicode(title)
+    # if 1:
+        tickSize=16
+        if xticks is None:
+            xticks = dfc.columns
+        data = [
+            go.Scatter(
+                x=xticks,
+                y=rec.values,
+                name = key,) 
+            for key,rec in dfc.iterrows()
+        ]
+        layout = go.Layout(
+            title=title,
+            xaxis = dict(automargin=True,
+#                          tickangle=90,
+                         tickfont=dict(size=tickSize,
+                                      ),
+                        ),
+            yaxis=  dict(automargin=True,
+                tickfont=dict(size=tickSize)
+                ),
+    #         xaxis = dict(ticks=xticks,),
+    #         yaxis = dict(ticks=yticks )
+          showlegend = showlegend,
+        )    
+        figure = go.Figure(data=data,layout=layout,
+                          )
+        res = plotly__output(figure=figure,
+                                   auto_open = auto_open,
+                                   ofname=ofname)
+        return res
+def getFullFigureAxis(**kwargs):
+    ''' Create an axis occupying the whole figure without margin
+'''
+    fig, axs =plt.subplots(
+        1,1,
+        gridspec_kw=dict(
+            left=0,right=1,
+            bottom=0,top=1,
+            hspace=0.,
+            wspace=0.,
+           ),
+        **kwargs)
+    ax = axs
+    return fig,ax
+
+
+def getMarginAxes(ax=None,shape=None,shapeInSquare=(10,10),
+                      marginInSquare=(2,2),instMargin=0,
+                 ):
+    '''subsetting the axis to create space for margin
+'''
+    if ax is None:
+        fig,ax = getFullFigureAxis()
+    if shape is not None:
+        shapeInSquare=shape
+    axs=  mpl.gridspec.GridSpecFromSubplotSpec(
+        2,2,ax,
+        width_ratios=[marginInSquare[0],shapeInSquare[0],],
+        height_ratios = [shapeInSquare[1],marginInSquare[1],],
+        hspace=0.,
+        wspace=0.,
+                                              )
+#     return axs
+# if 0 :
+#     axs = [ [plt.subplot(x) for x in y] for y in axs]
+    if instMargin:
+        axs = map(plt.subplot, axs)    
+        [pyvis.hide_Axes(axs[i]) for i in [0,2,3]]
+    else:
+        axs = list(axs)
+        axs[1] = plt.subplot(axs[1])
+    
+    axisMain = axs[1]
+    axisLeft = axs[0]
+    axisBottom = axs[3]
+    return (axisMain,axisLeft,axisBottom)
+def getMarginedAxis(
+    squareShape,
+    squareSize = (0.2,0.2),
+    marginInSquare=(2,2),
+    figsize=None
+):
+    shape = squareShape
+    if figsize is None:
+        figsize = np.add( marginInSquare, shape) * squareSize
+
+    fig, ax = pyvis.getFullFigureAxis(figsize=figsize)
+    ax = pyvis.getMarginAxes(ax,
+                             shape=shape,
+                            marginInSquare=marginInSquare,)[0]
+    return fig,ax
