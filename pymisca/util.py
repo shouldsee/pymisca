@@ -92,7 +92,7 @@ def render__images(figs,
                                    exts=exts,
                                   DIR=DIR,
                                    dpi=dpi)
-    ofname = pyjin.quickRender(templateFile='/home/feng/Templates/listImages.html',
+    ofname = pyjin.quickRender(templateFile=templateFile,
                                context=context,
                                ofname=ofname,
                               )
