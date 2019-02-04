@@ -4,6 +4,8 @@ import os,sys,subprocess
 import json
 import functools, itertools, copy,re
 import urllib2,urllib,io    
+import operator
+
 
 if 'matplotlib' not in sys.modules:
     import matplotlib; mpl = matplotlib; mpl.use('Agg')
@@ -35,6 +37,9 @@ from pymisca.fop import *
 from pymisca.canonic import *
 from pymisca.shell import *
 from pymisca.ext import *
+from pymisca.jobs import *
+import pymisca.jinja2_util as pyjin
+import pymisca.ext as pyext
 
 try: 
 	import scipy
@@ -61,6 +66,36 @@ def silentWarning():
 silentWarning()
 
 pyutil = sys.modules[__name__]
+
+def job__saveFig(figs,exts=['png'],dpi=150,DIR='.') :
+    dfig = pyutil.saveFigDict(figs,
+                              DIR = DIR,
+                              exts=exts,
+                             dpi = dpi)
+    dfig['fignames'] = [x for x in dfig['fignames'] if x.endswith('.png')]
+    buf=[pyutil.ppJson(dfig)]
+    ofname = 'figures.json'
+    pyutil.printlines(buf,ofname)
+    return dfig
+
+def render__images(figs,
+                   templateFile='/home/feng/Templates/listImages.html',
+                   DIR='.',
+                   exts=['png'],
+                   dpi = 150,
+                  ):
+    ofname = pyutil.os.path.join(DIR,'figure.html')
+    context = pyutil.job__saveFig(figs,
+                                   exts=exts,
+                                  DIR=DIR,
+                                   dpi=dpi)
+    ofname = pyjin.quickRender(templateFile='/home/feng/Templates/listImages.html',
+                               context=context,
+                               ofname=ofname,
+                              )
+    return ofname
+
+
 def tsv__getColumns(fname,ext='tsv',silent=1,
 #                     reader = pyutil.readData
                    ):
@@ -80,9 +115,22 @@ def df__iterdict(df):
     it = (x.__dict__ for x in it)
     return it
 
-def localise(uri,ofname= None,silent = 1):
+
+def splitPath(fname,level=1):
+    tail = []
+    head = fname
+    for i in range(level):
+        head,tail_ = os.path.split(head)
+        tail += [tail_]
+    return head,'/'.join(tail[::-1])
+
+def localise(uri,ofname= None,silent = 1, level=1):
     if ofname is None:
-        ofname = uriBase = pyutil.os.path.basename(uri)
+        head, ofname = pyutil.splitPath(uri, level=level)
+    ddir =  os.path.dirname(ofname)
+    if ddir:
+        if not os.path.exists(ddir):
+            os.makedirs( ddir )
     assert len(uri) > 0
     if uri[0] in [ '.','/' ]:
         uri = 'file://' + uri
@@ -636,42 +684,14 @@ if __name__ == '__main__':
 def flatten(gd):
     return np.concatenate([x.flat for x in gd])
 
-def is_ipython():
-    try:
-        get_ipython
-        return 1
-    except:
-        return 0
-hasIPD = is_ipython()
-
+import pymisca.ext
+# .hasIPD
+hasIPD = pymisca.ext.hasIPD
+ipd = getattr(pymisca.ext,'ipd',None)
 sys.stderr.write('is in ipython: %s \n'%hasIPD)
-if hasIPD:
-    import IPython.display as ipd
 
-def showMD(s):
-    if pyutil.hasIPD:
-        ipd.display(ipd.Markdown(s))
-        
-def MDFile(fname):
-    s='[{0}]({0})'.format(fname)
-    return showMD(s)
     
-    
-def printlines(lst,fname = None,
-               callback=MDFile,encoding='utf8',
-              lineSep='\n',castF=unicode):
-    s = castF(lineSep).join(map(castF,lst))
-    if fname is None:
-        print(s)
-    else:
-# f = open('test', 'w')
-# f.write(foo.encode('utf8'))
-# f.close()
-        with open(fname,'w') as f:
-            print >>f,s.encode(encoding)
-        if callback is not None:
-            callback(fname)
-    
+
 def ppJson(d):
     '''
     Pretty print a dictionary
@@ -808,13 +828,6 @@ def expand(rg,rd=None):
     if rd is None:
         rd = np.diff(rg)/5.
     return (rg[0]-rd,rg[-1]+rd)
-def getBname(fname):
-    '''
-    Extract "bar" from "/foo/bar.ext"
-    '''
-    bname = fname.split('/')[-1].rsplit('.',1)[0]
-    return bname
-basename = getBname ###legacy
 
 def dirname(infile,absolute=0):
     ''' get dirname from pathname
@@ -832,7 +845,7 @@ def dirname(infile,absolute=0):
 def fname2mdpic(fname):
     '''Generate a markdown picture referr using a filename
     '''
-    s = '![\label{fig:%s}](%s)'%(basename(fname),fname)
+    s = '![\label{fig:%s}](%s)'%(pyutil.getBname(fname),fname)
     return s 
 
 def showsavefig(fname='test.png',fig=None,show=1,**kwargs):
@@ -1053,18 +1066,28 @@ def df__paste0(df,keys,
         else:
             fmt = '["%s"], {key},' % sep
         lstStr += fmt.format(**locals())
-    cmd = '@pyutil.paste0([{lstStr}],sep="{sep0}")'.format(**locals())
+    cmd = 'list(@pyutil.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
     if debug:
         print (cmd)
     res = df.eval(cmd)
+    res = pd.Series(res,index=df.index)
 #     res = pyutil.paste0(lst, sep=sep)
     return res
+
+def df__pad(df,prefix='val',suffix='',sep='_'):
+    df = df.copy()
+    pyutil.df__paste0(df,[[prefix],"columns",[suffix]],sep=sep)
+    df.columns = df.eval('@pyutil.paste0([["val_"],columns])')
+    return df
+
+
+import operator
 
 def df__makeContrast(dfc,
                      contrast=None,
                      treatment=None,
                      control=None,
-                     func = lambda t,c:t-c):
+                     func = operator.sub ):
     '''Use the supplied control/treatment to make contrasted values
 '''
     if treatment is None or control is None:
@@ -1074,10 +1097,62 @@ def df__makeContrast(dfc,
         control = contrast.control
     vtreat = dfc.reindex(columns = treatment)
     vcontrol = dfc.reindex(columns = control)    
-    vdiff = func(vtreat.values,vcontrol.values)    
-    columns = pyutil.columns__makeContrast(treatment=treatment,control=control)
-    dfdiff = pd.DataFrame(vdiff,index=dfc.index,columns=columns)
+    vdiff = func(vtreat.values,vcontrol.values) 
+    columns = pyutil.paste0([treatment, control],'__').tolist()
+#     columns = pyutil.columns__makeContrast(treatment=treatment,
+#                                            control=control)
+    dfdiff = pd.DataFrame(vdiff,
+                          index=dfc.index,
+                          columns=columns)
     return dfdiff
+
+def meta__makeContrast(dfc,func = None,sep= '__',**kwargs):
+    if func is None:
+        func=np.vectorize(lambda t,c: sep.join([t,c]) if t!=c else t )
+    res = df__makeContrast(dfc,func=func,**kwargs)
+    return res
+
+def df__makeContrastWithMeta( 
+    self, 
+   buf = None,
+   contrast = None,
+   control = None,
+   treatment = None,
+   colMeta = None,
+   name = None,
+   **kwargs):
+    if buf is not None:
+        contrast = pyutil.read__buffer(buf.strip(),ext='csv',header=None).T
+    elif contrast is None:
+        assert control is not None
+        contrast = pd.DataFrame(dict(control = list(control),
+                                     treatment=list(treatment),
+                                    ))
+    else:
+        pass
+#     contrast = pyutil.read__buffer(buf,ext='csv',header=None).T
+    dfc = pyutil.df__makeContrast( self, 
+                                  contrast=contrast,
+                                 )
+    if colMeta is None:
+        colMeta = self.colMeta
+    dfcm = pyutil.meta__makeContrast( colMeta.T,
+                                      contrast = contrast,
+                                       sep='/').T
+
+    _class = self.__class__
+#     print (_class, _class.__name__=='countMatrix')
+    if _class.__name__=='countMatrix':
+        #### assume scount.countMatrix
+        dfc = _class(dfc,
+                     colMeta=dfcm,
+                     name=name,
+                     **kwargs
+                    )
+        return dfc
+    else:
+        return dfc,colMeta
+
 
 def df__fillTemplate(dfc,template,force = 0):
     '''Fill a templated string with context dictionary contained in a DataFrame
@@ -1281,13 +1356,19 @@ def file_ncol(fname,silent=1,sep=None):
 def read__remote( reader=None,):
     with io.BytesIO(urllib.urlopen(url).read()) as f:
         res = reader(f)
-    return res            
-def readData(fname, 
-             ext=None, callback=None, 
-             addFname=0,guess_index=1, columns = None,
-             localise = False,
-             remote = None,
-             comment='#', **kwargs):
+    return res      
+
+def readBaseFile(fname,baseFile=1, **kwargs):
+    res = readData(fname,baseFile=baseFile, **kwargs)
+    return res
+def readData(
+    fname, 
+    ext=None, callback=None, 
+    addFname=0, guess_index=1, columns = None,
+    localise = False,
+    remote = None,
+    baseFile = 0,
+    comment='#', **kwargs):
             
     if ext is not None:
         pass
@@ -1296,17 +1377,17 @@ def readData(fname,
         fhead,ext = guess_ext(fname,check = 1)
         
     if isinstance(fname,basestring):
-        if localise:
-            #### download data if matching protocol
-            protocols = [ 'http://','ftp://' ] 
-            if fname[:4] in [ x[:4] for x in protocols ]:
-                fname = pyutil.localise(fname)
         if remote is None:
             protocols = [ 'http://','ftp://' ] 
             if fname[:4] in [ x[:4] for x in protocols ]:
                 remote = True
         if remote:
             f = fname = io.BytesIO(urllib.urlopen(fname).read())
+            if localise:
+                fname = pyutil.localise(fname)
+        elif baseFile:
+            fname= pyext.base__file(fname,BASE=baseFile)
+            
         
 #     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
@@ -1383,6 +1464,10 @@ def readData(fname,
         res['fname']=fname
     return res
 
+def read__buffer(buf,**kwargs):
+    res = pyutil.readData(pyutil.StringIO.StringIO(buf),**kwargs)
+    return res
+
 def fileDict__load(fname):
     fdir = pyutil.os.path.dirname(fname) 
 #     with open(fname,'r') as f:
@@ -1438,7 +1523,7 @@ def sanitise_query(query):
     query = re.sub('[@\(\)\[\]]','-',query)
     return query
 
-def queryCopy(infile,query, reader=None,inplace=False, **kwargs):
+def queryCopy(infile,query, reader=None,inplace=False,**kwargs):
     '''query a dataset and save as a new copy
 '''
     if reader is None:
@@ -1446,14 +1531,15 @@ def queryCopy(infile,query, reader=None,inplace=False, **kwargs):
     querySans = sanitise_query(query)
     DIR = dirname(infile)
     
-    base = basename(infile)
+    base = pyext.getBname(infile)
     base += '_query=%s'%querySans
     ofile = base + '.tsv'
     
     if inplace:
         ofile = os.path.join(DIR,ofile)
 
-    df = reader(infile,**kwargs)
+    df = reader(infile)
+    df = pd.DataFrame(df)
 
     df = df.query(query)
     df.to_csv(ofile, sep='\t',index=False,header = None)
@@ -1575,6 +1661,7 @@ from pymisca.mc_integral import *
 
 
 from pymisca.pandas_extra import *
+from pymisca.models import *
 # pd,reset_columns,melt
 
 def columns__makeContrast(contrast = None,treatment=None,control=None):
@@ -1983,19 +2070,27 @@ def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',
     if callback is not None:
         df = callback(df)
     return df
-def df2mapper(meta,key='fname_',val='header_'):
-    ''' Convert a dataFrame into a dictionary
-'''
-    if meta.index.name is not None:
-        meta = meta.reset_index()
-    for f in [key,val]:
-        assert f in meta
-#     if 'fname_' in meta:
-    mc = meta.set_index(key,drop=0)
-#     else:
-#         mc = meta
-    mapper = dict(zip(mc[key],mc[val]))
-    return mapper
+
+### [DRPRECATED]
+# def df2mapper(meta,key='fname_',val='header_'):
+#     ''' Convert a dataFrame into a dictionary
+# '''
+#     if meta.index.name is not None:
+#         meta = meta.reset_index()
+#     for f in [key,val]:
+#         assert f in meta
+# #     if 'fname_' in meta:
+#     mc = meta.set_index(key,drop=0)
+# #     else:
+# #         mc = meta
+#     mapper = dict(zip(mc[key],mc[val]))
+#     return mapper
+
+def df__asMapper(dfc,key1,key2):
+    res = dfc.eval('({key1},{key2})'.format(**locals()))
+    res = dict(zip(*res))
+    return res
+df2mapper=  df__asMapper
 
 def test_TableToMat():
     mcurr = meta.query('Age=="Wk2" & gtype== "Bd21"')
@@ -2255,7 +2350,7 @@ def firstByKey(fname=None,df=None,keys = ['feature_acc','FC'],guess_index=0,save
     dfc = df.sort_values(keys,ascending=False)
     dfcc = dfc.groupby(keys[0],sort=True).first()
 #     dfcc.hist('FC')
-    ofname = basename(fname) + '_type=firstByKey' +'.tsv'
+    ofname = pyext.getBname(fname) + '_type=firstByKey' +'.tsv'
     if save:
         dfcc.to_csv(ofname, sep='\t')
         return ofname
@@ -2325,7 +2420,8 @@ def make__tempDIR(DIR,silent=1, **kwargs):
     DIR= tempfile.mkdtemp(dir=DIR)
     return DIR
 
-def saveFigDict(figs,DIR=None,exts=['svg'],silent=1):
+def saveFigDict(figs,DIR=None,exts=['svg'],silent=1,
+               **kwargs):
     if DIR is None:
         DIR=pyutil.os.environ.get('HOME',None)
         assert DIR is not None, 'cannot get environment variable:$HOME'
@@ -2345,6 +2441,7 @@ def saveFigDict(figs,DIR=None,exts=['svg'],silent=1):
             ofname = '%s.%s'%(noEXT,ext)           
             fig.savefig(ofname,
                         bbox_inches='tight',
+                        **kwargs
                        )
             ofnames += [ofname]
     fignames = ofnames

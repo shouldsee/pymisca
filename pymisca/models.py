@@ -1,25 +1,41 @@
 
 import pymisca.numpy_extra as pynp
 np = pynp
+import pymisca.ext as pyext
 import pandas as pd
 
 class BaseModel(object):
-    def __init__(self,name='test',lastLL=None):
+    def __init__(self,name='test',lastLL=None, data = None):
         self.name = name
         self.lastLL = lastLL
+        self.data  = data
 #         print (type(self),self.__dict__)
         pass
-    def sanitise(self,X):
+    def __getstate__(self):
+        d = dict(self.__dict__)
+#         del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__.update(d) # I *think* this is a safe way to do it
+        
+    def sanitise(self,X = None):
+        if X is None:
+            assert self.data is not None
+            X = self.data        
         X  = np.asarray(X,np.float32)        
         return X
-    def fit(self,X,n_iter = 1000, n_print=100,
+    def fit(self,X = None,n_iter = 1000, n_print=100,
             **kwargs):
+        if X is not None:
+            self.data = X
         X = self.sanitise(X)
         res = self._fit(X,n_iter = n_iter,n_print = n_print,
                   **kwargs)
         return res
     
-    def predict_proba(self,X,norm = 1,log=1, **kwargs):
+    def predict_proba(self,X= None,norm = 1,log=1, **kwargs):
+
         X = self.sanitise(X)
         prob = self._predict_proba(X,**kwargs)
         if norm:
@@ -36,9 +52,10 @@ class BaseModel(object):
         proba = self.predict_proba(X,norm = 0,**kwargs)
         clu = np.argmax(proba,axis = 1)
         return clu
-    def predictClu(self,X,**kwargs):
+    
+    def predictClu(self,X, index = None, **kwargs):
         clu = self.predict(X, **kwargs)
-        clu = pd.DataFrame(clu,columns =['clu'])
+        clu = pd.DataFrame(clu,columns =['clu'],index=index)
         return clu
     
     def expand_input(self,X):
@@ -49,7 +66,7 @@ class BaseModel(object):
                    [1, 1, self.K, 1])
         return X_bdc
     
-def cache__model4data(mdl,tdf):
+def cache__model4data(mdl,tdf,ofname = None):
     logP = mdl.predict_proba(tdf, norm = 0, log = True)
     logP = pd.DataFrame(logP,index=tdf.index,)    
     logPN = pd.DataFrame(logP.values - 
@@ -60,11 +77,16 @@ def cache__model4data(mdl,tdf):
     clu = mdl.predict(tdf)
     clu = pd.DataFrame(clu,index=tdf.index,columns=['clu'])
     stats = pd.concat([clu,score],axis=1)
-    return dict(logP = logP,
+    res = dict(logP = logP,
                logPN = logPN,
                clu = clu,
                score= score,
                stats= stats)
+    if ofname is not None:
+        np.save(ofname, res)
+        return ofname 
+    else:
+        return res
 
 def mm__get__logProba(dists,weights,data):
     ''' Get log proba for a mixture model
@@ -97,5 +119,26 @@ class MixtureModel(BaseModel):
             self.weights, 
             data)
         return logP
+    def _entropy_by_cluster(self, data):
+        log_proba = self._log_pdf(data)
+        part = pynp.logsumexp(log_proba,axis=1,keepdims=1)
+        proba = np.exp(log_proba - part)
+        H = pyext.entropise(proba,normed=1,axis=1).sum(axis=1,keepdims=1)
+#         stat = H.std()
+        resp = proba/proba.sum(axis=0,keepdims=1) 
+        clusterH = (H * resp).sum(axis=0)    
+        return clusterH
+    
     def _fit(self,data,**kwargs):
         assert 0,'Not Implemented!'
+        
+    def predict(self,X, entropy_cutoff = None, **kwargs):
+        proba = self.predict_proba(X,norm = 0,**kwargs)
+        clu = np.argmax(proba,axis = 1)
+        
+        if entropy_cutoff is not None:
+            clusterH = self._entropy_by_cluster(X)
+            proj = {x:x for x in np.where( clusterH < entropy_cutoff)[0]}
+            clu = np.vectorize( lambda x: proj.get(x, -1)) (clu)
+        return clu
+        

@@ -1,5 +1,6 @@
-import util as pyutil
-
+# import util as pyutil
+# import pymisca.util as pyutil
+import collections
 ##### OOP utility
 class util_obj(object):
     def __init__(self,**kwargs):
@@ -28,3 +29,4 @@ class util_obj(object):
         return self.__dict__[k]
     def __setitem__(self,k,v):
         self.__dict__[k] = v
+#     def update()

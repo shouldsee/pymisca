@@ -20,26 +20,30 @@ def oneHot(values):
     res = np.eye(n_values)[values]
     return res
 
-def _MixtureVMF__init(data,
+
+
+def _MixtureGMM__init(data,
                       init_method,
                       K,
-                      kappa,
                       beta,
                       meanNorm,
                       seed):
     np.random.seed(seed)
     def random( i=0):
         x = np.random.random(data.shape[1]) - 0.5
-        if i==100:
-            x = x * 0.
-        y = x / l2norm(x,) 
-        y = y 
-        dist = mixem.distribution.vmfDistribution(
-            mu = y ,
-            kappa = kappa,
+        mu = x
+#         if i==100:
+#             x = x * 0.
+#         y = x / l2norm(x,) 
+#         sigma = np.diag( abs(x) )
+        sigma =  abs(x) + 0.1
+        #### [TBC] ####
+#         sigma =  np.diag(sigma)
+#         dist = mixem.distribution.MultivariateNormalDistribution(
+        dist = mixem.distribution.diagMVN(
+            mu = mu ,
+            sigma = sigma,
             beta = beta,
-            meanNorm = meanNorm,
-#                 sample_weights = sample_weights,
         )
 #             print (dist.mu,dist.kappa)
         return dist        
@@ -55,11 +59,12 @@ def _MixtureVMF__init(data,
         init_resp = oneHot(ypred)
     return dists,init_resp
 
-def _MixutreVMF__fit__worker( (i,seed),
+
+def _MixutreGMM__fit__worker( (i,seed),
                              data,
                              init_method,
                              K,
-                             kappa,
+#                              kappa,
                              beta,
                              meanNorm,
                              max_iters,
@@ -71,13 +76,14 @@ def _MixutreVMF__fit__worker( (i,seed),
                              **kwargs
                             ):
 
-    dists,init_resp = _MixtureVMF__init(data,
+    dists,init_resp = _MixtureGMM__init(data,
                                         seed = seed,
                                        init_method=init_method,
                                        K=K,
-                                       kappa = kappa,
+#                                        kappa = kappa,
                                        beta = beta,
-                                       meanNorm=meanNorm)
+                                       meanNorm=meanNorm
+                                       )
     llHist  = []
     def callback2(iteration, weight, distributions, log_likelihood, log_proba):
         llHist.append(log_likelihood)
@@ -113,15 +119,17 @@ def _MixutreVMF__fit__worker( (i,seed),
 #     res[-1] = ll[-1]
     return weights, distributions, np.array(llHist), ll
 
-class MixtureVMF(pymod.MixtureModel):
+
+
+class MixtureGMM(pymod.MixtureModel):
     def __init__(self, K =30, 
                  kappa=False,
                  beta = 1.,
-                 normalizeSample=True,
+                 normalizeSample=False,
                 init_method = 'kmeans',
                  NCORE=1,
                  weighted = False,
-                 meanNorm  =1,
+                 meanNorm = 1,
                  *args,
                  **kwargs
 #                  normalizeSample=False
@@ -134,21 +142,21 @@ class MixtureVMF(pymod.MixtureModel):
         K = n_components  
         self.NCORE = NCORE
         self.K  = K
-        self.kappa = kappa
+#         self.kappa = kappa
         self.beta = beta
         self.normalizeSample = normalizeSample
         self.init_method = init_method
         self.weighted = weighted
         self.meanNorm = meanNorm
 #         self.dists = None
-        super(MixtureVMF,self).__init__(*args,**kwargs)
+        super(MixtureGMM,self).__init__(*args,**kwargs)
     def _init(self, data, 
               init_method = 'kmeans',
              ):
         init_method  = self.init_method
         K = self.K
-        kappa = self.kappa
-        return MixtureVMF__init(data,init_method,K,kappa)
+#         kappa = self.kappa
+        return MixtureGMM__init(data,init_method,K,kappa)
     @property
     def params(self):
         d = [ d.params for d in self.dists]
@@ -194,22 +202,22 @@ class MixtureVMF(pymod.MixtureModel):
         if self.normalizeSample:
             data = data / l2norm(data,axis=1,keepdims=1)        
 
-        if self.kappa is False:
-            self.kappa = l2norm(np.mean(data,axis=0))
+#         if self.kappa is False:
+#             self.kappa = l2norm(np.mean(data,axis=0))
             
         init_method  = self.init_method
         K = self.K
-        kappa = self.kappa
+#         kappa = self.kappa
         beta = self.beta
         meanNorm = self.meanNorm
         lst = []
 
         worker = functools.partial(
-            _MixutreVMF__fit__worker,
+            _MixutreGMM__fit__worker,
                  data=data,
                  init_method=init_method,
                  K=K,
-                 kappa=kappa,
+#                  kappa=kappa,
                  beta = beta,
                  meanNorm = meanNorm,
                  max_iters = max_iters,
@@ -235,40 +243,6 @@ class MixtureVMF(pymod.MixtureModel):
         self.lastLL = ll
         self.histLL = llHist
         return llHist
-main = MixtureVMF
+main = MixtureGMM
 
 from pymisca.callbacks import callback__stopAndTurn
-
-
-import pymisca.vis_util as pyvis
-plt = pyvis.plt
-def qc__vmf(mdl=None,
-            callback = None,
-            nMax=-1,
-            xunit = None,
-           ):
-    if callback is None:
-        assert mdl is not None
-        callback = mdl.callback
-#     n = 4000
-#     xmax = 1.0
-    fig,ax = plt.subplots(1,1,figsize=[14,10])
-    if xunit is not None:
-        xs = getattr(callback,xunit)
-    else:
-        xs = np.arange(len(callback.betaHist))
-    axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
-                                             callback.clusterH)
-                       ,nMax=nMax,axs=[None,ax,None,None])
-
-    plt.sca(axs[1])
-    # plt.figure()
-    ax = plt.gca()
-    plt.plot(xs,callback.stats,'ro')
-    ax.set_xlim(0,None)
-#     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
-    tax = ax.twinx()
-    tax.plot(xs,callback.cluNum,'go')
-#     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
-    # tax.set_xlim(0,0.4)
-    tax.set_ylim(0,25)

@@ -44,11 +44,24 @@ def mixture_logProbComponents(self, x):
 pytf.mixture_logProbComponents = mixture_logProbComponents
 #     return mdl
 
-class HyperPlaneMixture_VIMAP(BaseModel):
+class vmfMixture_VIMAP(BaseModel):
     
     bkd    = tfdist
-    emDist = pytf.HyperPlane
-    
+    emDist =  pytf.VonMisesFisher
+#     (
+#                 concentration = vm_concentration,
+#                 mean_direction = vm_direction
+#                                  )
+    em_key =[
+        'concentration',
+        'mean_direction',
+#         'L2loss',
+#         'mean',
+#         'bias',
+        ]
+    mix_key = [
+            'weight',
+        ]    
     def __init__(self,D=None,K=20,
                  debug=False,NCORE=1,L2loss=0.,
                  meanNorm = 1,
@@ -60,7 +73,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
                  weighted=  True,
                  *args,**kwargs):
         super(
-            HyperPlaneMixture_VIMAP,
+            vmfMixture_VIMAP,
             self).__init__(*args,**kwargs)
         self.NCORE= NCORE
         self.K = K
@@ -87,14 +100,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
         if D is not None:
             self.init_model(D=D)  
                         
-    em_key =[
-        'L2loss',
-        'mean',
-        'bias',
-        ]
-    mix_key = [
-            'weight',
-        ]
+
     def getScope(self):
         try:
             tf.get_variable(self.name+'/post',[1])
@@ -137,7 +143,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 #             prior.gamma_concentration = edm.Normal(tf.zeros(D), tf.ones(D), sample_shape=K)            
 #             prior.loc =  edm.Uniform(*uspan,sample_shape=(K,D))
 
-#             prior.weight = pi = tfdist.Dirichlet( float(diriAlpha) * tf.ones(K)/float(K) )            
+            prior.weight = pi = tfdist.Dirichlet( float(diriAlpha) * tf.ones(K)/float(K) )            
 #             prior.weight = 
 #             prior.cat = edm.Categorical(weight = post.weight)
         return prior
@@ -191,10 +197,7 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 # #                 l2_mean = tf.reduce_sum(tf.square(post.mean),
 #                                       axis=-1,keepdims=True) 
                 
-                l2_mean = tf.reduce_mean(tf.square(post.mean),axis=-1,keepdims=True)
-                l2_mean = l2_mean 
-#                 l2_mean = l2_mean * float(self.D) * 8.
-#                 l2_mean = l2_mean * float(self.D) * float(self.D)
+                l2_mean = tf.reduce_mean(tf.square(post.mean),axis=-1,keepdims=True) * float(self.D)
                 post.mean = post.mean/tf.sqrt(l2_mean)
 #                 if self.normalize
 #                 post.L2loss = tf.ones(shape=[K,]) * self.L2loss
@@ -202,7 +205,12 @@ class HyperPlaneMixture_VIMAP(BaseModel):
                 post.mean  = tf.concat([post.mean[:-1], 
                                         tf.zeros(shape=[1,self.D])],axis=0)
                 post.bias = tf.constant( [0.] * (self.K - 1) + [self.threshold], )
-    
+                
+            post.mean_direction = post.mean
+            i += 1
+            post.concentration = tf.nn.softplus(
+                tf.ones([float(self.K)]) * tf.get_variable(str(i),shape=[1,])
+            )
 #             i += 1
 #             post.vm_direction = edm.PointMass(
 #                 tf.nn.l2_normalize(
@@ -263,7 +271,9 @@ class HyperPlaneMixture_VIMAP(BaseModel):
              for key,v in post.__dict__.items() 
              if key in self.em_key} 
             for k in range(K)]
-        const  = {'normalize':self.normalize}
+#         const  = {'normalize':self.normalize}
+        const = {}
+
         [d.update(const) for d in cDicts]
         self.post.components = [self.emDist(**d) for d in cDicts]
         
@@ -482,5 +492,5 @@ class HyperPlaneMixture_VIMAP(BaseModel):
 #                 for k in self.post.__dict__ 
 #                 if k != 'components'}
 #         return params
-main = HyperPlaneMixture_VIMAP
+main = vmfMixture_VIMAP
     

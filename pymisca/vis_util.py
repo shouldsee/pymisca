@@ -220,9 +220,10 @@ def snap_detail(snap,YTICK = 0, truncate = 50, uniq = 1):
     if not YTICK:
         lab = ['*' if l.startswith('*') else '' for l in lab]
     if YTICK:
-        plt.pcolormesh(im[ridx][-truncate:].T,)
+        imc = im[ridx][-truncate:].T
     else:
-        plt.pcolormesh(im[ridx].T,)
+        imc = im[ridx].T
+    plt.pcolormesh(imc, antialiased = False)
     if YTICK:
         y,ytick =make_label( attr, h.target,)
 #         print ridx
@@ -708,6 +709,20 @@ def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1
     return ax
 
 
+def cmap4vlim(vlim,debug=0):
+    if debug:
+        print ('[dbg]Setting cmap ... ')
+    if vlim[0] * vlim[1]>=0:
+        name = 'viridis'
+    else:
+        avg = abs( vlim[1] - vlim[0] )/2.
+        vlim = -avg,avg
+        name = 'PiYG'
+    cmap = plt.get_cmap('PiYG')
+    if debug:
+        print ('[dbg]...to %s' %name  )
+    cmap.set_bad('black',1.)
+    return cmap
 
 ####### Clustering
 def heatmap(C,
@@ -725,6 +740,8 @@ def heatmap(C,
             figsize=None,
             marginInSquare=(2,2),
             squareSize = (0.2,0.2),
+            interpolation = 'none',
+#             antialiased=False,
             
             **kwargs
            ):
@@ -758,22 +775,20 @@ def heatmap(C,
         vlim = np.span(C[~np.isnan(C)],99)
     elif vlim[0] is None:
         pass
-    else:
-        if cmap is None:
-            if vlim[0] * vlim[1]>=0:
-                cmap = plt.get_cmap('viridis')
-            else:
-                avg = abs( vlim[1] - vlim[0] )/2.
-                vlim = -avg,avg
-                cmap = plt.get_cmap('PiYG')
-            cmap.set_bad('black',1.)
+#     else:
+    if cmap is None:
+        cmap = cmap4vlim(vlim)
+        
     C = np.ma.array (C, mask=np.isnan(C))
     if cmap is not None:
         cmap.set_bad('black',1.)
     kwargs['vmin'],kwargs['vmax'] = vlim
 
     plt.sca(ax)
-    im = ax.matshow(C,aspect='auto', cmap = cmap, **kwargs)
+    im = ax.matshow(C,aspect='auto', cmap = cmap,
+#                     antialiased=antialiased,
+                    interpolation = interpolation,
+                    **kwargs)
     ax.xaxis.tick_bottom()
 
     if xtick is not None:
@@ -899,12 +914,12 @@ def abline(k=1,y0=0,x0 = None, color = 'b', ax = None,**kwargs):
         ax = plt.gca()
     MIN,MAX=ax.get_xlim()
     xs = MIN,MAX
-    if k is None:
-        assert x0 is not None
+    if x0 is not None:
+#         assert k is None
         xs = (x0,x0)
         ys = ax.get_ylim()
     else:
-        assert x0 is None
+        assert k is not None
         f = lambda x: k*x+y0
         ys =  map(f,xs)
     ax.plot( xs, ys,'--',color=color,**kwargs)    
@@ -916,6 +931,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
             markersize=None,xlim=None,ylim=None,axs = None,
            xbin = None,
            ybin =None,
+            spanPer = 99.9,
             nMax=3000,
 #            axis = [0,1,2]
            ):
@@ -931,8 +947,8 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     if nMax <0 :
         nMax= len(xs)
 
-    xlim = xlim if xlim is not None else np.span(xs,99.9)
-    ylim = ylim if ylim is not None else np.span(ys,99.9)
+    xlim = xlim if xlim is not None else np.span(xs,spanPer)
+    ylim = ylim if ylim is not None else np.span(ys,spanPer)
     BX = np.linspace(*xlim, num=30) if xbin is None else xbin
     BY = np.linspace(*ylim, num=50) if ybin is None else ybin    
 #         xlim = np.span(BX)
