@@ -79,11 +79,14 @@ def job__saveFig(figs,exts=['png'],dpi=150,DIR='.') :
     return dfig
 
 def render__images(figs,
-                   templateFile='/home/feng/Templates/listImages.html',
+                   templateFile=None,
                    DIR='.',
                    exts=['png'],
                    dpi = 150,
                   ):
+    
+    if templateFile is None:
+        tempalteFile = pyext.base__file('Templates/listImages.html')
     ofname = pyutil.os.path.join(DIR,'figure.html')
     context = pyutil.job__saveFig(figs,
                                    exts=exts,
