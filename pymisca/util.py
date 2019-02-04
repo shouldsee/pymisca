@@ -86,7 +86,7 @@ def render__images(figs,
                   ):
     
     if templateFile is None:
-        tempalteFile = pyext.base__file('Templates/listImages.html')
+        templateFile = pyext.base__file('Templates/listImages.html')
     ofname = pyutil.os.path.join(DIR,'figure.html')
     context = pyutil.job__saveFig(figs,
                                    exts=exts,
