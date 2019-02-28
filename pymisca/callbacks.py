@@ -10,7 +10,8 @@ def _betas(i,start=0.,step=1.):
     return res
 
 class callback__stopAndTurn(object):
-    def __init__(self, interval = 1, cluMin = 2, burnin = 10,
+    def __init__(self, interval = 1, cluMin = 2, 
+                 burnin = -1,
                  afterTurn = 50,
                  turning = False,
                  start=None,step = None,
@@ -23,13 +24,27 @@ class callback__stopAndTurn(object):
             assert step is not None
             betas = functools.partial( _betas, start=start,step=step)
 #             betas = lambda i: start + i * step
+        elif hasattr(betas,'__getitem__'):
+            lst = betas
+            betas = functools.partial(
+                np.interp,
+                fp=lst,
+                xp=range(len(lst)),)
+#             betas = getattr(betas,'__getitem__')
+        elif hasattr(betas,'next'):
+            betas = getattr(betas,'next')
+            assert 0,'broken cuz not accepting next(i)'
+                
+            
         self.turning = turning
         self.betas = betas
         self.lastTurn = None
         self.right= None
         self.left = None
+        self.lastResp = None
         self.stats = []
         self.betaHist = []
+        self.speedHist = []
         self.cluNum = []
         self.H = []
         self.clusterH = []
@@ -77,6 +92,13 @@ class callback__stopAndTurn(object):
 #             self.H.append(H.ravel())
             self.clusterH.append(clusterH)
             self.saveModel(*args)
+            
+            if self.lastResp is not None:
+                speed = ((resp - self.lastResp)**2).sum(axis=1).mean(axis=0)
+            else:
+                speed = 0.
+            self.speedHist.append(speed)
+            self.lastResp = resp
             
             if not self.turning:
                 beta = self.betas(iteration)
@@ -143,6 +165,8 @@ def qc__vmf(mdl=None,
             callback = None,
             nMax=-1,
             xunit = None,
+            XCUT=None,
+            YCUT=None,
            ):
     if callback is None:
         assert mdl is not None
@@ -154,6 +178,7 @@ def qc__vmf(mdl=None,
         xs = getattr(callback,xunit)
     else:
         xs = np.arange(len(callback.betaHist))
+        betas = callback.betaHist
     axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
                                              callback.clusterH)
                        ,nMax=nMax,axs=[None,ax,None,None])
@@ -169,3 +194,53 @@ def qc__vmf(mdl=None,
 #     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
     # tax.set_xlim(0,0.4)
     tax.set_ylim(0,25)
+    
+
+    xtk = ax.get_xticks()
+#     tay = ax.twiny()
+    betaTicks = np.interp(xp=range(len(betas)),fp=betas,x=xtk)
+    betaTicks = map(lambda x:'%.2E'%x,betaTicks)
+    ax.set_xticklabels(pyext.paste0([xtk,betaTicks],'\n'))    
+             
+def qc__vmf__speed(mdl=None,
+            callback = None,
+            nMax=-1,
+            xunit = None,
+            XCUT=None,
+            YCUT=None,
+           ):
+    if callback is None:
+        assert mdl is not None
+        callback = mdl.callback
+#     n = 4000
+#     xmax = 1.0
+    fig,ax = plt.subplots(1,1,figsize=[14,10])
+    if xunit is not None:
+        xs = getattr(callback,xunit)
+    else:
+        xs = np.arange(len(callback.betaHist))
+        betas = callback.betaHist
+    axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
+                                             callback.clusterH)
+                       ,nMax=nMax,axs=[None,ax,None,None])
+
+    plt.sca(axs[1])
+    # plt.figure()
+    ax = plt.gca()
+    plt.plot(xs,callback.stats,'ro')
+    ax.set_xlim(0,None)
+    ax.set_ylim(0,None)
+#     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
+    tax = ax.twinx()
+    tax.plot(xs,callback.speedHist,'go')
+    tax.set_ylim(0,None)
+    
+    xtk = ax.get_xticks()
+#     tay = ax.twiny()
+    betaTicks = np.interp(xp=range(len(betas)),fp=betas,x=xtk)
+    betaTicks = map(lambda x:'%.2E'%x,betaTicks)
+    ax.set_xticklabels(pyext.paste0([xtk,betaTicks],'\n'))
+    return [ax,tax],betaTicks
+#     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
+    # tax.set_xlim(0,0.4)
+             
