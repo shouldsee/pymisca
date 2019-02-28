@@ -99,7 +99,7 @@ def shellexec(cmd,debug=0,silent=0,executable=None):
         return res
     
 def getMD5sum(fname,silent=1):
-    res = pyutil.shellexec('md5sum %s'%fname,silent=silent)[:32]
+    res = shellexec('md5sum %s'%fname,silent=silent)[:32]
     return res
 
 def shellpopen(cmd,debug=0,silent=0,executable=None):

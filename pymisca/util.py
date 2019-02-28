@@ -37,7 +37,7 @@ from pymisca.fop import *
 from pymisca.canonic import *
 from pymisca.shell import *
 from pymisca.ext import *
-from pymisca.jobs import *
+# from pymisca.jobs import *
 import pymisca.jinja2_util as pyjin
 import pymisca.ext as pyext
 
@@ -127,9 +127,12 @@ def splitPath(fname,level=1):
         tail += [tail_]
     return head,'/'.join(tail[::-1])
 
-def localise(uri,ofname= None,silent = 1, level=1):
+def localise(uri,ofname= None,silent = 1, level=1, baseFile = 0):
+    if baseFile:
+            uri = pyext.base__file( uri,BASE=baseFile)
     if ofname is None:
-        head, ofname = pyutil.splitPath(uri, level=level)
+        head, ofname = pyutil.splitPath(
+            uri, level=level)
     ddir =  os.path.dirname(ofname)
     if ddir:
         if not os.path.exists(ddir):
@@ -143,11 +146,7 @@ def localise(uri,ofname= None,silent = 1, level=1):
 
 
     
-def dictFilter(oldd,keys):
-    d =collections.OrderedDict( 
-        ((k,v) for k,v in oldd.iteritems() if k in keys) 
-    )
-    return d
+
 import datetime
 def datenow():
     res = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -1069,7 +1068,7 @@ def df__paste0(df,keys,
         else:
             fmt = '["%s"], {key},' % sep
         lstStr += fmt.format(**locals())
-    cmd = 'list(@pyutil.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
+    cmd = 'list(@pyext.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
     if debug:
         print (cmd)
     res = df.eval(cmd)
@@ -1079,8 +1078,15 @@ def df__paste0(df,keys,
 
 def df__pad(df,prefix='val',suffix='',sep='_'):
     df = df.copy()
-    pyutil.df__paste0(df,[[prefix],"columns",[suffix]],sep=sep)
-    df.columns = df.eval('@pyutil.paste0([["val_"],columns])')
+    lst= [] 
+    if prefix != '':
+        lst.append([prefix])
+    lst.append("index")
+    if suffix != '':
+        lst.append([suffix])
+        
+    cols = pyutil.df__paste0(df.T, lst,sep=sep)
+    df.columns = cols
     return df
 
 
@@ -1145,17 +1151,32 @@ def df__makeContrastWithMeta(
 
     _class = self.__class__
 #     print (_class, _class.__name__=='countMatrix')
-    if _class.__name__=='countMatrix':
+    dbg = _class.__name__.endswith('countMatrix')
+#     print ('[dbg]%s' %dbg)
+#     if _class.__name__.endswith('countMatrix'):
+    if _class.__name__==('countMatrix'):
         #### assume scount.countMatrix
         dfc = _class(dfc,
                      colMeta=dfcm,
                      name=name,
                      **kwargs
                     )
+#         print (type(dfc))
         return dfc
     else:
         return dfc,colMeta
 
+def template__checkKeys(template,keys,force=0):
+    keys = set(keys)
+    kwSet = set(pyutil.ptn.templateKW.findall(template))
+    if force:
+        return kwSet.issubset(keys)
+    else:
+        assert kwSet.issubset(keys),\
+        'keys not found in dataframe: %s' %kwSet.difference(keys)
+    
+        return 1
+    
 
 def df__fillTemplate(dfc,template,force = 0):
     '''Fill a templated string with context dictionary contained in a DataFrame
@@ -1292,11 +1313,7 @@ def meta2flat(ss,seps= ['_','=']):
         return packFlat(x,seps)[0]
     res = map(f,ss)
     return res
-def dict2flat(dct,sep='_',concat='='): 
-    ''' Pack a depth-1 dictionary into flat string
-    '''
-    s = sep.join(['%s%s%s'%(k,concat,v) for k,v in dct.items()])
-    return s
+
 
 def metaContrast(mRef,mObs):
     ''' Merge two flattened meta descriptor 
@@ -1356,13 +1373,23 @@ def file_ncol(fname,silent=1,sep=None):
     ncol = len(line.split(sep)) 
     return ncol
 
-def read__remote( reader=None,):
-    with io.BytesIO(urllib.urlopen(url).read()) as f:
-        res = reader(f)
-    return res      
+def read__remote( url,reader=None,):
+    f = urllib.urlopen(url)
+    return f
+#     f = io.BytesIO(urllib.urlopen(url).read()) as f:
+#         if reader is None:
+#             res = f
+#         else:
+#             res = reader(f)
+#     return res      
 
 def readBaseFile(fname,baseFile=1, **kwargs):
     res = readData(fname,baseFile=baseFile, **kwargs)
+    return res
+
+def read_json(fname):
+    with open(fname,'r') as f:
+        res = simplejson.load(f)
     return res
 def readData(
     fname, 
@@ -1371,7 +1398,8 @@ def readData(
     localise = False,
     remote = None,
     baseFile = 0,
-    comment='#', **kwargs):
+    comment='#', 
+    **kwargs):
             
     if ext is not None:
         pass
@@ -1380,6 +1408,8 @@ def readData(
         fhead,ext = guess_ext(fname,check = 1)
         
     if isinstance(fname,basestring):
+        if baseFile:
+            fname= pyext.base__file(fname,BASE=baseFile)
         if remote is None:
             protocols = [ 'http://','ftp://' ] 
             if fname[:4] in [ x[:4] for x in protocols ]:
@@ -1388,14 +1418,13 @@ def readData(
             f = fname = io.BytesIO(urllib.urlopen(fname).read())
             if localise:
                 fname = pyutil.localise(fname)
-        elif baseFile:
-            fname= pyext.base__file(fname,BASE=baseFile)
             
         
 #     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
-    class temp:
+    class space:
         fheadd = fhead
+        _guess_index=guess_index
         
     def case(ext,):
 
@@ -1426,15 +1455,26 @@ def readData(
             
         elif ext == 'pk':
             res = pd.read_pickle(fname,**kwargs)
-        elif ext == 'json':
+        elif ext == 'pandas-json':
             res = pd.read_json(fname,**kwargs)
+        elif ext == 'json':
+            res = pyext.read_json(fname,**kwargs)
+            space._guess_index=0
         elif ext == 'npy':
             res = np.load(fname)
-            guess_index=0
+            space._guess_index=0
+        elif ext == 'it':
+            res = fname
+            if not hasattr(res,'readline'):
+                res = open(res,'r')
+                res = pyext.unicodeIO(res)
+#             res = ( x for x in fname)
+            space._guess_index=0
+            
 #             .tolist()
         else:
-            temp.fheadd, ext = guess_ext(temp.fheadd, check=1)            
-            res = case(ext,)
+            space.fheadd, ext = guess_ext( space.fheadd, check=1)            
+            res = case(ext,)[0]
 #             if ext is None:
 #         elif ext is None:            
 #         or ext=='txt':
@@ -1458,7 +1498,7 @@ def readData(
     if columns is not None:
         res.columns = columns
         
-    if guess_index:
+    if space._guess_index:
         res = guessIndex(res)
     if callback is not None:
         res = callback(res)
@@ -1467,43 +1507,20 @@ def readData(
         res['fname']=fname
     return res
 
+
 def read__buffer(buf,**kwargs):
-    res = pyutil.readData(pyutil.StringIO.StringIO(buf),**kwargs)
+    res = pyutil.readData(pyext.StringIO(buf),**kwargs)
     return res
 
-def fileDict__load(fname):
-    fdir = pyutil.os.path.dirname(fname) 
-#     with open(fname,'r') as f:
-#         dd = json.load_ordered(f,)
-    dd = pd.read_json(fname, typ='records'
-                     ).to_dict(into=collections.OrderedDict)
-    dd = collections.OrderedDict([(k,pyutil.os.path.join(fdir,v)) 
-                                  for k,v in dd.items()])
-    dd = pyutil.util_obj(**dd)
-    return dd
 
-json.load_ordered= functools.partial(json.load,
-                                    object_pairs_hook=collections.OrderedDict,)
-json.loads_ordered= functools.partial(json.loads,
-                                    object_pairs_hook=collections.OrderedDict,)
+
 # def jsonLoad(f,object_pairs_hook=collections.OrderedDict,**kwargs):
 #     return json.load(f,object_pairs_hook=object_pairs_hook,**kwargs)
 # def jsonLoads(f,object_pairs_hook=collections.OrderedDict,**kwargs):
 #     return json.loads(f,object_pairs_hook=object_pairs_hook,**kwargs)
-def fileDict__save(fname,d=None,keys=None):
-    assert d is not None,'set d=locals() if unsure'
-    d = collections.OrderedDict(d)
-    if keys is not None:
-        d  = pyutil.dictFilter(d,keys)
-    if os.path.exists(fname):
-        with open(fname,'r') as f:
-            res = json.load_ordered(f,)
-            res.update(d)
-            d = res
-    with open(fname,'w') as f:
-        pyutil.json.dump(d,f)
-    return fname
 
+
+    
 def readData_multiple(fnames, axis=0, NCORE=1, 
                       addFname = 1, guess_index=0, **kwargs):
     '''
@@ -1553,21 +1570,7 @@ def guessIndex(df):
     if df[df.columns[0]].dtype == 'O':
         df.set_index(df.columns[0],inplace=True)
     return df
-def mergeByIndex(left,right,how='outer',as_index = 0, **kwargs):
-    dcts = [{'name': getattr(left,'name','left')},
-            {'name': getattr(right,'name','right')},
-           ]
-    suffixes = ['_%s'%x for x in map(pyutil.dict2flat,dcts)]
 
-    df = pd.DataFrame.merge(left,right,
-                       how = how,
-                        left_index=True,
-                        right_index=True,
-                       suffixes= suffixes
-                      )
-    if as_index:
-        df = df.iloc[:,:1]
-    return df
 
 
 def propose_mergeDB(mcurr,dataFile,force=0):
@@ -1594,7 +1597,10 @@ def propose_mergeDB(mcurr,dataFile,force=0):
 
 def routine_combineData(fnames,ext=None,addFname = 0):
     dfs = map(lambda x:pyutil.readData(x,ext=ext,addFname = addFname), fnames)
-    idx = reduce(pyutil.functools.partial(pyutil.mergeByIndex,as_index=1,how= 'outer'),dfs)
+    idx = reduce(pyutil.functools.partial( 
+        pyext.mergeByIndex, 
+        as_index=1,how= 'outer'),
+                 dfs)
     dfs = [df.reindex(idx.index) for df in dfs]
     return dfs
 #### Bash-like utils
@@ -2269,9 +2275,11 @@ def areaRatio(xs):
     res = res[ood]
     return res
 
-def oneHot(values):
+def oneHot(values,MAX=None):
     values = np.ravel(values)
-    n_values = np.max(values) + 1
+    if MAX is None:
+        MAX  = np.amax(values)
+    n_values = MAX + 1
     res = np.eye(n_values)[values]
     return res
 

@@ -77,7 +77,7 @@ def make_subplots(
     '''
     Create a grid of subplots
 '''
-    nrows = L//4+1
+    nrows = L//ncols+1
     fig,axs = plt.subplots(ncols=ncols,nrows=nrows,
                             figsize=[ncols*baseColSep, 
                                      nrows*baseRowSep],
@@ -718,7 +718,8 @@ def cmap4vlim(vlim,debug=0):
         avg = abs( vlim[1] - vlim[0] )/2.
         vlim = -avg,avg
         name = 'PiYG'
-    cmap = plt.get_cmap('PiYG')
+#     cmap = plt.get_cmap('PiYG')
+    cmap = plt.get_cmap(name)
     if debug:
         print ('[dbg]...to %s' %name  )
     cmap.set_bad('black',1.)
@@ -740,7 +741,7 @@ def heatmap(C,
             figsize=None,
             marginInSquare=(2,2),
             squareSize = (0.2,0.2),
-            interpolation = 'none',
+            interpolation = 'nearest',
 #             antialiased=False,
             
             **kwargs
@@ -785,7 +786,16 @@ def heatmap(C,
     kwargs['vmin'],kwargs['vmax'] = vlim
 
     plt.sca(ax)
-    im = ax.matshow(C,aspect='auto', cmap = cmap,
+#     if plt.get_backend() == 'cairo':
+# #         origin = 'upper'
+#         origin = 'lower'
+# #         if ytick is not None:
+# #             ytick = list(ytick)[::-1]
+#     else:
+#         origin = 'lower'
+    im = ax.matshow(C,aspect='auto', 
+                    cmap = cmap,
+#                     origin = origin, 
 #                     antialiased=antialiased,
                     interpolation = interpolation,
                     **kwargs)
@@ -1015,7 +1025,8 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     return axs
 # pyvis.heatmap=heatmap
 import random
-def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
+def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None, 
+                  period = 7):
     """Create an N-bin discrete colormap from the specified input map
     Source: https://gist.github.com/jakevdp/91077b0cae40f8f8244a
     """
@@ -1032,6 +1043,7 @@ def discrete_cmap(N, base_cmap=None,shuffle = 0,seed  = None):
     if shuffle:
         if seed is not None:
             np.random.seed(seed)
+#         np.random
         np.random.shuffle(rg)
     color_list = base(rg)
     cmap_name = base.name + str(N)
@@ -1097,6 +1109,24 @@ def qc_index(ind1=None,ind2=None,
         jind = Lall/float(Lnot2 + Lnot1 + Lall)
         ax.set_title('Jaccard_index=%.3f%%'%(100*jind))
     return df,ax
+
+def df__indVenn2Flat(indVenn=None, ind1=None,ind2=None,xlab=None,ylab=None,
+                     silent=True,ax=None):
+    if indVenn is None:
+        qres, ax = pyvis.qc_index(ind1=ind1,ind2=ind2,xlab=xlab,ylab=ylab,
+                                 silent=silent,ax=ax)
+    qres = indVenn
+    index =  qres['indAny']
+    res = pd.DataFrame(
+       zip(
+           index.isin(qres.ind1),
+            index.isin(qres.ind2),
+       ),
+        index=index,
+        columns=qres.columns[-2:]
+    )
+    res = res.sort_values(list(res.columns),ascending=False)
+    return res,ax
 
 def qc__mapVenn(plotter,indVenn,figsize=[16,6]):
     fig,axs = plt.subplots(1,3,figsize=figsize);
