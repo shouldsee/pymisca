@@ -1,49 +1,81 @@
 import numpy  as np
 import pymisca.model_collection.mixture_vmf
 _mod1 = pymisca.model_collection.mixture_vmf
+qc__vmf = _mod1.qc__vmf
+
+import pymisca.ext as pyext
 
 def job__cluster__mixtureVMF__incr(
-                                  tdf,
-                                  K = 20,
-                                  randomState=0,
-                                  nIter=100,
-                                  nStart=1,
-                                  start=0.1,
-                                  end= 24.0,
-                                  step = None,
-                                  init_method='random',
-                                  meanNorm=1,
-                                  normalizeSample=0,
+    tdf,
+    K = 20,
+    randomState=0,
+    nIter=100,
+    nStart=1,
+    start=0.1,
+    end= 24.0,
+    step = None,
+    betas = None,
+    init_method='random',
+    meanNorm=1,
+    normalizeSample=0,
     weighted=True,
-    
-                                   alias = 'mdl',
-                                   verbose=0,
+
+    alias = 'mdl',
+    verbose=0,
 ):
     data = tdf
     mod = pymisca.model_collection.mixture_vmf
     
     np.random.seed(randomState)
 #     betas = lambda i: (i + 1) * 0.00015 + 0.15
+#     if betas is not None:
+#         nIter = len(betas)
+
     if step is None:
         step = (end-start)/nIter
     callback = mod.callback__stopAndTurn(
+        betas = betas,
         start=start,
         step=step)
+    
 #     callback = pyfop.composeF(callback__stopAndTurn(betas=betas),
 # #                              callback__stopOnClu(interval=1)
 #                              )
+    
+    ##### casting DataFrame to Array
+    if hasattr(data,'values'):
+        data0 = data
+        data = data.values
+    else:
+        data0 = None
+        
+    if 1:
+        if meanNorm:
+            data = data - data.mean(axis=1,keepdims=1)
+    #         data = pyext.meanNorm(data)
+        if normalizeSample:
+            NORM = pyext.arr__l2norm(data,axis=1,keepdims=0)
+            NORM[NORM == 0.] = 1.
+            data = data/NORM[:,None]
+        
+    if data0 is None:
+        data0 = data
+    else:
+        data0.loc[:,:] = data
+
     mdl0 = mdl = mod.MixtureVMF(
         init_method = init_method,
                         NCORE = 1,
-                        meanNorm=meanNorm,
+                        meanNorm=0,
 #                          beta = betas(0),
                         beta = start,
                          weighted =  weighted,
-                         normalizeSample=normalizeSample,
+                         normalizeSample=0,
                         kappa = None,
                         K = K,)
+        
     res = mdl.fit(
-        data,verbose=verbose,
+        data0,verbose=verbose,
                   nStart=nStart,
                   callback = callback,
                   min_iters = nIter,

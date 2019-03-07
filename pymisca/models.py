@@ -3,6 +3,7 @@ import pymisca.numpy_extra as pynp
 np = pynp
 import pymisca.ext as pyext
 import pandas as pd
+import collections
 
 class BaseModel(object):
     def __init__(self,name='test',lastLL=None, data = None):
@@ -74,8 +75,12 @@ def cache__model4data(mdl,tdf,ofname = None):
                         index=logP.index
                         )
     score = logPN.max(axis=1).to_frame('score')
-    clu = mdl.predict(tdf)
-    clu = pd.DataFrame(clu,index=tdf.index,columns=['clu'])
+    
+    if hasattr(mdl,'predictClu'):
+        clu = mdl.predictClu(tdf,index=tdf.index,)
+    else:
+        clu = mdl.predict(tdf)
+        clu = pd.DataFrame(clu,index=tdf.index,columns=['clu'])
     stats = pd.concat([clu,score],axis=1)
     res = dict(logP = logP,
                logPN = logPN,
@@ -132,13 +137,135 @@ class MixtureModel(BaseModel):
     def _fit(self,data,**kwargs):
         assert 0,'Not Implemented!'
         
-    def predict(self,X, entropy_cutoff = None, **kwargs):
+    def predict(self,X, entropy_cutoff = None, method='reorder', **kwargs):
         proba = self.predict_proba(X,norm = 0,**kwargs)
         clu = np.argmax(proba,axis = 1)
         
-        if entropy_cutoff is not None:
-            clusterH = self._entropy_by_cluster(X)
-            proj = {x:x for x in np.where( clusterH < entropy_cutoff)[0]}
-            clu = np.vectorize( lambda x: proj.get(x, -1)) (clu)
+        if method=='orig':
+            pass
+        elif entropy_cutoff is not None:
+            if method=='reorder':
+                clusterH = self._entropy_by_cluster(X)
+                proj = collections.OrderedDict()
+                
+                i = 0
+                inc = np.where( clusterH < entropy_cutoff)[0]
+                od = inc[np.argsort(clusterH[inc])]
+                proj = {v:i for i,v in enumerate(od)}
+#                 print (proj)
+#                 for _,v in enumerate(np.argsort(clusterH)):
+#                     if clusterH[v] > entropy_cutoff:
+#                         proj[v] = -1
+#                     else:
+#                         proj[v] = i
+#                         i += 1
+#                     print(proj)
+#                 proj = {v:i for i,v in enumerate(np.argsort(clusterH))}
+            elif method=='oorder':
+                clusterH = self._entropy_by_cluster(X)
+                proj = {v:v for i,v in enumerate(np.argsort(clusterH))}
+                
+                for v in np.where( clusterH > entropy_cutoff)[0]:
+                    proj[v] = -1
+#             proj = {x:x for x in np.where( clusterH < entropy_cutoff)[0]}
+            clu = np.vectorize( lambda x: proj.get(x, -1 )) (clu)
+    
         return clu
         
+        
+
+import pymisca.proba as pyprob
+import pymisca.numpy_extra as pynp;np = pynp.np
+class distribution(object):
+    def __init__(self,**kwargs):
+        pass
+    
+    def log_pdf(self,X,**kwargs):
+        X = np.array(X)
+        res = self._log_pdf(X,**kwargs)
+        if np.ndim(X) == 2:
+            res = np.sum(X,axis=1)
+        return res
+    
+    def pdf(self,X,**kwargs):
+        res = np.exp(self.log_pdf(X,**kwargs))
+#         res = self._pdf(X,**kwargs)
+        return res
+
+class normalDist(distribution):
+    def __init__(self, 
+                 loc=0., 
+                 scale=1.,
+                 **kwargs):
+        self.loc = loc
+        self.scale = scale
+        self = super(normalDist,self).__init__(**kwargs)
+        
+    def _log_pdf(self,X):
+        X = X -self.loc
+        X = X/self.scale
+        res = -np.square(X)
+        return res
+
+class normNormalDist(distribution):
+    '''
+    Ugly yet useful.
+    '''
+    def __init__(self, 
+                 loc=0., 
+#                  scale=1.,
+                 **kwargs):
+        self.loc = loc
+#         self.scale = scale
+        self = super(normNormalDist,self).__init__(**kwargs)
+        
+    def _log_pdf(self,X):
+        Y = self.loc
+        sumsq = (X**2 + Y**2 )
+#         sumsq = 1/ (1./ X**2 + 1./ Y**2 )
+#         sumsq = (Y**2 + 0* X)
+        logP = -(X-Y) ** 2 
+
+#         logP = X*Y
+#         logP = -(X-Y) ** 2
+        isZero = sumsq==0.
+#         if isinstance(isZero,bool):
+        if np.ndim(X)==0:
+            if isZero:
+                return -1
+            else:
+                return logP/sumsq
+        else:
+            logP[~isZero] = logP[~isZero]/sumsq[~isZero]
+            logP[isZero] = -1
+            
+#         logP = -(X+Y)**2
+#         anti = (X + Y)*Y < 0
+        anti = X*Y < 0.
+#         anti = 0
+        logP = logP * ( 1 - anti) + anti * -1
+        return logP
+
+    
+
+class simpleJSUDist(distribution):
+    '''
+    Elegant
+    '''
+    def __init__(self, 
+                 loc=0., 
+#                  scale=1.,
+                 **kwargs):
+        self.loc = loc
+#         self.scale = scale
+        self = super(simpleJSUDist,self).__init__(**kwargs)
+        
+    def _log_pdf(self,X):
+        Y = self.loc
+        
+#         sumsq = (X**2 + Y**2 )
+#         sumsq = (Y**2 + 0* X)
+        d = np.arcsinh(X) - np.arcsinh(Y)
+        logP = -np.square(d)
+
+        return logP        

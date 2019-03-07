@@ -240,6 +240,12 @@ def qc__vmf__speed(mdl=None,
     betaTicks = np.interp(xp=range(len(betas)),fp=betas,x=xtk)
     betaTicks = map(lambda x:'%.2E'%x,betaTicks)
     ax.set_xticklabels(pyext.paste0([xtk,betaTicks],'\n'))
+    
+    if YCUT is not None:
+        pyvis.abline(y0=YCUT,k=0,ax=ax)
+    if XCUT is not None:
+        pyvis.abline(x0=XCUT,ax=ax)    
+    
     return [ax,tax],betaTicks
 #     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
     # tax.set_xlim(0,0.4)

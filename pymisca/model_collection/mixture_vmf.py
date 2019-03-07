@@ -192,7 +192,10 @@ class MixtureVMF(pymod.MixtureModel):
 
             
         if self.normalizeSample:
-            data = data / l2norm(data,axis=1,keepdims=1)        
+            assert 0,'Dont enable this option'
+            NORM = l2norm(data,axis=1,keepdims=1)
+            NORM[NORM==0.] = 1.
+            data = data / NORM
 
         if self.kappa is False:
             self.kappa = l2norm(np.mean(data,axis=0))
@@ -237,38 +240,45 @@ class MixtureVMF(pymod.MixtureModel):
         return llHist
 main = MixtureVMF
 
-from pymisca.callbacks import callback__stopAndTurn
+from pymisca.callbacks import callback__stopAndTurn, qc__vmf
 
+# import pymisca.vis_util as pyvis
+# plt = pyvis.plt
+# def qc__vmf(mdl=None,
+#             callback = None,
+#             nMax=-1,
+#             xunit = None,
+#             XCUT=None,
+#             YCUT=None,
+#            ):
+#     if callback is None:
+#         assert mdl is not None
+#         callback = mdl.callback
+# #     n = 4000
+# #     xmax = 1.0
+#     fig,ax = plt.subplots(1,1,figsize=[14,10])
+#     if xunit is not None:
+#         xs = getattr(callback,xunit)
+#     else:
+#         xs = np.arange(len(callback.betaHist))
+#     axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
+#                                              callback.clusterH)
+#                        ,nMax=nMax,axs=[None,ax,None,None])
 
-import pymisca.vis_util as pyvis
-plt = pyvis.plt
-def qc__vmf(mdl=None,
-            callback = None,
-            nMax=-1,
-            xunit = None,
-           ):
-    if callback is None:
-        assert mdl is not None
-        callback = mdl.callback
-#     n = 4000
-#     xmax = 1.0
-    fig,ax = plt.subplots(1,1,figsize=[14,10])
-    if xunit is not None:
-        xs = getattr(callback,xunit)
-    else:
-        xs = np.arange(len(callback.betaHist))
-    axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
-                                             callback.clusterH)
-                       ,nMax=nMax,axs=[None,ax,None,None])
-
-    plt.sca(axs[1])
-    # plt.figure()
-    ax = plt.gca()
-    plt.plot(xs,callback.stats,'ro')
-    ax.set_xlim(0,None)
-#     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
-    tax = ax.twinx()
-    tax.plot(xs,callback.cluNum,'go')
-#     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
-    # tax.set_xlim(0,0.4)
-    tax.set_ylim(0,25)
+#     plt.sca(axs[1])
+#     # plt.figure()
+#     ax = plt.gca()
+#     plt.plot(xs,callback.stats,'ro')
+#     ax.set_xlim(0,None)
+# #     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
+#     tax = ax.twinx()
+#     tax.plot(xs,callback.cluNum,'go')
+# #     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
+#     # tax.set_xlim(0,0.4)
+#     tax.set_ylim(0,25)
+#     if YCUT is not None:
+#         pyvis.abline(y0=YCUT,k=0,ax=ax)
+#     if XCUT is not None:
+#         pyvis.abline(x0=XCUT,ax=ax)
+    
+    
