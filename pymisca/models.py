@@ -4,6 +4,8 @@ np = pynp
 import pymisca.ext as pyext
 import pandas as pd
 import collections
+import  sys
+pymod = sys.modules[__name__]
 
 class BaseModel(object):
     def __init__(self,name='test',lastLL=None, data = None):
@@ -42,8 +44,9 @@ class BaseModel(object):
         if norm:
             prob = prob - pynp.logsumexp( prob, axis =1,keepdims=1)
         if not log:
-            prob = np.exp(log)
+            prob = np.exp(prob)
         return prob
+    
     def score(self,X,keepdims=0, **kwargs):
         prob = self.predict_proba(X,norm=0,log=1,**kwargs)
         score = pynp.logsumexp( prob, axis =1,keepdims=keepdims)
@@ -182,15 +185,18 @@ class distribution(object):
     
     def log_pdf(self,X,**kwargs):
         X = np.array(X)
-        res = self._log_pdf(X,**kwargs)
-        if np.ndim(X) == 2:
-            res = np.sum(X,axis=1)
-        return res
+        logP = self._log_pdf(X,**kwargs)
+        if np.ndim(logP) == 2:
+            logP = np.sum(logP,axis=1)
+        return logP
     
     def pdf(self,X,**kwargs):
         res = np.exp(self.log_pdf(X,**kwargs))
 #         res = self._pdf(X,**kwargs)
         return res
+
+
+
 
 class normalDist(distribution):
     def __init__(self, 
@@ -269,3 +275,51 @@ class simpleJSUDist(distribution):
         logP = -np.square(d)
 
         return logP        
+    
+    
+import scipy.special
+class Binomial(pymod.distribution):
+    def __init__(self,N,p,asInt=0):
+        self.N = N 
+        self.p = p
+        self._loggammaN = scipy.special.loggamma(N+1)
+        self.asInt = asInt
+    def _log_pdf(self, X):
+        if self.asInt:
+            X = (X+0.5).astype(int)
+        count = np.vstack([X, self.N-X]).T
+        logP = self._loggammaN - np.sum( scipy.special.loggamma(count+1),axis=1)
+#         if self.asInt:
+#             logP = np.nan_to_num(logP)
+        logP += count.dot(np.log( [self.p, 1.-self.p] ))
+#         print logP
+        return logP.astype(float)
+
+class Multinomial(pymod.distribution):
+    def __init__(self,N,p,asInt=0):
+        self.N = N 
+        self.p = np.array(p)
+        assert self.p.sum()==1.
+        self.D = len(self.p)
+        self._loggammaN = scipy.special.loggamma(N+1).astype(float)
+        self.asInt = asInt
+    def _log_pdf(self, X):
+        if self.asInt:            
+            #### not implemented
+            X = nearestGrid(X)
+        count = X 
+
+        logP = self._loggammaN - np.sum(scipy.special.loggamma(count+1),
+                                        axis=1).astype(float)
+        logP += count.dot(np.log(self.p))
+        return logP    
+
+class NormedMultinomial(pymod.Multinomial):
+    '''This approximation breaks down when N is small or 
+    any of p approaches zero.
+    '''
+    def _log_pdf(self, X):
+        count = (X * (self.N+1)) - 0.5
+        return super(NormedMultinomial,self)._log_pdf(count) + (self.D-1) * np.log(self.N+1)
+
+    
