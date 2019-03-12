@@ -4,6 +4,60 @@ import subprocess
 import shutil
 import StringIO
 
+
+import pymisca.io
+##### Shell util
+import tempfile
+import subprocess
+import re
+import collections
+# import pymisca.header as pyheader
+
+def nTuple(lst,n,silent=1):
+    """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
+    
+    Group a list into consecutive n-tuples. Incomplete tuples are
+    discarded e.g.
+    
+    >>> group(range(10), 3)
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
+    """
+    if not silent:
+        L = len(lst)
+        if L % n != 0:
+            print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
+    return zip(*[lst[i::n] for i in range(n)])
+
+def quote(s):
+    return u'"%s"'%s
+
+def xargsShellCMD(CMD, lst):
+# def getHeaders(lst):
+    with tempfile.TemporaryFile() as f:
+        f = pymisca.io.unicodeIO(handle=f)
+        f.write(u' '.join(map(quote,lst)))
+        f.seek(0)
+        p = subprocess.Popen('xargs {CMD}'.format(**locals()),stdin=f,stdout=subprocess.PIPE,shell=True)
+        res = p.communicate()[0]
+    return res
+def getHeaders(lst):
+    res = xargsShellCMD('head -c2048',lst)
+    lst = re.split('==> *(.+) *<==',res)[1:]
+    lst = [x.strip() for x in lst] 
+    res = collections.OrderedDict(nTuple(lst,2))
+    return res
+def getTails(lst):
+    res = xargsShellCMD('tail -c2048',lst)
+    lst = re.split('==> *(.+) *<==',res)[1:]
+    lst = [x.strip() for x in lst] 
+    res = collections.OrderedDict(nTuple(lst,2))
+    return res
+def getSizes(lst):
+    res = xargsShellCMD('du',lst)
+    res = collections.OrderedDict([x.split('\t')[::-1] for x in res.splitlines()])
+    return res
+########
+
 def dict2kwarg(params):
     s = ' '.join('--%s %s' % (k,v ) for k,v in params.items())
     return s

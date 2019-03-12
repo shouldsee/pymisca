@@ -113,36 +113,7 @@ def df__addCol(df,name = 'testCol', expr='index==index' ):
     df[name] = df.eval(expr)
     return df
 
-def df__iterdict(df):
-    it = df.itertuples()
-    it = (x.__dict__ for x in it)
-    return it
 
-
-def splitPath(fname,level=1):
-    tail = []
-    head = fname
-    for i in range(level):
-        head,tail_ = os.path.split(head)
-        tail += [tail_]
-    return head,'/'.join(tail[::-1])
-
-def localise(uri,ofname= None,silent = 1, level=1, baseFile = 0):
-    if baseFile:
-            uri = pyext.base__file( uri,BASE=baseFile)
-    if ofname is None:
-        head, ofname = pyutil.splitPath(
-            uri, level=level)
-    ddir =  os.path.dirname(ofname)
-    if ddir:
-        if not os.path.exists(ddir):
-            os.makedirs( ddir )
-    assert len(uri) > 0
-    if uri[0] in [ '.','/' ]:
-        uri = 'file://' + uri
-    cmd = 'curl -L "{uri}" -o {ofname}'.format(**locals())
-    log = pyutil.shellexec(cmd,silent=silent)
-    return ofname
 
 
     
@@ -1131,7 +1102,7 @@ def df__makeContrastWithMeta(
    name = None,
    **kwargs):
     if buf is not None:
-        contrast = pyutil.read__buffer(buf.strip(),ext='csv',header=None).T
+        contrast = pyext.read__buffer(buf.strip(),ext='csv',header=None).T
     elif contrast is None:
         assert control is not None
         contrast = pd.DataFrame(dict(control = list(control),
@@ -1333,41 +1304,14 @@ def metaContrast(mRef,mObs):
     mFlat = meta2flat(mSeq)
     return mFlat
 
-##### Import data
-def guess_ext(fname,check = 1):
-#     print fname
-    gp = fname.rsplit('.',1)
-    if len(gp)>1:
-        fname,ext = gp
-#         ext = gp[-1]
-    else:
-        fname = fname
-        ext = None
-    if check:
-        assert ext is not None,"Can't guess filetype of: '%s'"%fname
-        
-    return (fname,ext)
 
-def guess_sep(fname):
-    ''' Guess separator from extension
-'''
-    basename,ext = fname.rsplit('.',1)
-    if ext == 'csv':
-        sep = ','
-    elif ext in ['tsv','tab','bed','bdg','narrowPeak',
-                'summit','promoter',]:
-        sep = '\t'
-    else:
-        raise Exception("Cannot guess separator of file type: \
-        '.%s'"%ext)
-    return sep
     
-    return 
+    
 def file_ncol(fname,silent=1,sep=None):
     '''Get number of columns of a file
 '''    
     if sep is None:
-        sep = guess_sep(fname)
+        sep = pyext.guess_sep(fname)
     f = open(fname)
     line = next(f);f.close()
     ncol = len(line.split(sep)) 
@@ -1383,134 +1327,14 @@ def read__remote( url,reader=None,):
 #             res = reader(f)
 #     return res      
 
-def readBaseFile(fname,baseFile=1, **kwargs):
-    res = readData(fname,baseFile=baseFile, **kwargs)
-    return res
 
 def read_json(fname):
     with open(fname,'r') as f:
-        res = simplejson.load(f)
-    return res
-def readData(
-    fname, 
-    ext=None, callback=None, 
-    addFname=0, guess_index=1, columns = None,
-    localise = False,
-    remote = None,
-    baseFile = 0,
-    comment='#', 
-    **kwargs):
-            
-    if ext is not None:
-        pass
-        fhead = fname
-    else:
-        fhead,ext = guess_ext(fname,check = 1)
-        
-    if isinstance(fname,basestring):
-        if baseFile:
-            fname= pyext.base__file(fname,BASE=baseFile)
-        if remote is None:
-            protocols = [ 'http://','ftp://' ] 
-            if fname[:4] in [ x[:4] for x in protocols ]:
-                remote = True
-        if remote:
-            f = fname = io.BytesIO(urllib.urlopen(fname).read())
-            if localise:
-                fname = pyutil.localise(fname)
-            
-        
-#     ext = ext or guess_ext(fname,check=1)[1]
-#     kwargs['comment'] = comment    
-    class space:
-        fheadd = fhead
-        _guess_index=guess_index
-        
-    def case(ext,):
-
-        if ext == 'csv':
-            res = pd.read_csv(fname, comment = comment, **kwargs)
-        elif ext in ['tsv','tab','bed','bdg','narrowPeak',
-                     'summit','promoter',
-                     'count', ### stringtie output
-                     'txt', ### cufflinks output
-                     'stringtie',
-                     'star-quantseq',
-                     'excel',
-                    ]:
-            res = pd.read_table(fname, comment = comment, **kwargs)
-            if ext in ['count', 'stringtie','tab',]:
-                res.rename(columns={'Gene ID':'gene_id',
-                                   'Gene Name':'gene_name',
-                                   },inplace=True)
-            ### for tophat
-            for col in ['tracking_id','Gene ID']:
-                if col in res.columns:
-                    res['gene_id'] =res[col]
-#             if 'tracking_id' in res.columns:
-#                 res['gene_id'] = res['tracking_id']
-#             if 'Gene ID' in res.columns
-            if ext == 'cufflinks':
-                pass
-            
-        elif ext == 'pk':
-            res = pd.read_pickle(fname,**kwargs)
-        elif ext == 'pandas-json':
-            res = pd.read_json(fname,**kwargs)
-        elif ext == 'json':
-            res = pyext.read_json(fname,**kwargs)
-            space._guess_index=0
-        elif ext == 'npy':
-            res = np.load(fname)
-            space._guess_index=0
-        elif ext == 'it':
-            res = fname
-            if not hasattr(res,'readline'):
-                res = open(res,'r')
-                res = pyext.unicodeIO(res)
-#             res = ( x for x in fname)
-            space._guess_index=0
-            
-#             .tolist()
-        else:
-            space.fheadd, ext = guess_ext( space.fheadd, check=1)            
-            res = case(ext,)[0]
-#             if ext is None:
-#         elif ext is None:            
-#         or ext=='txt':
-#         else:
-#             assert 0,"case not specified for: %s"%ext
-        if remote:
-            f.close()
-        return res,ext
-    
-    try:    
-        res,ext = case(ext)
-        if ext in ['npy',]:
-            guess_index=0
-            
-    except pd.errors.EmptyDataError as e:
-        if columns is None:
-            print('[ERR] Cannot guess columns from the empty datafile: %s'%fname)
-            raise e
-        else:
-            res = pd.DataFrame({},columns=columns)
-    if columns is not None:
-        res.columns = columns
-        
-    if space._guess_index:
-        res = guessIndex(res)
-    if callback is not None:
-        res = callback(res)
-#         res = res.apply(callback)
-    if addFname:
-        res['fname']=fname
+        res = json.load(f)
     return res
 
 
-def read__buffer(buf,**kwargs):
-    res = pyutil.readData(pyext.StringIO(buf),**kwargs)
-    return res
+
 
 
 
@@ -1526,7 +1350,7 @@ def readData_multiple(fnames, axis=0, NCORE=1,
     '''
     Convenient function to bulky apply readData()
 '''
-    worker = functools.partial(readData,
+    worker = functools.partial(pyext.readData,
                                addFname=addFname, guess_index=guess_index,
                                **kwargs)
     dfs = mp_map(worker,fnames,n_cpu = NCORE)
@@ -1547,7 +1371,7 @@ def queryCopy(infile,query, reader=None,inplace=False,**kwargs):
     '''query a dataset and save as a new copy
 '''
     if reader is None:
-        reader = readData
+        reader = pyext.readData
     querySans = sanitise_query(query)
     DIR = dirname(infile)
     
@@ -1566,11 +1390,6 @@ def queryCopy(infile,query, reader=None,inplace=False,**kwargs):
     return ofile
 
 
-def guessIndex(df):
-    if df[df.columns[0]].dtype == 'O':
-        df.set_index(df.columns[0],inplace=True)
-    return df
-
 
 
 def propose_mergeDB(mcurr,dataFile,force=0):
@@ -1578,7 +1397,7 @@ def propose_mergeDB(mcurr,dataFile,force=0):
     propose merging DataFrame "mcurr" to an existing database "dataFile"
 '''
     tempFile = dataFile+'.tmp'
-    meta = readData(dataFile,)
+    meta = pyext.readData(dataFile,)
 #     meta.index.name='DataAcc'
     DUP = mcurr.index.isin(meta.index)
     print DUP
@@ -1596,7 +1415,7 @@ def propose_mergeDB(mcurr,dataFile,force=0):
     return (dataFile,tempFile)
 
 def routine_combineData(fnames,ext=None,addFname = 0):
-    dfs = map(lambda x:pyutil.readData(x,ext=ext,addFname = addFname), fnames)
+    dfs = map(lambda x: pyext.readData(x,ext=ext,addFname = addFname), fnames)
     idx = reduce(pyutil.functools.partial( 
         pyext.mergeByIndex, 
         as_index=1,how= 'outer'),
@@ -2069,7 +1888,7 @@ def argsortByRef(targ,ref):
 
 def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',callback = None):
     addFname=1
-    df = pd.concat([ pyutil.readData(fname=x,ext=ext,addFname=addFname) for x in fnames ],)
+    df = pd.concat([ pyext.readData(fname=x,ext=ext,addFname=addFname) for x in fnames ],)
     df = df.pivot_table(values = valCol,index = df.index, columns='fname')
     od = argsortByRef(df.columns, fnames)
     df = df.iloc[:,od]
@@ -2240,18 +2059,18 @@ def entExpect(C,logIN=1):
 #         S = S*np.exp(xmax)
 #     return S
 
-def dist2ppf(vals):
-    '''Estimate percentile locations from a sample from distribution
-'''
-    ### for some reason you need to argsort twice.....
-    idx = np.argsort(np.ravel(vals)).argsort()
-#     od = idx.argsort()
-#     idx = od
-#     idx = np.arange(len(vals))[od]
-    per = (idx+0.5)/(max(idx)+1)
-    if isinstance(vals,pd.Series):
-        per = pd.Series(per,index=vals.index, name='per')
-    return per
+# def dist2ppf(vals):
+#     '''Estimate percentile locations from a sample from distribution
+# '''
+#     ### for some reason you need to argsort twice.....
+#     idx = np.argsort(np.ravel(vals)).argsort()
+# #     od = idx.argsort()
+# #     idx = od
+# #     idx = np.arange(len(vals))[od]
+#     per = (idx+0.5)/(max(idx)+1)
+#     if isinstance(vals,pd.Series):
+#         per = pd.Series(per,index=vals.index, name=vals.name)
+#     return per
 
 def areaRatio(xs):
     '''
@@ -2283,9 +2102,6 @@ def oneHot(values,MAX=None):
     res = np.eye(n_values)[values]
     return res
 
-def to_tsv(df,fname,header= None,index=None, **kwargs):
-    df.to_csv(fname,sep='\t',header= header, index= index, **kwargs)
-    return fname
 
 
 def random_covmat(D = 2):
@@ -2357,7 +2173,7 @@ def firstByKey(fname=None,df=None,keys = ['feature_acc','FC'],guess_index=0,save
               header = 0,**kwargs):
     if df is None:
         assert fname is not None
-        df = readData(fname,guess_index=guess_index,header=header,**kwargs)
+        df = pyext.readData(fname,guess_index=guess_index,header=header,**kwargs)
     dfc = df.sort_values(keys,ascending=False)
     dfcc = dfc.groupby(keys[0],sort=True).first()
 #     dfcc.hist('FC')
@@ -2413,7 +2229,7 @@ def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
 
     if result:
         header = result.split('\t')
-    df = readData(response,ext='tsv',header=None,index_col = None,columns = header)
+    df = pyext.readData(response,ext='tsv',header=None,index_col = None,columns = header)
 #     df= pd.DataFrame.from_csv(response,sep='\t',header=None,index_col=None)
 #     df.columns = header
     df.sort_values(['category','fdr'],inplace=True)

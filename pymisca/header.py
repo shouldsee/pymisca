@@ -1,9 +1,13 @@
 import os,sys
 import pymisca.shell as pysh
+import warnings
+
+
+
 def set__numpy__thread(NCORE = None):
     if NCORE is None:
 #     if 'NCORE' not in locals():
-        print ("[WARN] NUMPY is not limited cuz NCORE is not set")
+        warnings.warn("[WARN] NUMPY is not limited cuz NCORE is not set")
     else:
         #     print (')
         keys = '''
@@ -47,19 +51,20 @@ def base__check(BASE='BASE',strict=0):
             raise Exception('variable ${BASE} not set'.format(**locals()))
         else:
             PWD =  os.getcwd()
-            print ('[WARN] variable ${BASE} not set,defaulting to PWD:{PWD}'.format(**locals()))
+            warnings.warn('[WARN] variable ${BASE} not set,defaulting to PWD:{PWD}'.format(**locals()))
             os.environ[BASE] = PWD
     print('[%s]=%s'%(BASE,os.environ[BASE]))
     return os.environ[BASE]
 #     print('[BASE]=%s'%os.environ[BASE])
     
-def base__file(fname, BASE=None, HOST='BASE', force = False,silent= 1):
+def base__file(fname='', BASE=None, HOST='BASE', force = False,silent= 1):
     '''find a file according under the directory of environment variable: $BASE 
     '''
     if not isinstance(BASE, basestring):
         BASE  = os.environ.get( HOST,None)
         assert BASE is not None
     BASE = BASE.rstrip('/')
+    fname = fname.strip()
     res = os.path.join(BASE,fname)
     if BASE.startswith('/'):
         existence = os.path.exists(res)
@@ -80,4 +85,19 @@ def execBaseFile(fname,):
     res = execfile(fname, g, g)
 #     exec(open(fname).read(), g)
     return
-        
+    
+def nTuple(lst,n,silent=1):
+    """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
+    
+    Group a list into consecutive n-tuples. Incomplete tuples are
+    discarded e.g.
+    
+    >>> group(range(10), 3)
+    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
+    """
+    if not silent:
+        L = len(lst)
+        if L % n != 0:
+            print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
+    return zip(*[lst[i::n] for i in range(n)])    
+    
