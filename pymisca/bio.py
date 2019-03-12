@@ -7,6 +7,23 @@ import pymisca.util as pyutil
 import pymisca.vis_util as pyvis
 plt = pyvis.plt
 
+import pymisca.ext as pyext
+pd = pyext.pd
+
+def gtf__guess_gid_name(fname,head=10):
+    it = pyext.readData(pyutil.file__header(fname,head),ext='it',)
+    d = pyext.collections.Counter()
+    # for line in it
+    map(d.update,(x.split() for x in it));
+    df = pd.DataFrame(d.items(),columns=['key','count'])
+    df['up']= df.key.str.upper()
+    dfc = df.query('count >= @head - 1')
+    res =dfc.query('up.str.startswith("GENE")')
+    assert len(res)==1,'Failed to identify a string starts with "GENE"'
+
+    name = res.iloc[0,0]
+    return name
+
 def read_gtf(in_file, cache=1):
     if isinstance(in_file,str):
         in_handle = open(in_file)    

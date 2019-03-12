@@ -1,6 +1,9 @@
 # import util as pyutil
 # import pymisca.util as pyutil
 import collections
+import glob
+import os
+# import pymisca.ext as pyext
 ##### OOP utility
 class util_obj(object):
     def __init__(self,**kwargs):
@@ -30,3 +33,5 @@ class util_obj(object):
     def __setitem__(self,k,v):
         self.__dict__[k] = v
 #     def update()
+
+

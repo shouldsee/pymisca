@@ -111,11 +111,16 @@ class MixtureModel(BaseModel):
     def __init__(self, 
                  weights= None,
                  dists = None, 
+                 weighted = True,
                  *args,
                  **kwargs
                 ):
-        self.weights = weights 
         self.dists = dists
+        self.K = len(dists)
+        if weights is None:
+            weights = np.ones(self.K).mean(keepdims=1)
+        self.weights = weights 
+        self.weighted = weighted
         super(MixtureModel,self).__init__(*args,**kwargs)
         
     def _predict_proba(self,data, ):
@@ -127,6 +132,7 @@ class MixtureModel(BaseModel):
             self.weights, 
             data)
         return logP
+    
     def _entropy_by_cluster(self, data):
         log_proba = self._log_pdf(data)
         part = pynp.logsumexp(log_proba,axis=1,keepdims=1)
@@ -174,14 +180,99 @@ class MixtureModel(BaseModel):
             clu = np.vectorize( lambda x: proj.get(x, -1 )) (clu)
     
         return clu
+    
+    
+import pymisca.fop as pyfop
+class EMMixtureModel(MixtureModel):
+#     def __init__(self, 
+                 
+    def _fit(
+        self,
+        data,
+#         n_components = 30,
+#         K = None,
+        verbose = 0,
+        nStart = 5,
+        n_print = None,
+        callback = None,
+#         sample_weights = 'expVAR',
+        sample_weights = None,
+        min_iters = 100,
+        init_resp = None,
+#         fix_weights= 1,
+#         sample_weights = None,
+        max_iters = 3000,
+        n_iter = None, ### dummy capturer 
+        **kwargs
+    ):
         
+            
+        self.callback = callback
+        fix_weights = not self.weighted
+#         not getattr(self,weighted,True)
+#         init_method  = self.init_method
+        K = self.K
+#         kappa = self.kappa
+#         beta = self.beta
+#         meanNorm = self.meanNorm
+#         lst = []
+    
+        llHist  = []
+        def callbackInternal(iteration, weight, distributions, log_likelihood, log_proba):
+            llHist.append(log_likelihood)
+            if verbose >= 2:
+                if not iteration % 10:
+                    print ('[iter]{iteration},\
+                    log_likelihood={log_likelihood:.2f}'.format(**locals()))
+            return (iteration, weight, distributions, log_likelihood, log_proba)
+        if callback is None:
+            callback = pyfop.identity 
+        callback = pyfop.compositeF(callback,callbackInternal)
+        res = mixem.em(
+            data, 
+            self.dists,
+            max_iters = max_iters,
+            progress_callback=callback,
+            sample_weights=sample_weights,
+            init_resp=init_resp,
+            fix_weights = fix_weights,
+            min_iters = min_iters,
+            **kwargs
+    #         progress_callback=simple_progress,
+        )
+        res = list(res)
+        weights, distributions, _ =  res
+        ll = llHist[-1]
+
+        res += [ll]
         
+        i = 0
+        msg = '[]:Run {i}. Loglikelihood: {ll}'.format(**locals())
+        if verbose >=1:
+            print (msg)
+
+#         return weights, distributions, np.array(llHist), ll    
+    
+        return llHist
+        
+
+        
+import mixem.distribution    
 
 import pymisca.proba as pyprob
 import pymisca.numpy_extra as pynp;np = pynp.np
-class distribution(object):
+class distribution(mixem.distribution.Distribution):
     def __init__(self,**kwargs):
         pass
+    
+    def __repr__(self,):
+        raise Exception('__repr__() not implmented')
+        
+    def log_density(self,*a,**kw):        
+        return self.log_pdf(*a,**kw)
+    
+    def estimate_parameters(self,*a,**kw):
+        raise Exception('Not Implemented')
     
     def log_pdf(self,X,**kwargs):
         X = np.array(X)
@@ -276,7 +367,6 @@ class simpleJSUDist(distribution):
 
         return logP        
     
-    
 import scipy.special
 class Binomial(pymod.distribution):
     def __init__(self,N,p,asInt=0):
@@ -295,23 +385,41 @@ class Binomial(pymod.distribution):
 #         print logP
         return logP.astype(float)
 
+
+def nearestGridAppx(X,D):
+# def f(X):
+    X = X*D
+    Y = (X +0.5 ).astype(int)    
+    
+    arg = np.argsort((Y - X),axis=1)
+    res = Y.sum(axis=1,keepdims=1) 
+    diff = (res - D)
+    FLAG = (arg < diff) * (diff > 0) | (diff < 0) * ((arg - D) >= diff)  
+    Y = Y + FLAG * -np.sign(diff)
+
+    return Y
+
 class Multinomial(pymod.distribution):
-    def __init__(self,N,p,asInt=0):
-        self.N = N 
-        self.p = np.array(p)
-        assert self.p.sum()==1.
-        self.D = len(self.p)
-        self._loggammaN = scipy.special.loggamma(N+1).astype(float)
+    def __init__(self, eta,mean,asInt=0):
+#         p = mean
+        self.eta = eta
+        self.mean = np.array(mean)
+        self.mean = self.mean
+        assert np.allclose(self.mean.sum(),1.)
+        self.D = len(self.mean)
+        self._loggammaEta = scipy.special.loggamma(eta+1).astype(float)
         self.asInt = asInt
     def _log_pdf(self, X):
         if self.asInt:            
             #### not implemented
-            X = nearestGrid(X)
+#             Y = (X+0.5).astype(int)
+            X = nearestGridAppx(X,self.D)
+#             X = nearestGrid(X)
         count = X 
 
-        logP = self._loggammaN - np.sum(scipy.special.loggamma(count+1),
+        logP = self._loggammaEta - np.sum(scipy.special.loggamma(count+1),
                                         axis=1).astype(float)
-        logP += count.dot(np.log(self.p))
+        logP += count.dot(np.log(self.mean))
         return logP    
 
 class NormedMultinomial(pymod.Multinomial):
@@ -319,7 +427,14 @@ class NormedMultinomial(pymod.Multinomial):
     any of p approaches zero.
     '''
     def _log_pdf(self, X):
-        count = (X * (self.N+1)) - 0.5
-        return super(NormedMultinomial,self)._log_pdf(count) + (self.D-1) * np.log(self.N+1)
-
-    
+        count = (X * (self.eta+1)) - 0.5
+#         count = X * self.eta
+        return super(NormedMultinomial,self)._log_pdf(count) + (self.D-1) * np.log(self.eta+1)
+    def estimate_parameters(self,data,weights):
+        wdata = data * weights[:,None]
+        mean = wdata.mean(axis=0)
+        SUM = mean.sum()
+        if SUM!=0:
+            mean = mean/SUM
+            self.mean = mean
+        

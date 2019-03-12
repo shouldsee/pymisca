@@ -37,7 +37,7 @@ def fileDict__save(fname=None,d=None,keys=None,indent=4):
         res.update(d)
         d = res
                 
-    res = json.dumps(d,indent=indent)
+    res = json.dumps(d,indent=indent,default=lambda x:x.toJSON())
     res = res + type(res)('\n')    
     
     if isinstance(fname,basestring):
@@ -57,8 +57,16 @@ def mapDict(func,d):
         res = func(v)
         lst += [(k,res)]
     return collections.OrderedDict(lst)
+
+
+def dict__update(old,new,copy=False):
+    if copy:
+        old = old.copy()
+    old.update(new)
+    return old
+
 parser=argparse.ArgumentParser()
-parser.add_argument('--ofname')
+parser.add_argument('--ofname',default='FILE.json',)
 parser.add_argument('--ifname')
 parser.add_argument('--lines',default=False,action='store_true')
 parser.add_argument('--show',default=False,action='store_true')
@@ -66,13 +74,14 @@ parser.add_argument('--basename',default=False,action='store_true')
 parser.add_argument('--absolute',default=False,action='store_true')
 
 def fileDict__main(
-        ofname, 
+        ofname = 'FILE.json', 
          ifname=None,
          lines=False,
          show=False,
          basename=False,
          absolute=False,
          showSave=False,
+         force = 1,
          argD = {},
          **kwargs):
     
@@ -80,16 +89,16 @@ def fileDict__main(
     for key in ['ofname','ifname','lines','show','basename','absolute']:
         if key in argD.keys():
             argD.pop(key)
-#     if args.ifname is not None:
-#         argD.update(jsonFile2dict(args.ifname))
-        
+    if ifname is not None:
+        res = jsonFile2dict(ifname,force=force)
+        argD = dict__update(res,argD)
 #         if os.path.exists(args.ofname):
 #             d = fileDict__load(fname=args.ofname)
 #             argD.update(vars(d))
     
     
     if ofname is not None:
-        d = jsonFile2dict(ofname)
+        d = jsonFile2dict(ofname,force=force)
         DIR = os.path.dirname(os.path.abspath(
             ofname))
     else:

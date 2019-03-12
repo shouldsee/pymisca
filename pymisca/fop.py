@@ -1,5 +1,6 @@
 import numpy as np
 import collections
+import funcy
 
 def repeatF(f,n):
     of = composeF([f]*n)
@@ -7,6 +8,12 @@ def repeatF(f,n):
 def composeF(*lst):
     return reduce(lambda f,g: lambda *x:g(*f(*x)),lst, lambda *x:x)
 compositeF = composeF
+
+def mapFunc(funcs,*arg,**kwargs):
+    
+    outF = lambda *args,**kwargs: map(funcy.caller(*args,**kwargs),
+                              funcs)
+    return outF
 
 def l1_normF(f):
     g= lambda *args:np.sum(np.abs(f(*args)),axis=-1)
