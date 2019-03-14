@@ -118,10 +118,14 @@ class MixtureModel(BaseModel):
         self.dists = dists
         self.K = len(dists)
         if weights is None:
-            weights = np.ones(self.K).mean(keepdims=1)
+            weights = np.ones(self.K)/float(self.K)
+#             .mean(keepdims=1)
         self.weights = weights 
         self.weighted = weighted
         super(MixtureModel,self).__init__(*args,**kwargs)
+    def random_init(self,randome_state=None):
+        [d.random_init(randome_state) for d in self.dists]
+        return self
         
     def _predict_proba(self,data, ):
         return self._log_pdf(data)
@@ -400,7 +404,7 @@ def nearestGridAppx(X,D):
     return Y
 
 class Multinomial(pymod.distribution):
-    def __init__(self, eta,mean,asInt=0):
+    def __init__(self, eta, mean, asInt=0):
 #         p = mean
         self.eta = eta
         self.mean = np.array(mean)
@@ -426,15 +430,195 @@ class NormedMultinomial(pymod.Multinomial):
     '''This approximation breaks down when N is small or 
     any of p approaches zero.
     '''
+    
     def _log_pdf(self, X):
-        count = (X * (self.eta+1)) - 0.5
-#         count = X * self.eta
-        return super(NormedMultinomial,self)._log_pdf(count) + (self.D-1) * np.log(self.eta+1)
+#         print (X.min(),X.max())
+        if self.asInt:            
+            #### not implemented
+#             Y = (X+0.5).astype(int)
+            assert 0
+            X = nearestGridAppx(X,self.D)
+#             X = nearestGrid(X)
+        count = X 
+        logP = scipy.special.loggamma( self.mean[None,:]*self.eta + count) \
+        - scipy.special.loggamma( count + 1 ) \
+        - scipy.special.loggamma( self.mean[None,:] * self.eta) \
+        + scipy.special.loggamma(self.eta) \
+        + scipy.special.loggamma(self.eta + 1) \
+        + scipy.special.loggamma(self.eta * 2 +1)
+        
+        
+#         logP = scipy.special.loggamma( self.mean[None,:]*self.eta + count) \
+#          - scipy.special.loggamma( count + 1 )
+#         print (X.min(),X.max())
+#         logP = self._loggammaEta - np.sum(scipy.special.loggamma(count+1),
+#                                         axis=1).astype(float)
+#         logP += count.dot(np.log(self.mean))
+        logP = np.sum(logP, axis=1).astype('float')
+#         print (np.mean(logP))
+        return logP    
+    
+#     def _log_pdf(self, X):
+#         count = (X * (self.eta+1)) - 0.5
+# #         count = X * self.eta
+#         return super(NormedMultinomial,self)._log_pdf(count) + (self.D-1) * np.log(self.eta+1)
+
+
+#     def estimate_parameters(self,data,weights):
+#         wdata = data * weights[:,None]
+#         mean = wdata.mean(axis=0)
+#         SUM = mean.sum()
+#         if SUM!=0:
+#             mean = (mean + 1E-3)/SUM
+# #             mean = mean/SUM
+#             self.mean = mean
+    
     def estimate_parameters(self,data,weights):
         wdata = data * weights[:,None]
-        mean = wdata.mean(axis=0)
+        count = wdata.mean(axis=0)
+#         count = wdata.sum(axis=0)
+        alpha = self.mean[None,:] * self.eta
+        alphaSum = alpha.sum()
+        
+        mean = self.mean
+        for i in range(5):
+            mean = mean * (scipy.special.digamma(wdata + alpha) - \
+                          scipy.special.digamma(alpha)).sum(axis=0) \
+            / ( scipy.special.digamma(wdata.sum(axis=1) + alphaSum) - \
+               scipy.special.digamma(alphaSum) ).sum()
         SUM = mean.sum()
         if SUM!=0:
-            mean = mean/SUM
+            mean = (mean )/SUM
+#             mean = mean/SUM
             self.mean = mean
+    
+    
+# -*- coding: utf-8 -*-
+# from mixem.distribution import Distribution
+# import numpy as np
+# import scipy.special
+
+def l2norm(x,axis=None,keepdims=0):
+    res = np.sum(x**2,axis=axis,keepdims=keepdims)**0.5
+    return res
+
+# class vmfDistribution(mixem.distribution.Distribution):
+class vmfDistribution(pymod.distribution):
+    """Von-mises Fisher distribution with parameters (mu, kappa).
+    Ref: Clustering on the Unit Hypersphere using von Mises-Fisher Distributions
+    http://www.jmlr.org/papers/volume6/banerjee05a/banerjee05a.pdf
+    """
+
+    def __init__(self, 
+                 mu = None, 
+                 kappa = None,
+                 beta = 1.,
+                 D = None,
+#                  normalizeSample = False,
+#                  sample_weights = None,
+                 positive=0,
+                 meanNorm=None, ###dummy
+                ):
+        if mu is not None:
+            mu = np.array(mu)
+
+            assert len(mu.shape) == 1, "Expect mu to be 1D vector!"
+            if all(mu==0):
+                self.dummy = True
+            else:
+                self.dummy = False
+            self.D = len(mu)
+        else:
+            assert D is not None
+            self.D = D
+            self.dummy = False
+        self.kappa = None
+#         if kappa is not None:
+#             assert len(np.shape(kappa)) == 0,"Expect kappa to be 0D vector"
+#             kappa = float(kappa)
+#         self.kappa = kappa
+        self.beta = beta
+        self.sample_weights = None
+#         sample_weights
+        self.mu = mu
+#         self.radius = np.sum(self.mu ** 2) ** 0.5
+#         self.D = len(mu)
+        self.positive = positive
+    
+    @property
+    def radius(self):
+        radius = np.sum(self.mu ** 2) ** 0.5
+        return radius
+#     def D(self):
+#         return len(self.mu)
+    @property
+    def params(self):
+        return {'mu':self.mu,
+#                 'kappa':self.kappa,
+                'beta':self.beta}
+    def random_init(self,random_state=None):
+        if random_state is not None:
+            np.random.set_state(random_state)
+        mu = np.random.random((self.D,)) 
+        if not self.positive:
+            mu = mu- 0.5
+        mu = mu / l2norm(mu)
+        self.mu = mu
+        
+    def _log_pdf(self, data):
+#         L2 = np.sum(np.square(data),axis=1,keepdims=1)
+#         return  np.dot(data, self.mu) * L2 / L2
+        logP = np.dot( data, self.mu) * self.beta
+#         if self.kappa is not None:
+#             biv = scipy.special.iv(self.D/2. -1.,  self.kappa )
+#             normTerm = ( - np.log(biv)
+#                           + np.log(self.kappa) * (self.D/2. - 1.)
+#                           - np.log(2*np.pi) * self.D/2.
+#                         ) 
+#             assert not np.isnan(normTerm).any()
+#             logP = logP * self.kappa + normTerm
+#         logP = logP + np.log(self._get_fct(data))
+        return  logP
+    
+#     def _get_fct(self, data,keepdims=0):
+# #         L2 = np.sum(np.square(data),axis=1,keepdims=keepdims)
+# #         L2sqrt = np.sqrt(L2)
+# #         fct = np.exp(L2sqrt)
+#         if self.sample_weights is not None:
+#             fct = self.sample_weights
+#             if keepdims == 1:
+#                 fct = fct[:,None]
+#         else:
+#             fct = 1.
+#         return fct
+    
+    def estimate_parameters(self, data, weights):
+        if not self.dummy:
+#             fct = 1.
+#             wdata = data * fct
+            weights =  weights[:, np.newaxis]
+#             weights =  weights[:, np.newaxis] * self._get_fct(data,keepdims=1)
+            #     * self._get_fct(data,keepdims=1)
+            wwdata  =  data * weights
+            rvct = np.sum(wwdata, axis=0) / np.sum(weights,axis=0)
+            rnorm = l2norm(rvct)
+            self.mu = rvct / rnorm * self.radius
+            
+#             if self.kappa is not None:
+#                 r = rnorm
+#                 new_kappa =  (r * self.D - r **3 )/(1. - r **2)
+#                 assert new_kappa > 0.
+#                 self.kappa = new_kappa
+            
+    def __repr__(self):
+        po = np.get_printoptions()
+
+        np.set_printoptions(precision=3)
+
+        try:
+            result = "MultiNorm[μ={mu},]".format(mu=self.mu,)
+        finally:
+            np.set_printoptions(**po)
+
+        return result    
         

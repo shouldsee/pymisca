@@ -5,6 +5,32 @@ qc__vmf = _mod1.qc__vmf
 
 import pymisca.ext as pyext
 
+import pymisca.callbacks
+import pymisca.models 
+# as pycbk
+# 
+def vmfMixture__anneal(data,start,end,
+                       K = 30,
+                       nIter=200,
+                       verbose=1):
+    D = data.shape[1]
+    # betas = np.linspace(0,1000,nIter)
+    betas = np.linspace(start,end,nIter)
+    callback = pymisca.callbacks.callback__stopAndTurn(
+        betas=betas)
+
+    mdl = mdl0 = pymisca.models.EMMixtureModel(
+        dists=[pymisca.models.vmfDistribution(D=D) for i in range(K)]
+        ).random_init()
+
+    hist = mdl.fit(X=data,verbose=3,
+                   max_iters=nIter,min_iters = nIter,
+                   callback=callback,
+
+    #                callback=lambda *x:pyext.sys.stdout.write(str(x))
+                  )
+    mdl.hist  = hist
+    return mdl
 def job__cluster__mixtureVMF__incr(
     tdf,
     K = 20,
