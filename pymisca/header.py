@@ -50,14 +50,15 @@ def base__check(BASE='BASE',strict=0):
         if strict:
             raise Exception('variable ${BASE} not set'.format(**locals()))
         else:
-            PWD =  os.getcwd()
+#             PWD =  os.getcwd()
+            PWD = pysh.shellexec("pwd -L").strip()
             warnings.warn('[WARN] variable ${BASE} not set,defaulting to PWD:{PWD}'.format(**locals()))
             os.environ[BASE] = PWD
     print('[%s]=%s'%(BASE,os.environ[BASE]))
     return os.environ[BASE]
 #     print('[BASE]=%s'%os.environ[BASE])
     
-def base__file(fname='', BASE=None, HOST='BASE', force = False,silent= 1):
+def base__file(fname='', BASE=None, HOST='BASE', force = False,silent= 1, asDIR=0):
     '''find a file according under the directory of environment variable: $BASE 
     '''
     if not isinstance(BASE, basestring):
@@ -72,7 +73,10 @@ def base__file(fname='', BASE=None, HOST='BASE', force = False,silent= 1):
             assert existence,'BASE={BASE},res={res}'.format(**locals())
         else:
             if not existence:
-                pysh.shellexec('touch {res}'.format(**locals()), silent=silent)
+                if asDIR:
+                    pysh.shellexec('mkdir -p {res}'.format(**locals()), silent=silent)
+                else:
+                    pysh.shellexec('touch {res}'.format(**locals()), silent=silent)
                 
         with open('%s/TOUCHED.list' % BASE, 'a') as f:
             f.write(fname +'\n')

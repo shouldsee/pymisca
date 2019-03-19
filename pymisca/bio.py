@@ -10,6 +10,22 @@ plt = pyvis.plt
 import pymisca.ext as pyext
 pd = pyext.pd
 
+def resolve_from_sra(runID,dtype='sra',
+                    host = 'ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra'):
+    assert len(runID) > 6,runID
+    head3 = runID[:3]
+    head6 = runID[:6]
+    assert head3 in ['DRR','ERR','SRR'],runID
+    uri = None
+    if dtype=='sra':
+        if head3=='ERR':
+            uri = '{host}/{head3}/{head6}/{runID}/{runID}.sra'.format(**locals())
+    if uri is None:
+        raise Exception('Not implemented')
+        
+    return uri
+
+
 def gtf__guess_gid_name(fname,head=10):
     it = pyext.readData(pyutil.file__header(fname,head),ext='it',)
     d = pyext.collections.Counter()

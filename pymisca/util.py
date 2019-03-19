@@ -299,6 +299,20 @@ def mapper_2d(wFunc, xs,ys, as_list =0):
         return np.array(out)
     return out
 
+def worker__mapper2d((x,y),wFunc=None):
+    res = wFunc(x,y)
+    return res
+
+
+def mapper_2d(wFunc, xs,ys, NCORE = 1, as_list =0):
+    it = itertools.product(xs,ys)
+    worker = functools.partial(worker__mapper2d, wFunc=wFunc)
+    res = pyutil.mp_map(worker,it,NCORE=NCORE)
+    res = pysh.nTuple(res,len(ys))
+    if not as_list:
+        res = np.array(res)
+    return res
+
 def shapeit(A):
     if ~isinstance(A,np.ndarray):
         A = np.array(A)
@@ -2197,12 +2211,13 @@ def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
     my_app  = "www.newflaw.com"
 
 
-    spec2id = {'Ath':3702,
-               'Bd':15368,
-               'Dmel':7227,
+    spec2id = {'ATHA':3702,
+               'BDIS':15368,
+               'DMEL':7227,
+               'HSAP':9606,
                None:None,}
 
-    specID = spec2id.get(species,None)
+    specID = spec2id.get(species.upper(),None)
     assert specID is not None
 
 
@@ -2228,8 +2243,8 @@ def string_goenrichment( buf =None,gids= None, species=None, ofname = None,
     result = response.readline()
 
     if result:
-        header = result.split('\t')
-    df = pyext.readData(response,ext='tsv',header=None,index_col = None,columns = header)
+        header = result.strip().split('\t')
+    df = pyext.readData(response,ext='tsv',header=None,index_col = None,guess_index=0,columns = header)
 #     df= pd.DataFrame.from_csv(response,sep='\t',header=None,index_col=None)
 #     df.columns = header
     df.sort_values(['category','fdr'],inplace=True)

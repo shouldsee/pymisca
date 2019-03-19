@@ -397,7 +397,9 @@ def read_json(fname,
 def job__baseScript(scriptPath,baseFile=1,**kwargs):
     return job__script(scriptPath,baseFile=baseFile,**kwargs)
 
-def job__script(scriptPath, ODIR=None, opts='', ENVDIR = None, silent= 0,
+def job__script(scriptPath, ODIR=None, 
+                opts='', ENVDIR = None, silent= 0,
+                interpreter = '',
                 baseFile=0,
                 prefix = 'results',
                ):
@@ -421,7 +423,7 @@ time {{
     cp -f {scriptPath} {ODIR}/{scriptFile}; 
     cd {ODIR}; 
     chmod +x {scriptFile} ;
-    ./{scriptFile} {opts}; 
+    {interpreter} ./{scriptFile} {opts}; 
     touch {ODIR}/DONE; 
 }} 2>&1 | tee {ODIR}/{scriptFile}.log | tee -a {baseLog};
 exit ${{PIPESTATUS[0]}}; 
@@ -814,37 +816,71 @@ def guess_sep(fname):
     return sep
 
 
-def splitPath(fname,level=1):
-    tail = []
-    head = fname
-    for i in range(level):
-        head,tail_ = os.path.split(head)
-        tail += [tail_]
-    return head,'/'.join(tail[::-1])
+def splitPath(fname,level=1,
+#               sep=u'/'
+             ):
+    if level is not None:
+        tail = []
+        head = fname
+        for i in range(level):
+            head,tail_ = os.path.split(head)
+            tail += [tail_]
+        tail = os.path.join(*tail[::-1])
+    else:
+        head = u''
+        tail = fname
+    return head, tail
+# sep.join(tail[::-1])
 
 def guessIndex(df):
     if df[df.columns[0]].dtype == 'O':
         df.set_index(df.columns[0],inplace=True)
     return df
 
-def localise(uri,ofname= None,silent = 1, level=1, baseFile = 0):
+def uri__resolve(uri,baseFile = 0, level=None):
     if baseFile:
             uri = pyext.base__file( uri,BASE=baseFile)
+            
+    assert len(uri) > 0
+    remote = False
+    protocols = [ 'http://','ftp://','https://',] 
+    if uri[:4] in [ x[:4] for x in protocols ]:
+        remote = True
+    if not remote:
+#     if uri[0] in [ '.','/' ]:
+        uri = 'file://' + uri
+    
+#     if level is not None:
+#         uri = pyext.splitPath(
+#             uri, level=level)
+    return uri
+        
+
+def localise(uri,ofname= None,silent = 1, level=1, baseFile = 0,prefix='-LC -'):
+    uri = pyext.uri__resolve(uri, baseFile=baseFile)
     if ofname is None:
         head, ofname = pyext.splitPath(
             uri, level=level)
+        
     ddir =  os.path.dirname(ofname)
     if ddir:
         if not os.path.exists(ddir):
             os.makedirs( ddir )
-    assert len(uri) > 0
-    if uri[0] in [ '.','/' ]:
-        uri = 'file://' + uri
-    cmd = 'curl -L "{uri}" -o {ofname}'.format(**locals())
+    cmd = 'curl {prefix} "{uri}" -o {ofname}'.format(**locals()).format(**locals())
     log = pysh.shellexec(cmd,silent=silent)
     return ofname
 
 
+def file__size(uri,baseFile=0,silent=1):
+    '''
+    Get file size from header of response
+    Source: https://stackoverflow.com/a/4498128/8083313
+    '''
+    uri = pyext.uri__resolve(uri, baseFile=baseFile)
+    CMD = "curl -sI {uri} | awk '/Content-Length/ {{ print $2 }}'".format(**locals())
+    res = pysh.shellexec(CMD,silent=silent).strip()
+    res = int(res)
+    return res
 
 #### Class defs
 

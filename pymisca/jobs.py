@@ -12,7 +12,9 @@ import pymisca.models
 def vmfMixture__anneal(data,start,end,
                        K = 30,
                        nIter=200,
-                       verbose=1):
+                       verbose=1,
+                       ofname='mdl0.npy',
+                      ):
     D = data.shape[1]
     # betas = np.linspace(0,1000,nIter)
     betas = np.linspace(start,end,nIter)
@@ -30,6 +32,8 @@ def vmfMixture__anneal(data,start,end,
     #                callback=lambda *x:pyext.sys.stdout.write(str(x))
                   )
     mdl.hist  = hist
+    if ofname is not None:
+        np.save(ofname, mdl0)
     return mdl
 def job__cluster__mixtureVMF__incr(
     tdf,
