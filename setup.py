@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from setuptools import setup
-#from distutils.core import setup
+#from setuptools import setup
+from distutils.core import setup
 
 #from pip.req import parse_requirements
 #required = parse_requirements('requirements.txt', session='hack')
