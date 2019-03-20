@@ -34,6 +34,11 @@ import pymisca.io
 
 
 
+import datetime
+def datenow():
+    res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    return res
+
 
 
 
@@ -57,7 +62,7 @@ def dict__autoFill(TO, FROM, keys = None):
         keys = TO.keys()
     for key in keys:
         if TO[key] is None:
-            #### only fill “None”'s
+            #### only fill None
             res = FROM.get(key,None)
             if res is None:
                 assert 0,'cannot find "%s" from dict:%s ' %(key, FROM)
@@ -168,12 +173,76 @@ def list__paste0(ss,sep=None,na_rep=None,castF=unicode):
     
     L = max([len(e) for e in ss])
     it = itertools.izip(*[itertools.cycle(e) for e in ss])
-    res = [castF(sep).join(castF(s) for s in next(it) ) for i in range(L)]
+    res = [castF(sep).join(castF(s.decode('utf8')) for s in next(it) ) for i in range(L)]
     res = pd.Series(res)
     return res
 pasteB = paste0 = list__paste0
 
+def df__paste0(df,keys,
+#                sep='',
+               sep = '',
+#                headerFmt='[{key}]',
+               debug=0,):
+    '''Calling paste0 with df.eval()
+    sep: accept '{key}' as keyword, try sep='[{key}]'
+'''
+#     if 'index' in keys:        
+#     vals = df.get(keys).values
+#     for key, val in zip(keys,vals):
+#         lst += [['[%s]'%key], val]
+    lst = []
+    lstStr = ''
+    sep0 = ''
+    for i, key in enumerate(keys):
+        if i==0:
+            fmt = '{key},'
+        else:
+            fmt = '["%s"], {key},' % sep
+        lstStr += fmt.format(**locals())
+    cmd = 'list(@pyext.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
+    if debug:
+        print (cmd)
+    res = df.eval(cmd)
+    res = pd.Series(res,index=df.index)
+#     res = pyutil.paste0(lst, sep=sep)
+    return res
 
+def df__format(df,fmt,**kwargs):
+    '''Format for each row of a pd.Dataframe
+    '''
+    it = pyext.df__iterdict(df)
+    res = []
+    for d in it:
+        d['index'] = d.pop('Index')
+        d.update(kwargs)
+        val = fmt.format(**d)
+        res.append(val)
+    return res
+
+
+def dfJob__symlink(dfc,
+                  FILECOL,
+                   ODIR,
+                  level = 1,
+                  copy=True):
+    if copy:
+        dfc =dfc.copy()
+#     FILECOL = 'RPKMFile'
+#     ODIR = '/home/feng/repos/jbrowse/data/links'
+    dfc['INFILE'] = dfc[FILECOL]
+    print (dfc.shape)
+    dfc = dfc.dropna(subset = [FILECOL])
+    dfc = dfc.query('~index.isnull()')
+    print( dfc.shape)
+    dfc['EXT'] = dfc['INFILE'].apply(pyext.splitPath,level=level).str.get(-1)
+    dfc['OFNAME'] = pyext.df__format(dfc,'{ODIR}/{index}.{EXT}',ODIR=ODIR)
+    ##### Symlink .bw files to a directory
+    pyext.shellexec('mkdir -p %s'%ODIR)
+    dfc['CMD'] = pyext.df__format(dfc,
+                                  fmt='ln -sf "{INFILE}" "{OFNAME}" && echo "{OFNAME}"',
+#                                   ODIR=ODIR
+                                 )
+    return dfc
 # def fileDict__save(fname=None,d=None,keys=None):
 #     assert d is not None,'set d=locals() if unsure'
 #     d = collections.OrderedDict(d)
@@ -822,13 +891,26 @@ def splitPath(fname,level=1,
     if level is not None:
         tail = []
         head = fname
-        for i in range(level):
+#         level_ = 
+        if level < 0:
+            head = head[::-1]
+        for i in range(abs(level)):
+#             if level > 0 :
             head,tail_ = os.path.split(head)
             tail += [tail_]
-        tail = os.path.join(*tail[::-1])
+#             if level < 0:
+#                 tail_, head = os.path.split(head)
+#                 tail += [tail_]
+                
+#         tail = os.path.join(*tail[:: -cmp(level,0)])
+        tail = os.path.join(*tail[:: -1])
+        if level < 0:
+            head,tail = head[::-1],tail[::-1]
+            head,tail=tail,head
     else:
         head = u''
         tail = fname
+        
     return head, tail
 # sep.join(tail[::-1])
 

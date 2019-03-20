@@ -1019,47 +1019,20 @@ def colGroupStd(dfc,axis=1,level=None):
 
 
 
-def paste0(ss,sep=None,na_rep=None,castF=unicode):
-    '''Analogy to R paste0
-    '''
-    if sep is None:
-        sep=u''
+# def paste0(ss,sep=None,na_rep=None,castF=unicode):
+#     '''Analogy to R paste0
+#     '''
+#     if sep is None:
+#         sep=u''
     
-    L = max([len(e) for e in ss])
-    it = itertools.izip(*[itertools.cycle(e) for e in ss])
-    res = [castF(sep).join(castF(s) for s in next(it) ) for i in range(L)]
-    res = pd.Series(res)
-    return res
-pasteB = paste0
+#     L = max([len(e) for e in ss])
+#     it = itertools.izip(*[itertools.cycle(e) for e in ss])
+#     res = [castF(sep).join(castF(s.decode('utf8')) for s in next(it) ) for i in range(L)]
+#     res = pd.Series(res)
+#     return res
+# pasteB = paste0
 
-def df__paste0(df,keys,
-#                sep='',
-               sep = '',
-#                headerFmt='[{key}]',
-               debug=0,):
-    '''Calling paste0 with df.eval()
-    sep: accept '{key}' as keyword, try sep='[{key}]'
-'''
-#     if 'index' in keys:        
-#     vals = df.get(keys).values
-#     for key, val in zip(keys,vals):
-#         lst += [['[%s]'%key], val]
-    lst = []
-    lstStr = ''
-    sep0 = ''
-    for i, key in enumerate(keys):
-        if i==0:
-            fmt = '{key},'
-        else:
-            fmt = '["%s"], {key},' % sep
-        lstStr += fmt.format(**locals())
-    cmd = 'list(@pyext.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
-    if debug:
-        print (cmd)
-    res = df.eval(cmd)
-    res = pd.Series(res,index=df.index)
-#     res = pyutil.paste0(lst, sep=sep)
-    return res
+
 
 def df__pad(df,prefix='val',suffix='',sep='_'):
     df = df.copy()
@@ -1070,7 +1043,7 @@ def df__pad(df,prefix='val',suffix='',sep='_'):
     if suffix != '':
         lst.append([suffix])
         
-    cols = pyutil.df__paste0(df.T, lst,sep=sep)
+    cols = pyext.df__paste0(df.T, lst,sep=sep)
     df.columns = cols
     return df
 
@@ -1092,7 +1065,7 @@ def df__makeContrast(dfc,
     vtreat = dfc.reindex(columns = treatment)
     vcontrol = dfc.reindex(columns = control)    
     vdiff = func(vtreat.values,vcontrol.values) 
-    columns = pyutil.paste0([treatment, control],'__').tolist()
+    columns = pyext.paste0([treatment, control],'__').tolist()
 #     columns = pyutil.columns__makeContrast(treatment=treatment,
 #                                            control=control)
     dfdiff = pd.DataFrame(vdiff,
@@ -1256,11 +1229,11 @@ def df2flat(df,keys=None):
     if keys is None:
         keys = df.columns
     lst = [ 
-        paste0( 
+        pyext.paste0( 
         [ [ k ],df[k] ],
         '=') 
            for k in keys]
-    res = paste0( lst,'_')        
+    res = pyext.paste0( lst,'_')        
     return res
 
 def unpackFlat(s,seps=['_']):
@@ -1512,7 +1485,7 @@ def columns__makeContrast(contrast = None,treatment=None,control=None):
         when any other variable is missing"
         treatment = contrast.treatment
         control = contrast.control
-    cols = pyutil.paste0([['TREAT_'],treatment,['__CONTROL_'],control])
+    cols = pyext.paste0([['TREAT_'],treatment,['__CONTROL_'],control])
     return cols
 
 
