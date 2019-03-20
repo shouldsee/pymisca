@@ -1,26 +1,3 @@
-# pymisca
-
-Miscellaneous utilities and visualisation snippets oriented towards functional programming
-
-## Installation
-```sh
-python setup.py install
-
-## for local installation
-python setup.py install --user
-```
-
-### Example Usage
-
-Run a pipeline and output to "$PWD/results"
-
-```bash
-python2 test/test__pipeline.py
-```
-
-Filename: `test/test__pipeline.py`
-
-```python
 #!/usr/bin/env python
 import pymisca.header as pyheader
 import pymisca.ext as pyext
@@ -43,4 +20,3 @@ assert suc,res
 ### Documentation welcomed
 
 print ('[DONE]')
-```
