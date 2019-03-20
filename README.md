@@ -4,10 +4,8 @@ Miscellaneous utilities and visualisation snippets oriented towards functional p
 
 ## Installation
 ```sh
-python setup.py install
-
-## for local installation
-python setup.py install --user
+pip install -r requirements.txt ## --user
+python setup.py install ## --user  for local install
 ```
 
 ### Example Usage
