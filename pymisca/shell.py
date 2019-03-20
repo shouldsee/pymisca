@@ -12,6 +12,15 @@ import subprocess
 import re
 import collections
 # import pymisca.header as pyheader
+def job__shellexec(d):
+    try:
+        d['result'] = shellexec(d['CMD'])
+        d['suc'] = True
+    except:
+        d['result'] = None
+        d['suc'] = False
+    return d
+
 
 def nTuple(lst,n,silent=1):
     """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
@@ -78,7 +87,7 @@ def file__header(fname,head = 10,silent=1,ofname = None):
     if ofname is not None:
         cmd = cmd + '>{ofname}'.format(**locals())
     res = shellexec(cmd, silent=silent)
-    res = StringIO.StringIO(res)
+    res = pymisca.io.unicodeIO(res)
     if ofname is not None:
         return ofname
     else:
@@ -127,7 +136,7 @@ def real__shell(executable=None):
         executable = os.environ.get('SHELL','/bin/bash')
     return executable
 
-def shellexec(cmd,debug=0,silent=0,executable=None):
+def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8'):
     executable = real__shell(executable)
     if silent != 1:
         buf = cmd +'\n'
@@ -144,6 +153,9 @@ def shellexec(cmd,debug=0,silent=0,executable=None):
                                          executable=executable)
 
 #             p.stdin.close()
+            if encoding is not None:
+                res=  res.decode(encoding)
+            
             return res
         except subprocess.CalledProcessError as e:
 #         except Execption as e:

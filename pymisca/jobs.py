@@ -4,10 +4,12 @@ _mod1 = pymisca.model_collection.mixture_vmf
 qc__vmf = _mod1.qc__vmf
 
 import pymisca.ext as pyext
-
+# import pymisca.shell as pysh
 import pymisca.callbacks
 import pymisca.models 
 # as pycbk
+from pymisca.shell import job__shellexec
+
 # 
 def vmfMixture__anneal(data,start,end,
                        K = 30,
