@@ -193,7 +193,14 @@ def list__paste0(ss,sep=None,na_rep=None,castF=unicode):
     
     L = max([len(e) for e in ss])
     it = itertools.izip(*[itertools.cycle(e) for e in ss])
-    res = [castF(sep).join(castF(s.decode('utf8')) for s in next(it) ) for i in range(L)]
+    def _castF(s):
+        if isinstance(s,str):
+            s = s.decode('utf8')
+        else:
+            pass
+        return castF(s)
+
+    res = [castF(sep).join(_castF(s) for s in next(it) ) for i in range(L)]
     res = pd.Series(res)
     return res
 pasteB = paste0 = list__paste0
