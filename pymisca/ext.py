@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from pymisca.header import *
-import os,sys,subprocess,io,glob
+import os, sys, subprocess, io, glob, inspect
 import json
 import functools, itertools, copy,re
 import collections
@@ -40,9 +40,29 @@ def datenow():
     return res
 
 
+def dir__indexify(DIR,silent=1):
+#     find . -type f -exec du -a {} +
+#     cmd = 'cd %s ; du -a --apparent-size .' % DIR
+    cmd = 'cd %s ; find . -type f -exec du -a --apparent-size {} +' % DIR
+    res = pysh.shellexec(cmd,silent=silent)
+    res = pyext.read__buffer(res,columns=['SIZE','FILEACC'],ext='tsv')
+    res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
+    res['DIR'] = os.path.realpath(DIR)
+    res['SIZE'] = res['SIZE'].astype(int)
+    res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
+#     res['FULL_PATH'] = map(os.path.normpath,
+#                            pyext.df__format(res,'{DIR}/{FILEACC}'))
+#     res['EXT'] = 
+#     indDF.fileacc.apply(pyext.splitPath,level=level).str.get(0)
+#     ['DIR',['/'],'FILEACC'])
+    res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)    
+    res = res.set_index('FULL_PATH',drop=0)
+    return res
 
-
-
+def arr__exp2m1(X):
+    res = np.power(2,X) - 1
+    return res
+exp2m1 = arr__exp2m1
 
 ###### 
 def lastLine(buf):
@@ -234,7 +254,9 @@ def dfJob__symlink(dfc,
     dfc = dfc.dropna(subset = [FILECOL])
     dfc = dfc.query('~index.isnull()')
     print( dfc.shape)
-    dfc['EXT'] = dfc['INFILE'].apply(pyext.splitPath,level=level).str.get(-1)
+#     dfc['EXT'] = dfc['INFILE'].apply(pyext.splitPath,level=level).str.get(-1)
+    dfc['EXT'] = dfc['INFILE'].str.rsplit('.',1).str.get(-1)
+#     apply(pyext.splitPath,level=level).str.get(-1)
     dfc['OFNAME'] = pyext.df__format(dfc,'{ODIR}/{index}.{EXT}',ODIR=ODIR)
     ##### Symlink .bw files to a directory
     pyext.shellexec('mkdir -p %s'%ODIR)
@@ -349,7 +371,7 @@ def getBname(fname):
     '''
     Extract "bar" from "/foo/bar.ext"
     '''
-    bname = fname.split('/')[-1].rsplit('.',1)[0]
+    bname = fname.rstrip('/').split('/')[-1].rsplit('.',1)[0]
     return bname
 
 basename = getBname ###legacy
@@ -467,24 +489,39 @@ def job__baseScript(scriptPath,baseFile=1,**kwargs):
     return job__script(scriptPath,baseFile=baseFile,**kwargs)
 
 def job__script(scriptPath, ODIR=None, 
-                opts='', ENVDIR = None, silent= 0,
+                opts='', ENVDIR = None, 
+                silent= 1,
+                DATENOW = '.',
+#                 verbose = 1,
                 interpreter = '',
                 baseFile=0,
+                
                 prefix = 'results',
                ):
-    base__check()
+#     verbose = 2 - silent
+    
+    base__check(silent=silent)
     BASE = os.environ['BASE'].rstrip('/')    
     baseLog = base__file('LOG',force=1)
-    if baseFile:
-         scriptPath = pyext.base__file(scriptPath,BASE=baseFile)
+#    if baseFile:
+    scriptPath = pyext.base__file(scriptPath,baseFile=baseFile)
     scriptBase = pyext.getBname(scriptPath,)    
     scriptFile = os.path.basename(scriptPath)
 #     if ODIR is None:
 #         ODIR = scriptBase
 #     ODIR = ODIR.rstrip('/')
     prefix = prefix.rstrip('/')
+
+    if DATENOW is None:
+        DATENOW =pyext.datenow()
     if ODIR is None:
-        ODIR = '{BASE}/{prefix}/{scriptBase}'.format(**locals())
+        ODIR = '{BASE}/{prefix}/{scriptBase}/{DATENOW}'.format(**locals())
+    
+    JOBCMD = '{interpreter} ./{scriptFile} {opts}'.format(**locals())
+    
+    if silent < 2:
+        sys.stdout.write(  u'[JOBCMD]{JOBCMD}\n'.format(**locals()))
+    
     CMD='''
 mkdir -p {ODIR} || exit 1
 time {{ 
@@ -492,7 +529,7 @@ time {{
     cp -f {scriptPath} {ODIR}/{scriptFile}; 
     cd {ODIR}; 
     chmod +x {scriptFile} ;
-    {interpreter} ./{scriptFile} {opts}; 
+    {JOBCMD}
     touch {ODIR}/DONE; 
 }} 2>&1 | tee {ODIR}/{scriptFile}.log | tee -a {baseLog};
 exit ${{PIPESTATUS[0]}}; 
@@ -526,6 +563,7 @@ def MDFile(fname):
 
 
 def printlines(lst,fname = None,
+                mode='w',
                callback=MDFile,encoding='utf8',
               lineSep='\n',castF=unicode):
     s = castF(lineSep).join(map(castF,lst))
@@ -535,7 +573,7 @@ def printlines(lst,fname = None,
 # f = open('test', 'w')
 # f.write(foo.encode('utf8'))
 # f.close()
-        with open(fname,'w') as f:
+        with open(fname,mode) as f:
             print >>f,s.encode(encoding)
         if callback is not None:
             callback(fname)
@@ -756,8 +794,8 @@ def readData(
         fhead,ext = pyext.guess_ext(fname,check = 1)
         
     if isinstance(fname,basestring):
-        if baseFile:
-            fname= pyext.base__file(fname,BASE=baseFile)
+        #if baseFile:
+        fname= pyext.base__file(fname,baseFile=baseFile)
         if remote is None:
             protocols = [ 'http://','ftp://' ] 
             if fname[:4] in [ x[:4] for x in protocols ]:
@@ -920,8 +958,8 @@ def guessIndex(df):
     return df
 
 def uri__resolve(uri,baseFile = 0, level=None):
-    if baseFile:
-            uri = pyext.base__file( uri,BASE=baseFile)
+    #if baseFile:
+    uri = pyext.base__file( uri,baseFile=baseFile)
             
     assert len(uri) > 0
     remote = False
@@ -961,6 +999,8 @@ def file__size(uri,baseFile=0,silent=1):
     uri = pyext.uri__resolve(uri, baseFile=baseFile)
     CMD = "curl -sI {uri} | awk '/Content-Length/ {{ print $2 }}'".format(**locals())
     res = pysh.shellexec(CMD,silent=silent).strip()
+    if not res:
+        res = 0
     res = int(res)
     return res
 
