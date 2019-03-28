@@ -44,7 +44,7 @@ def mpl__setBackend(bkd='agg',
     if (bkdCurr != bkd) and (bkdCurr not in whitelist):
         matplotlib.use(bkd)
 
-def base__check(BASE='BASE',strict=0):
+def base__check(BASE='BASE',strict=0,silent=0):
     res = os.environ.get(BASE,'')
     if res == '':
         if strict:
@@ -52,18 +52,33 @@ def base__check(BASE='BASE',strict=0):
         else:
 #             PWD =  os.getcwd()
             PWD = pysh.shellexec("pwd -L").strip()
+#             if not silent:
             warnings.warn('[WARN] variable ${BASE} not set,defaulting to PWD:{PWD}'.format(**locals()))
             os.environ[BASE] = PWD
-    print('[%s]=%s'%(BASE,os.environ[BASE]))
+    if not silent:
+        print('[%s]=%s'%(BASE,os.environ[BASE]))
     return os.environ[BASE]
 #     print('[BASE]=%s'%os.environ[BASE])
     
-def base__file(fname='', BASE=None, HOST='BASE', force = False,silent= 1, asDIR=0):
+def base__file(fname='', 
+               BASE=None, HOST='BASE', 
+               baseFile = 1,
+               force = False,silent= 1, asDIR=0):
+    
     '''find a file according under the directory of environment variable: $BASE 
     '''
+    if fname is None:
+        fname = ''
+        
+    if baseFile == 0:
+        return fname
+    elif isinstance(baseFile,basestring):
+        BASE=baseFile
+    
     if not isinstance(BASE, basestring):
-        BASE  = os.environ.get( HOST,None)
-        assert BASE is not None
+        BASE = base__check(strict = 1)
+#        BASE  = os.environ.get( HOST,None)
+#        assert BASE is not None
     BASE = BASE.rstrip('/')
     fname = fname.strip()
     res = os.path.join(BASE,fname)

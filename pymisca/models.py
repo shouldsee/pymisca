@@ -558,7 +558,8 @@ class vmfDistribution(pymod.distribution):
                 'beta':self.beta}
     def random_init(self,random_state=None):
         if random_state is not None:
-            np.random.set_state(random_state)
+            np.random.seed(random_state)
+#             np.random.set_state(random_state)
         mu = np.random.random((self.D,)) 
         if not self.positive:
             mu = mu- 0.5

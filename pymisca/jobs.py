@@ -15,8 +15,11 @@ def vmfMixture__anneal(data,start,end,
                        K = 30,
                        nIter=200,
                        verbose=1,
+                       seed=0,
                        ofname='mdl0.npy',
                       ):
+    np.random.seed(seed)
+#     rstate = np.random.RandomState(seed).get_state()
     D = data.shape[1]
     # betas = np.linspace(0,1000,nIter)
     betas = np.linspace(start,end,nIter)

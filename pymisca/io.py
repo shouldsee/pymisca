@@ -14,3 +14,4 @@ def unicodeIO(handle=None, buf=None,encoding='utf8',*args,**kwargs):
         wrapper.write(buf)
         wrapper.seek(0)
     return wrapper
+

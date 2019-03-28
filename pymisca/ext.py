@@ -43,13 +43,18 @@ def datenow():
 def dir__indexify(DIR,silent=1):
 #     find . -type f -exec du -a {} +
 #     cmd = 'cd %s ; du -a --apparent-size .' % DIR
+    DIR = DIR.rstrip('/')
     cmd = 'cd %s ; find . -type f -exec du -a --apparent-size {} +' % DIR
     res = pysh.shellexec(cmd,silent=silent)
-    res = pyext.read__buffer(res,columns=['SIZE','FILEACC'],ext='tsv')
+    res = pyext.read__buffer(res,columns=['SIZE','FILEACC'],header=None,ext='tsv')
     res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
-    res['DIR'] = os.path.realpath(DIR)
     res['SIZE'] = res['SIZE'].astype(int)
-    res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
+    
+    res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',DIR=DIR)
+    res['REALDIR'] = res['DIR'] = os.path.realpath(DIR)
+    res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',)
+#     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
+
 #     res['FULL_PATH'] = map(os.path.normpath,
 #                            pyext.df__format(res,'{DIR}/{FILEACC}'))
 #     res['EXT'] = 

@@ -83,11 +83,18 @@ def render__images(figs,
                    DIR='.',
                    exts=['png'],
                    dpi = 150,
+                   ofname = None,
+                   baseFile=1,
                   ):
-    
     if templateFile is None:
-        templateFile = pyext.base__file('Templates/listImages.html')
-    ofname = pyutil.os.path.join(DIR,'figure.html')
+        templateFile = 'Templates/listImages.html'
+    templateFile = pyext.base__file(templateFile,baseFile = baseFile)
+    if ofname is None:
+        ofname = 'figure.html'
+    if ofname.startswith('/'):
+        pass
+    else:
+        ofname = pyutil.os.path.join(DIR,ofname)    
     context = pyutil.job__saveFig(figs,
                                    exts=exts,
                                   DIR=DIR,

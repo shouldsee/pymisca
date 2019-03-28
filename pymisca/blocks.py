@@ -20,7 +20,7 @@ def bookkeep(INPUTDIR=None,
     '''
     if INPUTDIR is not None:
         INPUTDIR=pyheader.base__file(INPUTDIR)
-        ifname='{INPUTDIR}/FILE.json'.format(**locals())
+        ifname=os.path.join(INPUTDIR,'FILE.json')
     else:
         ifname = None
     documentF = funcy.partial(
@@ -63,7 +63,7 @@ def printRelPath(save=True):
 #         print (CDIR)
         REL = os.path.relpath( 
             CDIR, 
-            pyheader.base__file(''),
+            pyheader.base__file(),
 #             pyext.shellexec('real $BASE')
         )
         print(REL)
@@ -75,4 +75,10 @@ def printRelPath(save=True):
     
     return workF
 
-
+def symlink(renamer,relative = True,**kwargs):
+    assert hasattr(renamer,'items')
+    def job():
+        for k,v in renamer.items():
+            pysh.symlink(fname=k,ofname=v,relative =relative,**kwargs)
+        return renamer.values()
+    return job

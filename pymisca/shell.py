@@ -3,6 +3,7 @@ import re
 import subprocess
 import shutil
 import StringIO
+import warnings
 
 
 import pymisca.io
@@ -20,6 +21,10 @@ def job__shellexec(d):
         d['result'] = None
         d['suc'] = False
     return d
+
+def dir__curr(silent = 1):
+    res = shellexec('pwd -L',silent=silent).strip()
+    return res
 
 
 def nTuple(lst,n,silent=1):
@@ -87,11 +92,12 @@ def file__header(fname,head = 10,silent=1,ofname = None):
     if ofname is not None:
         cmd = cmd + '>{ofname}'.format(**locals())
     res = shellexec(cmd, silent=silent)
-    res = pymisca.io.unicodeIO(res)
+    res = pymisca.io.unicodeIO(buf=res)
     if ofname is not None:
         return ofname
     else:
         return res
+   
 
 def real__dir(fname=None,dirname=None,mode=0777):
     if dirname is None:
@@ -100,15 +106,25 @@ def real__dir(fname=None,dirname=None,mode=0777):
     else:
         assert fname is None
         
-    if not os.path.exists(dirname):
+    if not os.path.exists(dirname) and dirname!='':
         os.makedirs(dirname,mode=mode)
     return dirname
 
-def symlink(fname,ofname = None,silent=1,debug=0,**kwargs):
-    real__dir(fname=ofname)
-    fname = os.path.abspath(fname)
+def symlink(fname,ofname = None,
+            relative = 0,
+            silent=1,debug=0,**kwargs):
+#     if ODIR is None
+    if not os.path.exists(fname):
+        warnings.warn('trying to symlink non-existent file:%s'%fname)
     if ofname is None:
-        ofname = '.'
+        ofname = './.'
+    ODIR = real__dir(fname=ofname)
+    if relative:
+        fname = os.path.abspath(fname)
+    else:
+        fname = os.path.relpath(fname,ODIR)
+    
+        
     cmd = 'ln -sf {fname} {ofname}'.format(**locals())
     shellexec(cmd,silent=silent,debug=debug)
     return ofname
@@ -136,6 +152,10 @@ def real__shell(executable=None):
         executable = os.environ.get('SHELL','/bin/bash')
     return executable
 
+def silentShellexec(cmd,silent=1,**kwargs):
+    res = shellexec(cmd=cmd, silent=silent,**kwargs)
+    return res
+
 def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8'):
     executable = real__shell(executable)
     if silent != 1:
@@ -156,12 +176,15 @@ def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8'):
             if encoding is not None:
                 res=  res.decode(encoding)
             
-            return res
+            res = res.strip()
+
         except subprocess.CalledProcessError as e:
-#         except Execption as e:
-#             print e.output
-#             raise e
-            raise RuntimeError("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output))
+
+            raise RuntimeError(
+                "command '{}' return with error (code {}): {}\
+            ".format(e.cmd, e.returncode, e.output))
+    
+         #### allow name to be returned
         return res
     
 def getMD5sum(fname,silent=1):
