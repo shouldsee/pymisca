@@ -10,36 +10,59 @@ import pymisca.models
 # as pycbk
 from pymisca.shell import job__shellexec
 
-# 
-def vmfMixture__anneal(data,start,end,
+import pymisca.fop
+# import funcy
+
+def EMMixture__anneal(data,start,end,
                        K = 30,
                        nIter=200,
-                       verbose=1,
+#                        verbose=1,
+                       verbose=4,
                        seed=0,
                        ofname='mdl0.npy',
+                       baseDist = None,
+                      callbacks = [],
+                       
                       ):
+    assert baseDist is not None
+    if isinstance(baseDist,basestring):
+        baseDist = getattr(pymisca.models, baseDist)
+        
+    
     np.random.seed(seed)
 #     rstate = np.random.RandomState(seed).get_state()
     D = data.shape[1]
     # betas = np.linspace(0,1000,nIter)
     betas = np.linspace(start,end,nIter)
-    callback = pymisca.callbacks.callback__stopAndTurn(
+    
+    callback_beta = pymisca.callbacks.callback__stopAndTurn(
         betas=betas)
+    callbacks += [callback_beta]
+#     callbacks.append(pymisca.callbacks.weight__entropise)
+#     callback = pymisca.fop.composeF(callback, pymisca.callbacks.weight__entropise)
 
     mdl = mdl0 = pymisca.models.EMMixtureModel(
-        dists=[pymisca.models.vmfDistribution(D=D) for i in range(K)]
+        dists=[ baseDist(D=D) for i in range(K)]
         ).random_init()
 
     hist = mdl.fit(X=data,verbose=3,
                    max_iters=nIter,min_iters = nIter,
-                   callback=callback,
+                   callbacks=callbacks,
 
     #                callback=lambda *x:pyext.sys.stdout.write(str(x))
                   )
     mdl.hist  = hist
+    mdl.callback = callback_beta
     if ofname is not None:
         np.save(ofname, mdl0)
     return mdl
+
+
+vmfMixture__anneal = pyext.functools.partial(EMMixture__anneal, 
+                        baseDist = 'vmfDistribution')
+
+
+
 def job__cluster__mixtureVMF__incr(
     tdf,
     K = 20,
@@ -70,8 +93,8 @@ def job__cluster__mixtureVMF__incr(
         step = (end-start)/nIter
     callback = mod.callback__stopAndTurn(
         betas = betas,
-        start=start,
-        step=step)
+        start = start,
+        step  = step)
     
 #     callback = pyfop.composeF(callback__stopAndTurn(betas=betas),
 # #                              callback__stopOnClu(interval=1)
@@ -119,6 +142,4 @@ def job__cluster__mixtureVMF__incr(
                  )    
     np.save(alias + '.npy',mdl0,)
     return mdl0
-
-
 

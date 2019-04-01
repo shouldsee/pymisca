@@ -2088,13 +2088,13 @@ def areaRatio(xs):
     res = res[ood]
     return res
 
-def oneHot(values,MAX=None):
-    values = np.ravel(values)
-    if MAX is None:
-        MAX  = np.amax(values)
-    n_values = MAX + 1
-    res = np.eye(n_values)[values]
-    return res
+# def oneHot(values,MAX=None):
+#     values = np.ravel(values)
+#     if MAX is None:
+#         MAX  = np.amax(values)
+#     n_values = MAX + 1
+#     res = np.eye(n_values)[values]
+#     return res
 
 
 

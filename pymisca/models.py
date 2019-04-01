@@ -7,6 +7,8 @@ import collections
 import  sys
 pymod = sys.modules[__name__]
 
+import pymisca.iterative.em
+
 class BaseModel(object):
     def __init__(self,name='test',lastLL=None, data = None):
         self.name = name
@@ -198,7 +200,8 @@ class EMMixtureModel(MixtureModel):
         verbose = 0,
         nStart = 5,
         n_print = None,
-        callback = None,
+#         callback = None,
+        callbacks = None,
 #         sample_weights = 'expVAR',
         sample_weights = None,
         min_iters = 100,
@@ -211,7 +214,8 @@ class EMMixtureModel(MixtureModel):
     ):
         
             
-        self.callback = callback
+#         self.callback = callback
+        self.callbacks = callbacks
         fix_weights = not self.weighted
 #         not getattr(self,weighted,True)
 #         init_method  = self.init_method
@@ -222,17 +226,22 @@ class EMMixtureModel(MixtureModel):
 #         lst = []
     
         llHist  = []
-        def callbackInternal(iteration, weight, distributions, log_likelihood, log_proba):
-            llHist.append(log_likelihood)
+        def callbackInternal(*args):
+            iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+            ll = np.sum(log_likelihood)
+            llHist.append(ll)
+            
             if verbose >= 2:
                 if not iteration % 10:
                     print ('[iter]{iteration},\
-                    log_likelihood={log_likelihood:.2f}'.format(**locals()))
-            return (iteration, weight, distributions, log_likelihood, log_proba)
-        if callback is None:
-            callback = pyfop.identity 
-        callback = pyfop.compositeF(callback,callbackInternal)
-        res = mixem.em(
+                    log_likelihood={ll:.2f}'.format(**locals()))
+            return args
+        
+        if callbacks is None:
+            callbacks = [ pyfop.identity ]
+#         callback = pyfop.compositeF(callback,callbackInternal)
+        callback = pyfop.compositeF(*(list(callbacks) + [callbackInternal]) )
+        res = pymisca.iterative.em.em(
             data, 
             self.dists,
             max_iters = max_iters,
@@ -622,4 +631,212 @@ class vmfDistribution(pymod.distribution):
             np.set_printoptions(**po)
 
         return result    
+    
+    
+    
+    
+
+    
+    
+# import itertools
+import pymisca.numpy_extra as pynp
+# import pymisca.models as pymod
+import numpy as np
+
+# import pymisca.models
+# import pymisca.callbacks
+
+
+def dist__normalKernel(x,beta):
+    x = -np.square(x * beta) + np.log( beta / np.sqrt(np.pi) )
+    return x
+
+def agmm__logp(data,mu,beta,keepdims=0,logsumexp=True):
+#     print data.shape,mu.shape
+#     data,mu = np.broadcast_arrays(data,mu)
+    x = ( data - mu )
+    x = dist__normalKernel(x,beta)
+    
+    if logsumexp:
+        x = pynp.logsumexp(x,axis=1,keepdims=keepdims)
+#     print x.shape
+    return x
+
+def getGrid(data,fct = None):
+    if fct is None:
+        fct = np.linspace(0,1,num=num)
+    MIN = data.min(axis=1,keepdims=1)
+    MAX = data.max(axis=1,keepdims=1)
+    DIFF = (MAX-MIN)
+#     DIFF[DIFF=0.] = 1.
+    def forward(x,MIN=MIN,DIFF=DIFF,debug=0):
+        assert not debug
+        return MIN + DIFF*x
+    
+    gd = forward(fct[None])
+#     gd = MIN + DIFF * fct[None]
+#     gd = gd[:,None]
+    return gd,forward
+
+def agmm__align(data, mu, beta, num = 100):
+    fct = np.linspace(-1,2,num=num)
+    gd,forward = getGrid(data,fct)
+
+#     fct = np.linspace(0,1,num=num)
+#     MIN = data.min(axis=1,keepdims=1)
+#     MAX = data.max(axis=1,keepdims=1)
+#     DIFF = (MAX-MIN)
+# #     DIFF[DIFF=0.] = 1.
+#     gd = MIN + DIFF * fct[None]
+#     gd = gd[:,None]
+    
+    ### loss function
+    aligned = x = data[:,:,None] - gd[:,None,:]
+    logP = logP0 = agmm__logp(x,mu[None,:,None],beta=beta,logsumexp=0)
+    logP = pynp.logsumexp(logP,axis=1,keepdims=0)
+    posmax=  np.argmax(logP,axis=1)
+
+#     print posMax.shape
+#     offset = fct[ posmax ][None]
+#     offset = forward(offset)
+    
+    ind = (np.arange(len(logP)), posmax)
+    lpmax = logP[ind]
+#     print logP0.shape
+#     np.moveaxis()
+    offset = gd[ind]
+    aligned = np.transpose(aligned,axes=(0,2,1))[ind]
+    jointP = np.transpose(logP0,axes=(0,2,1))[ind]
+
+#     print res.shape
+#     logP0[(np.arange(len(logP)),posmax)]
+    
+    return dict(offset=offset, 
+                lpmax=lpmax,
+                posmax = posmax,
+               logP = logP,
+               jointP = jointP,
+               aligned = aligned)
+
+
+
+class alignedGaussianDistribution(distribution):
+    """
+    an isotropic combination of gaussians that tries to align as the best sample point
+    """
+
+    def __init__(self, 
+                 mu = None, 
+                 beta = 1.,
+                 D = None,
+                 positive=False,
+                 meanNorm=None, ###dummy
+                 num=100, ### resolution for grid search
+                 align =  False,
+                ):
+        if mu is not None:
+            mu = np.array(mu)
+            assert len(mu.shape) == 1, "Expect mu to be 1D vector!"
+            self.D = len(mu)
+        else:
+            assert D is not None
+            self.D = D
+            
+        self.dummy = False
+
+        self.beta = beta
+        self.sample_weights = None
+        self.mu = mu
+        self.positive = positive
+        self.num = num
+        self.align = align
+    
+    def __repr__(self):
+        po = np.get_printoptions()
+
+        np.set_printoptions(precision=3)
+
+        try:
+            result = self.params.__repr__()
+#             result = "MultiNorm[μ={mu},]".format(mu=self.mu,)
+        finally:
+            np.set_printoptions(**po)
+
+        return result
+
+    @property
+    def params(self):
+        return {'mu':self.mu,
+                'beta':self.beta
+               }
+    def random_init(self,random_state=None):
+#         raise Execption('Not Implemented')
+        
+        if random_state is not None:
+            np.random.seed(random_state)
+#             np.random.set_state(random_state)
+
+        mu = np.random.random((self.D,))*10.
+        if not self.positive:
+            mu = mu- 0.5
+#         mu = mu / l2norm(mu)
+        self.mu = mu
+        
+    def _log_pdf(self, data,debug=0):
+#         offset,lpmax = agmm__align( data, self.mu,beta=self.beta, num=self.num)
+#         logP = lpmax
+
+        if self.align:        
+            res  = agmm__align( data, self.mu, beta=self.beta, num=self.num)
+            if debug:
+                return res
+    #         jp = res['jointP']
+
+            logP = res['lpmax']
+        else:
+            logP = (data - self.mu[None])
+            logP = dist__normalKernel(logP,self.beta)
+            logP = np.mean(logP,axis=1)
+
+        return  logP
+
+
+    
+    def estimate_parameters(self, data, weights):
+        if self.align:
+            res = agmm__align( data, 
+                              self.mu,
+                              beta=self.beta, num=self.num)
+
+    #         jp = res['jointP']
+    # #         condP = jp
+    # #         condP = np.exp(jp)
+    #         condP = np.exp(jp - pynp.logsumexp(jp,axis=1,keepdims=1))
+            data = res['aligned']
+        condP =  np.ones(len(data.T))[None]
+        
+
+#         condP =  np.ones(len(data.T))[None]
+#         cond_max = res['jointP'].argmax(axis=1) ## condition where align the best
+#         cond_onehot= pynp.oneHot(cond_max,MAX=self.D - 1)
+#         condP = cond_onehot
+
+#         print cond_max
+
+        weights =  weights[:, np.newaxis] * condP
+        SUM = np.sum(weights,axis=0,keepdims=True)
+        SUM[SUM==0.] = 1.
+        weights = weights / SUM
+
+        wwdata  =  data * weights
+        rvct = np.sum(wwdata, axis=0)
+        self.mu = rvct
+
+            
+# %pdb 0
+# dist = alignedGaussianDistribMution(mu=[1,1],beta=.1)
+# pyvis.dmet_2d(pyvis.arrayFunc2mgridFunc(dist.pdf),vectorised=True);
+
+
+
         

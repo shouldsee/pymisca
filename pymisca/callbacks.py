@@ -4,6 +4,8 @@ import pymisca.numpy_extra as pynp
 import pymisca.ext as pyext
 import copy
 import functools
+import pymisca.fop
+
 np  = pynp.np
 def _betas(i,start=0.,step=1.):
     res = start + i * step
@@ -64,7 +66,7 @@ class callback__stopAndTurn(object):
         self.__dict__.update(d) # I *think* this is a safe way to do it
         
     def saveModel(self,  *args):
-        iteration, weight, distributions, log_likelihood, log_proba = args
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
         if not iteration % self.interval:
             mdl = pymod.MixtureModel(weights=weight,
                                    dists= distributions,
@@ -74,7 +76,9 @@ class callback__stopAndTurn(object):
                       )
         return args      
     def __call__(self,*args):
-        iteration, weight, distributions, log_likelihood, log_proba = args
+#         print 'args',len(args),args
+#         print 
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
         if iteration > self.burnin:
 #             if not iteration % self.interval:
             cluNum = len(set(np.argmax(log_proba,axis=1)))
@@ -157,6 +161,7 @@ class callback__stopAndTurn(object):
         
         for d in distributions:
             d.beta = beta
+            
         return args
     
 import pymisca.vis_util as pyvis
@@ -179,18 +184,20 @@ def qc__vmf(mdl=None,
     else:
         xs = np.arange(len(callback.betaHist))
         betas = callback.betaHist
+        
+    ys = np.nan_to_num(callback.clusterH)
     axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
-                                             callback.clusterH)
+                                             ys)
                        ,nMax=nMax,axs=[None,ax,None,None])
 
     plt.sca(axs[1])
     # plt.figure()
     ax = plt.gca()
-    plt.plot(xs,callback.stats,'ro')
+    plt.plot( xs, np.nan_to_num( callback.stats),'ro')
     ax.set_xlim(0,None)
 #     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
     tax = ax.twinx()
-    tax.plot(xs,callback.cluNum,'go')
+    tax.plot( xs, np.nan_to_num(callback.cluNum),'go')
 #     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
     # tax.set_xlim(0,0.4)
     tax.set_ylim(0,25)
@@ -209,9 +216,22 @@ def qc__vmf__speed(mdl=None,
             XCUT=None,
             YCUT=None,
            ):
+    def getCallback(mdl):
+        callback = getattr(mdl,'callback',None)
+        _class = callback__stopAndTurn
+        if not isinstance(callback, _class):
+            callback = None
+
+        if callback is None:
+            callback = [ x for x in mdl.callbacks 
+                        if isinstance(x,_class)][0]
+        return callback
+
+#             if callback is None or not isinstance:
     if callback is None:
         assert mdl is not None
-        callback = mdl.callback
+        callback  = getCallback(mdl)
+                            
 #     n = 4000
 #     xmax = 1.0
     fig,ax = plt.subplots(1,1,figsize=[14,10])
@@ -220,20 +240,32 @@ def qc__vmf__speed(mdl=None,
     else:
         xs = np.arange(len(callback.betaHist))
         betas = callback.betaHist
+
+    ys = np.nan_to_num(callback.clusterH)
     axs = pyvis.qc_2var(*np.broadcast_arrays(np.array(xs)[:,None], 
-                                             callback.clusterH)
+                                             ys)
                        ,nMax=nMax,axs=[None,ax,None,None])
+        
 
     plt.sca(axs[1])
     # plt.figure()
     ax = plt.gca()
-    plt.plot(xs,callback.stats,'ro')
+    plt.plot( xs, np.nan_to_num( callback.stats),'ro')
     ax.set_xlim(0,None)
     ax.set_ylim(0,None)
 #     plt.plot(xs[-nMax:],callback.stats[-nMax:],'ro')
     tax = ax.twinx()
-    tax.plot(xs,callback.speedHist,'go')
+#     tax.plot(xs, callback.speedHist,'go')
+    tax.plot(xs, np.nan_to_num( callback.speedHist) ,'go')
     tax.set_ylim(0,None)
+    
+    if mdl is not None:
+        tax2 = tax.twinx()
+        mdl.hist[-1] = 0.
+#         tax2.plot(xs,  mdl.hist[1:], color='violet', marker='o')
+        tax2.plot(xs,  mdl.hist[0:], color='violet', marker='o')
+    
+    ax.set_title( mdl.hist[1 + XCUT])
     
     xtk = ax.get_xticks()
 #     tay = ax.twiny()
@@ -249,4 +281,135 @@ def qc__vmf__speed(mdl=None,
     return [ax,tax],betaTicks
 #     tax.plot(xs[-nMax:],callback.cluNum[-nMax:],'go')
     # tax.set_xlim(0,0.4)
+    
+import pymisca.iterative.weight__entropise
+
+class weight__entropise(object):
+    def __init__(self,beta = 1.0):
+        self.beta = beta
+    def __call__(self, *args):
+        beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+    #                                 , speedTol = 0.,**kwargs):
+        speedTol = 0.000001
+#         weight = pymisca.itera
+# dirichlet__minimise__grad
+
+#         weight = pymisca.iterative.weight__entropise.dirichlet__minimise__grad(
+#             wresp,
+#             speedTol=speedTol, 
+#             lossTol =  1E-8,
+#             maxIter=50,
+#             beta = beta).last[0]
+
+        weight = pymisca.iterative.weight__entropise.main__grad(
+            wresp,
+            speedTol=speedTol, 
+            lossTol =  1E-8,
+            maxIter=50,
+            beta = beta).last[0]
+        
+        
+#         assert 0
+#         weight = pymisca.iterative.weight__entropise.main__grad(
+#             [weight], 
+#             speedTol=speedTol, 
+#             beta = beta).last[0]
+
+        log_likelihood = pyext.entropise(weight)[None,:] + log_likelihood
+
+        args = list(args)
+        args[1] = weight
+        args[-3] = log_likelihood
+        return tuple(args)
+    
+class MCE(object):
+    def __init__(self,stepSize = 1.0, beta = 1.0):
+        self.stepSize = stepSize
+        self.beta = beta
+    def __call__(self, *args):
+#         beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+    #                                 , speedTol = 0.,**kwargs):
+        speedTol = 0.000001
+
+        wresp = pymisca.iterative.resp__entropise.MCE__grad(
+            wresp,
+            speedTol= 1E-6, 
+            lossTol =  1E-8,
+            maxIter=50,
+            stepSize=self.stepSize,
+            beta = self.beta,
+        ).last
+        
+#         .last[0]
+        
+        
+#         assert 0
+#         weight = pymisca.iterative.weight__entropise.main__grad(
+#             [weight], 
+#             speedTol=speedTol, 
+#             beta = beta).last[0]
+
+        log_likelihood = pyext.entropise(weight)[None,:] + log_likelihood
+
+        args = list(args)
+        args[-1]=  wresp
+#         args[1] = weight
+        args[-3] = log_likelihood
+        return tuple(args)    
+    
+class resp__entropise(object):
+    def __init__(self,beta = 1.0):
+        self.beta = beta
+    def __call__(self, *args):
+        beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+    #                                 , speedTol = 0.,**kwargs):
+        speedTol = 0.000001
+#         weight = pymisca.itera
+# dirichlet__minimise__grad
+
+        wresp = pymisca.iterative.resp__entropise.dirichlet__minimise__grad(
+            wresp,
+            speedTol=speedTol, 
+            lossTol =  1E-8,
+            maxIter=50,
+            beta = beta).last
+
+#         weight = pymisca.iterative.weight__entropise.main__grad(
+#             wresp,
+#             speedTol=speedTol, 
+#             lossTol =  1E-8,
+#             maxIter=50,
+#             beta = beta).last[0]
+        
+        
+#         assert 0
+#         weight = pymisca.iterative.weight__entropise.main__grad(
+#             [weight], 
+#             speedTol=speedTol, 
+#             beta = beta).last[0]
+        weight = wresp.mean(axis=0)
+
+        log_likelihood = pyext.entropise(weight)[None,:] + log_likelihood
+
+        args = list(args)
+        args[-1] = wresp
+        args[1] = weight
+        args[-3] = log_likelihood
+        return tuple(args)
+
+def verbose__callback( *args ):
+    iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+#     log_likeli
+#                                 , speedTol = 0.,**kwargs):
+    print('[weight]',weight[:5])
+    print('[log_proba]',log_proba.ravel()[:5])
+    args = list(args)
+    return tuple(args)
+#     return iteration, weight, distributions, log_likelihood, log_proba
              

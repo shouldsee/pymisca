@@ -4,6 +4,14 @@ from numpy import *
 import sys
 pynp = sys.modules[__name__]
 
+def oneHot(values,MAX=None):
+    values = np.ravel(values)
+    if MAX is None:
+        MAX  = np.amax(values)
+    n_values = MAX + 1
+    res = np.eye(n_values)[values]
+    return res
+
 def as_2d(*arys):
     """
     View inputs as arrays with exactly two dimensions.
@@ -80,6 +88,8 @@ def logsumexp(X,axis=None,keepdims=1,log=1):
     xmax = np.max(X,axis=axis, keepdims=1)
     y = np.exp(X-xmax) 
     S = y.sum(axis=axis,keepdims=keepdims)
+    if not keepdims:
+        xmax = np.squeeze(xmax)
     if log:
         S = np.log(S)  + xmax
     else:
