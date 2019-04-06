@@ -3,6 +3,7 @@
 import collections
 import glob
 import os
+import warnings
 # import pymisca.ext as pyext
 ##### OOP utility
 class util_obj(object):
@@ -15,7 +16,7 @@ class util_obj(object):
         if isinstance(mthd, functools.partial):
             setattr(self,method,mthd.func)
         else:
-            print "[WARN]:Trying to reset a native method"
+            warnings.warn("[WARN]:Trying to reset a native method")
         pass
 
     def partial(self,attrN,**param):

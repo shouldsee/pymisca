@@ -77,7 +77,26 @@ def span(xs,p=100., meanNorm=0):
     return MIN,MAX
 np.span = span
 
-def logsumexp(X,axis=None,keepdims=1,log=1):
+# def logsumexp(X,axis=None,keepdims=1,log=1):
+#     '''
+#     log( 
+#         sum(
+#             exp(X)
+#             )
+#         )
+# '''
+#     xmax = np.max(X,axis=axis, keepdims=1)
+#     y = np.exp(X-xmax) 
+#     S = y.sum(axis=axis,keepdims=keepdims)
+#     if not keepdims:
+#         xmax = np.squeeze(xmax)
+#     if log:
+#         S = np.log(S)  + xmax
+#     else:
+#         S = S*np.exp(xmax)
+#     return S
+
+def log__callback__exp(X,axis=None,keepdims=1,log=1,callback=None):
     '''
     log( 
         sum(
@@ -87,7 +106,8 @@ def logsumexp(X,axis=None,keepdims=1,log=1):
 '''
     xmax = np.max(X,axis=axis, keepdims=1)
     y = np.exp(X-xmax) 
-    S = y.sum(axis=axis,keepdims=keepdims)
+    if callback is not None:
+        S = callback(y, axis=axis,keepdims=keepdims)
     if not keepdims:
         xmax = np.squeeze(xmax)
     if log:
@@ -95,6 +115,12 @@ def logsumexp(X,axis=None,keepdims=1,log=1):
     else:
         S = S*np.exp(xmax)
     return S
+
+def logsumexp(X,callback = np.sum,**kwargs):
+    return log__callback__exp(X,callback=callback,**kwargs)
+def logmeanexp(X,callback = np.mean,**kwargs):
+    return log__callback__exp(X,callback=callback,**kwargs)
+
 np.logsumexp = logsumexp
 
 def arr__l2norm(X,axis=None,keepdims=1):

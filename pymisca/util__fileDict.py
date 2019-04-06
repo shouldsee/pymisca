@@ -51,9 +51,11 @@ def fileDict__save(fname=None,d=None,keys=None,indent=4):
         f = fname
         f.write(res)
         return f
-def mapDict(func,d):
+def mapDict(func,d,mapkey=False):
     lst = []
     for k,v in d.items():
+        if mapkey:
+            k = func(k)
         res = func(v)
         lst += [(k,res)]
     return collections.OrderedDict(lst)

@@ -2243,6 +2243,7 @@ def make__tempDIR(DIR,silent=1, **kwargs):
     return DIR
 
 def saveFigDict(figs,DIR=None,exts=['svg'],silent=1,
+                transparent=False,
                **kwargs):
     if DIR is None:
         DIR=pyutil.os.environ.get('HOME',None)
@@ -2263,6 +2264,8 @@ def saveFigDict(figs,DIR=None,exts=['svg'],silent=1,
             ofname = '%s.%s'%(noEXT,ext)           
             fig.savefig(ofname,
                         bbox_inches='tight',
+                        transparent= transparent,
+                        facecolor=fig.get_facecolor(),
                         **kwargs
                        )
             ofnames += [ofname]
@@ -2270,9 +2273,9 @@ def saveFigDict(figs,DIR=None,exts=['svg'],silent=1,
     l = locals()
     return {x: l.get(x) for x in ['DIR','fignames']}
 
-try:
-    from jinja2_util import *
-except Exception as e:
-     sys.stderr.write('[WARN]%s\n'%e)
+# try:
+#     from jinja2_util import *
+# except Exception as e:
+#      sys.stderr.write('[WARN]%s\n'%e)
 # from pymisca.vis_util import qc_index    
     
