@@ -580,7 +580,9 @@ exit ${{PIPESTATUS[0]}};
     success = (err == 0)
     if check:
         assert success,res        
-    return success, res
+        return res
+    else:
+        return success, res
 
 def is_ipython():
     try:
