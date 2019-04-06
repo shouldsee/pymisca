@@ -27,6 +27,7 @@ from pymisca.util__fileDict import *
 
 import pymisca.oop as pyoop
 import pymisca.patch
+import pymisca.graph
 
 FrozenPath = pymisca.patch.FrozenPath
 
@@ -38,6 +39,14 @@ import datetime
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     return res
+
+
+def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
+    lst = fnames
+    lst = map(pyext.getBname, lst)
+    lst = map(lambda x:x.split(sep),lst)
+    graph = pymisca.graph.graph_build(lst,as_df = as_df, sep=sep , **kwargs)
+    return graph
 
 
 def dir__indexify(DIR,silent=1):
@@ -53,6 +62,8 @@ def dir__indexify(DIR,silent=1):
     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',DIR=DIR)
     res['REALDIR'] = res['DIR'] = os.path.realpath(DIR)
     res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',)
+    
+    res['EXT'] = res['FULL_PATH'].str.rsplit('.',1).str.get(-1)
 #     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
 
 #     res['FULL_PATH'] = map(os.path.normpath,
@@ -500,6 +511,21 @@ def read_json(fname,
 def job__baseScript(scriptPath,baseFile=1,**kwargs):
     return job__script(scriptPath,baseFile=baseFile,**kwargs)
 
+def job__scriptCMD(CMD, opts = '', **kwargs):
+    assert opts == '','"opts" will be overridden'
+    
+    sp = dict(enumerate(CMD.split(None,1)))
+    scriptPath = sp[0]
+    opts = sp.get(1,opts)
+    return job__script(scriptPath, opts=opts, **kwargs)
+
+def job__safeBaseScriptCMD(CMD, baseFile=1, check =True, **kwargs):
+    return job__scriptCMD(CMD, check = check, baseFile=baseFile,**kwargs)
+
+def job__safeScriptCMD(CMD,check = True, **kwargs):
+    return job__scriptCMD(CMD, check = check, **kwargs)
+# def job__baseScript
+
 def job__script(scriptPath, ODIR=None, 
                 opts='', ENVDIR = None, 
                 silent= 1,
@@ -507,7 +533,7 @@ def job__script(scriptPath, ODIR=None,
 #                 verbose = 1,
                 interpreter = '',
                 baseFile=0,
-                
+                check = False,
                 prefix = 'results',
                ):
 #     verbose = 2 - silent
@@ -552,6 +578,8 @@ exit ${{PIPESTATUS[0]}};
 
     res, err  = pysh.shellpopen(CMD,silent=silent)
     success = (err == 0)
+    if check:
+        assert success,res        
     return success, res
 
 def is_ipython():
