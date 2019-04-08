@@ -7,6 +7,32 @@ l2_norm = lambda x,keepdims=1:np.sum(np.square(x),axis=-1,keepdims=keepdims)**0.
 # D = 3.
 # E = 1.
 # K = (D-1)/2.
+
+def random__categorical( p, n_draw=1):
+    '''
+    sample multiple categorical variable at the sample time
+    params:
+        p: weighted probability for each variable (n_var, n_dim)
+    return:
+        X: one-hot encoding of the sample'''  
+    def proj(X):
+    #     X = np.exp(X)
+        X = X / np.sum(X,axis=1,keepdims=1)
+        return X    
+    
+    p = proj(p)
+    p = np.cumsum(p,axis=1)
+    EYE = np.eye(p.shape[1])
+    
+    def _sample(p):
+        X = np.random.random( size= (p.shape[0],1))
+        X = np.argmax(X<=p,axis=1)
+        X = EYE[X]
+        return X
+    X = np.mean(map(_sample, [p] * n_draw), axis=0)
+#     X = proj(X)
+    return X
+
 def make_fbeta(D,Edft=1.):
     '''
     ###### Implement PDF for P(t) where 
