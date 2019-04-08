@@ -328,6 +328,7 @@ class weight__entropise(object):
         args[-3] = log_likelihood
         return tuple(args)
     
+import pymisca.iterative.resp__entropise    
 class MCE(object):
     def __init__(self,stepSize = 1.0, beta = 1.0, 
                  maxIter = 50,

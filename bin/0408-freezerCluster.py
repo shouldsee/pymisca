@@ -1,11 +1,29 @@
 #!/usr/bin/env python2
 import pymisca.header as pyheader
-pyheader.execBaseFile('headers/header__import.py')
+pyheader.base__check()
+
+
+# pyheader.execBaseFile('headers/header__import.py')
+
+import pymisca.ext as pyext
+pd = pyext.pd; np =pyext.np; 
+pyheader.mpl__setBackend('agg')
+import matplotlib.pyplot as plt
+
 figs = pyext.collections.OrderedDict()
 
 
-import pymisca.iterative.resp__entropise
+
+import pymisca.jobs as pyjob
 import pymisca.callbacks as pycbk
+import pymisca.numpy_extra as pynp
+import slugify
+
+import pymisca.util as pyutil ### render__images and get__cluCount
+
+import synotil.CountMatrix as scount
+
+
 # import pymisca.models as pymod
 # import pymisca.iterative.em
 
@@ -85,7 +103,7 @@ def main(**kwargs):
             res = pyext.splitPath(unicode(data),pathLevel)[1]
             dataName = slugify.slugify(unicode(res))
     #         alias += pyext.getBname(clu)
-            data = pyutil.readBaseFile(data,baseFile=baseFile)
+            data = pyext.readBaseFile(data,baseFile=baseFile)
         
         if not isinstance(data,pd.DataFrame):
             data = data.tolist()
@@ -232,7 +250,7 @@ def main(**kwargs):
                               entropy_cutoff = YCUT,
                               index=mdl0.data.index)
         # score = mdl.score(mdl0.data)
-        score = pyutil.logsumexp( 
+        score = pynp.logsumexp( 
             mdl._log_pdf(mdl0.data),axis=1)
         score = score / mdl.dists[0].beta
         clu['score'] = score 
