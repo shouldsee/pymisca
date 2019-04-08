@@ -12,6 +12,8 @@ def getTraj(
     speedTol = 1E-4,
     lossTol = 1E-3,
     maxIter =200,
+    minIter = 10,
+    passDict = False,
 ):
     '''
     main iteration loop
@@ -39,7 +41,14 @@ def getTraj(
         return speed
         
     for i in range(maxIter):
-        Snew = stepFunc(S)
+        if not passDict:
+            Snew = stepFunc(S)
+        else:
+            d = {'X':S,'hist':hist}
+            d = stepFunc(d)
+            Snew = d['X']
+            hist = d['hist']
+
         speed = getSpeed(Snew,S)
         S = Snew 
 
@@ -49,7 +58,7 @@ def getTraj(
             ll = None
     #         ll = pynp.distance__hellinger(Y, X.dot(S))
     #         ll = loss(S)
-        if i>0:
+        if i>minIter:
     #             speed= abs(ll - lst[-1])
             lossDiff =  ll - hist['loss'][-1] 
             msg = 'step\t{i}\tloss\t{ll:.3E}\tspeed={speed:.3E}\tlossDiff={lossDiff:.3E}'.format(**locals())
@@ -57,7 +66,7 @@ def getTraj(
                 if not i % print_interval:
                     print (msg)
 #             stop = 0
-            if speed<=speedTol and (lossDiff<= lossTol) :
+            if (speed<=speedTol) and (abs(lossDiff)<= lossTol) :
                 if verbose>=1:
                     print ('[STOP]Converged: %s' % msg)
                 break            
@@ -66,6 +75,7 @@ def getTraj(
     #                 if verbose>=1:
                 print ('[STOP]Failed to converge')
     #         lst += [ll]
+    
         hist['loss'].append(ll)
         hist['speed'].append(speed)
         hist['xs'].append(S)

@@ -6,6 +6,10 @@ import copy
 import functools
 import pymisca.fop
 
+import pymisca.proba    
+
+
+
 np  = pynp.np
 def _betas(i,start=0.,step=1.):
     res = start + i * step
@@ -325,9 +329,25 @@ class weight__entropise(object):
         return tuple(args)
     
 class MCE(object):
-    def __init__(self,stepSize = 1.0, beta = 1.0):
+    def __init__(self,stepSize = 1.0, beta = 1.0, 
+                 maxIter = 50,
+                 speedTol= 1E-6,
+                 lossTol =  1E-8,
+                 debug = False,
+                 **kwargs):
+#         self.
+        self._debug = debug        
+        self._hist = []
+        
         self.stepSize = stepSize
         self.beta = beta
+        self.maxIter = maxIter
+        self.speedTol = speedTol
+        self.lossTol = lossTol
+        for k,v in kwargs.items():
+            setattr(self,k,v)
+#         self.debug = debug
+            
     def __call__(self, *args):
 #         beta = self.beta
 #     def weight__entropise(*args):
@@ -335,23 +355,23 @@ class MCE(object):
     #                                 , speedTol = 0.,**kwargs):
         speedTol = 0.000001
 
-        wresp = pymisca.iterative.resp__entropise.MCE__grad(
+#         d  = 
+        res = pymisca.iterative.resp__entropise.MCE__grad(
             wresp,
-            speedTol= 1E-6, 
-            lossTol =  1E-8,
-            maxIter=50,
-            stepSize=self.stepSize,
-            beta = self.beta,
-        ).last
+            **{k:v for k,v in vars(self).items() if not k.startswith("_")}
+#             speedTol= speedTol, 
+#             lossTol =  1E-8,
+#             maxIter=50,
+#             stepSize=self.stepSize,
+#             beta = self.beta,
+        )
+        if self._debug:
+            self._hist.append(res.hist )
+        wresp = res.last
         
 #         .last[0]
         
-        
-#         assert 0
-#         weight = pymisca.iterative.weight__entropise.main__grad(
-#             [weight], 
-#             speedTol=speedTol, 
-#             beta = beta).last[0]
+
 
         log_likelihood = pyext.entropise(weight)[None,:] + log_likelihood
 
@@ -360,6 +380,73 @@ class MCE(object):
 #         args[1] = weight
         args[-3] = log_likelihood
         return tuple(args)    
+    
+# class sample__latent(object):
+class resp__sample(object):
+    def __init__(self,
+#                  stepSize = 1.0, beta = 1.0, 
+                 n_draw = 1,
+                 debug = False,
+                 **kwargs):
+#         self.
+        self._debug = debug        
+        self._hist = []
+        self.n_draw = int(n_draw)
+        
+            
+    def __call__(self, *args):
+#         beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+        
+        if self._debug:
+            self._hist.append(res.hist )
+#         wresp = res.last
+        wresp = pymisca.proba.random__categorical(wresp, n_draw=self.n_draw)
+        
+#         log_likelihood = pyext.entropise(weight)[None,:] + log_likelihood
+
+        args = list(args)
+        return tuple(args)        
+    
+class resp__MCE__surfer(object):
+    def __init__(self,
+                 stepSize = 0.1,
+                 maxIter = 20,
+                 beta = 1.0, 
+#                  n_draw = 1,
+                 debug = False,
+                 **kwargs):
+#         self.
+        self._debug = debug        
+        self._hist = []
+        self.stepSize = stepSize
+        self.maxIter = int(maxIter)
+        self.beta = beta
+#         self.n_draw = int(n_draw)
+        
+            
+    def __call__(self, *args):
+#         beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+        eps = 1E-8
+        res = pymisca.iterative.resp__entropise.MCE__surfer(
+            wresp,
+#             X0 = np.log(pynp.arr__rowNorm(wresp+eps)),
+            **{k:v for k,v in vars(self).items() if not k.startswith("_")}
+#                                                             stepSize=self.stepSize,
+#                                                              maxIter=self.maxIter,
+                                                             
+                                                            )
+        if self._debug:
+            self._hist.append(res.hist )
+        wresp = res.last
+        
+
+        args = list(args)
+        args[-1] = wresp
+        return tuple(args)     
     
 class resp__entropise(object):
     def __init__(self,beta = 1.0):
