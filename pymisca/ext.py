@@ -605,6 +605,13 @@ exit ${{PIPESTATUS[0]}};
         return res
     else:
         return success, res
+    
+def ppJson(d):
+    '''
+    Pretty print a dictionary
+    '''
+    s = json.dumps(d,indent=4, sort_keys=True)
+    return s
 
 def is_ipython():
     try:

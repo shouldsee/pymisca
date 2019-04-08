@@ -73,7 +73,7 @@ def job__saveFig(figs,exts=['png'],dpi=150,DIR='.') :
                               exts=exts,
                              dpi = dpi)
     dfig['fignames'] = [x for x in dfig['fignames'] if x.endswith('.png')]
-    buf=[pyutil.ppJson(dfig)]
+    buf=[pyext.ppJson(dfig)]
     ofname = 'figures.json'
     pyutil.printlines(buf,ofname)
     return dfig
@@ -686,12 +686,7 @@ sys.stderr.write('is in ipython: %s \n'%hasIPD)
 
     
 
-def ppJson(d):
-    '''
-    Pretty print a dictionary
-    '''
-    s = json.dumps(d,indent=4, sort_keys=True)
-    return s
+
 
 def invert_interp(F):
     '''
