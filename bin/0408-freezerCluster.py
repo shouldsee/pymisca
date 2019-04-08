@@ -22,7 +22,7 @@ import slugify
 import pymisca.util as pyutil ### render__images and get__cluCount
 
 import synotil.CountMatrix as scount
-
+import synotil.PanelPlot as spanel
 
 # import pymisca.models as pymod
 # import pymisca.iterative.em
@@ -101,7 +101,7 @@ def main(**kwargs):
         assert data is not None
         if isinstance(data,basestring):
             res = pyext.splitPath(unicode(data),pathLevel)[1]
-            dataName = slugify.slugify(unicode(res))
+            space.dataName = slugify.slugify(unicode(res))
     #         alias += pyext.getBname(clu)
             data = pyext.readBaseFile(data,baseFile=baseFile)
         
@@ -287,7 +287,8 @@ def main(**kwargs):
         #             x = mdl0.callbacks[0]._hist
                     for i,y in enumerate(cbk._hist):
                         plt.plot(y['loss'])
-                        print np.diff(y['loss'])[-3:]
+#                         if debug:
+#                             print np.diff(y['loss'])[-3:]
                         plt.plot(i,y['loss'][-1],'x')
                     figs['MCE-loss-hist']= fig
 
