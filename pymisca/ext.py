@@ -532,7 +532,8 @@ def job__script(scriptPath, ODIR=None,
                 DATENOW = '.',
 #                 verbose = 1,
                 interpreter = '',
-                baseFile=0,
+                baseFile= 0,
+                baseOut = 1,
                 check = False,
                 prefix = 'results',
                ):
@@ -553,20 +554,41 @@ def job__script(scriptPath, ODIR=None,
     if DATENOW is None:
         DATENOW =pyext.datenow()
     if ODIR is None:
-        ODIR = '{BASE}/{prefix}/{scriptBase}/{DATENOW}'.format(**locals())
+        ODIR = pyext.base__file('{prefix}/{scriptBase}/{DATENOW}'.format(**locals()),
+#                                prefix=prefix,
+                               baseFile=baseOut,
+                               asDIR=True,force=1)
+#         ODIR = '{BASE}/{prefix}/{scriptBase}/{DATENOW}'.format(**locals())
     
-    JOBCMD = '{interpreter} ./{scriptFile} {opts}'.format(**locals())
+    isoTime = pyext.datetime.datetime.now().isoformat()
+    tempDIR = pyext.base__file('.scripts/{isoTime}'.format(**locals()),
+                               asDIR = True,
+                               force = 1,
+                               baseFile=baseOut)
+    
+    scriptTemp = os.path.join(tempDIR, scriptFile)
+#     ('{tempDIR}/{scriptFile}')
+    JOBCMD = '{scriptTemp} {opts}'.format(**locals())
+
+#     JOBCMD = '{interpreter} ./{scriptFile} {opts}'.format(**locals())
     
     if silent < 2:
-        sys.stdout.write(  u'[JOBCMD]{JOBCMD}\n'.format(**locals()))
+        sys.stdout.write(  u'[JOBCMD]{JOBCMD}\n'.format(**locals()).replace(tempDIR,'') )
+    
     
     CMD='''
 mkdir -p {ODIR} || exit 1
 time {{ 
     set -e;      
-    cp -f {scriptPath} {ODIR}/{scriptFile}; 
+    cat {scriptPath} | tee {ODIR}/{scriptFile} | tee {scriptTemp} > /dev/null
+    chmod +x {scriptTemp} 
+#    cp -f {scriptPath} {ODIR}/{scriptFile}; 
+#    cp -f {tempDIR}/{scriptFile};
+#    chmod +x {tempDIR}/{scriptFile}
+#    cp -f {scriptPath} {BASE}/.scripts/{isoTime}/{scriptFile}; 
+#    chmod +x {scriptFile} ;
+
     cd {ODIR}; 
-    chmod +x {scriptFile} ;
     {JOBCMD}
     touch {ODIR}/DONE; 
 }} 2>&1 | tee {ODIR}/{scriptFile}.log | tee -a {baseLog};
