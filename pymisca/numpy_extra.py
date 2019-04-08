@@ -125,6 +125,10 @@ np.logsumexp = logsumexp
 
 def arr__l2norm(X,axis=None,keepdims=1):
     return np.sqrt((X**2).mean(axis=axis,keepdims=keepdims))
+def arr__msq(X,axis=None,keepdims=1):
+    return np.sqrt((X**2).mean(axis=axis,keepdims=keepdims))
+
+
 def arr__sumNorm(X,axis=None,keepdims=1):
     SUM = (X.sum(axis=axis,keepdims=keepdims)) 
     SUM[SUM==0.]= 1.
