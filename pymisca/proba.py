@@ -7,6 +7,61 @@ l2_norm = lambda x,keepdims=1:np.sum(np.square(x),axis=-1,keepdims=keepdims)**0.
 # D = 3.
 # E = 1.
 # K = (D-1)/2.
+import warnings
+try:
+    import fisher
+except Exception as e:
+    warnings.warn(str(e))
+def index__getFisher(cluIndex,featIndex,
+                     bkdIndex = None,
+                     key = None,
+#                      key='p'
+                    ):
+    '''
+        # see also:https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/#setup 
+
+    '''
+    if bkdIndex is None:
+        bkdIndex=  cluIndex | featIndex
+    ### actually chi-sq at the moment
+    bkdFeatIndex = bkdIndex & featIndex
+    bkdCluIndex = bkdIndex & cluIndex
+    bkdCluFeatIndex = bkdCluIndex & bkdFeatIndex
+    contTable0 = [
+        [bkdIndex,  bkdCluIndex],
+        [bkdFeatIndex, bkdCluFeatIndex]
+    ]
+    it = contTable0
+    contTable = [ [len(x) for x in y] for y in it]
+#     contTable = np.vectorize(len)(contTable0)
+    
+    res = {}
+    
+    if contTable[0][1] ==0 or contTable[1][0]==0 or contTable[1][1] == 0:
+        p = 1.
+#         res['p'] = p
+        det = 0.
+    else:
+#         contTable[0] = contTable[0] - contTable[1]
+#     #     odds, p =  spstats.fisher_exact(contTable)
+#     #     res = dict(odds=odds,p=p)
+#         chi2, p, dof, ex = spstats.chi2_contingency(contTable, correction=False)
+        
+        a = contTable[0][0]
+        b = contTable[0][1]
+        c = contTable[1][0]
+        d = contTable[1][1]
+        p = fisher.pvalue(a,b,c,d)
+        p = p.two_tail
+    #     p = FisherExact.fisher_exact(contTable,)
+#         res['p'] =p 
+        
+    det =np.linalg.det(contTable)
+#         res['det'] = det
+    res = dict(p=p,det=det)
+    if key:
+        res = res[key]
+    return res
 
 def random__categorical( p, n_draw=1):
     '''
