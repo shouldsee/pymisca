@@ -34,12 +34,19 @@ FrozenPath = pymisca.patch.FrozenPath
 import pymisca.io
 
 
+import slugify
 
 import datetime
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     return res
 
+def path__norm(s):
+    s = unicode(s)
+    s = re.sub('/','-',s)
+    s = slugify.slugify(s)
+    return s
+# dir__norm = unicode__norm
 
 def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
     lst = fnames
@@ -48,6 +55,12 @@ def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
     graph = pymisca.graph.graph_build(lst,as_df = as_df, sep=sep , **kwargs)
     return graph
 
+def runtime__file(silent=1):
+    import __main__
+    res = vars(__main__)['__file__']
+    if not silent:
+        sys.stdout.write (res+'\n')
+    return res
 
 def dir__indexify(DIR,silent=1):
 #     find . -type f -exec du -a {} +
@@ -470,7 +483,19 @@ def file__callback(fname,callback,mode='r'):
         res = callback(f)
     return res
 
-def file__link(IN,OUT,force=0):
+def file__notEmpty(fpath):  
+    '''
+    Source: https://stackoverflow.com/a/15924160/8083313
+    '''
+    return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
+
+def file__link(IN,OUT,force=0, forceIn = False):
+    
+    #### Make sure input is not an empty file
+    if not file__notEmpty(IN):
+        if not forceIn:
+            return IN
+        
     if os.path.exists(OUT):
         if force:
             assert os.path.isfile(OUT)
@@ -482,30 +507,36 @@ def file__link(IN,OUT,force=0):
     os.link(IN,OUT)
     return OUT
 
+
+def file__rename(d,force=0, copy=1, **kwargs):
+    for k,v in d.items():
+        file__link(k,v,force=force,**kwargs)
+        if not copy:
+            if os.path.isfile(k):
+                os.remove(k)
+            
 # def file__backup(IN)
 def read__buffer(buf,**kwargs):
     res = pyext.readData(pymisca.io.unicodeIO(buf=buf),**kwargs)
     return res
 
 
-def file__rename(d,force=0, copy=1):
-    for k,v in d.items():
-        file__link(k,v,force=force)
-        if not copy:
-            os.remove(k)
-            
 def read_json(fname,
              object_pairs_hook=collections.OrderedDict,
              **kwargs):
-    
-    res = pyext.file__callback(
-        fname,
-        functools.partial(
-            json.load,
-            object_pairs_hook=collections.OrderedDict,
-            **kwargs
-        ),
-    )
+    kwargs.update(dict(object_pairs_hook=object_pairs_hook,))
+#     if hasattr(fname,'read'):
+#         func = json.loads
+#         res = func(fname.read(),**kwargs)
+#     else:
+    if 1:
+        func = json.load
+        res = pyext.file__callback(
+            fname,
+            functools.partial(
+                func,**kwargs
+            )
+        )
     return res
 
 def job__baseScript(scriptPath,baseFile=1,**kwargs):
@@ -535,6 +566,7 @@ def job__script(scriptPath, ODIR=None,
                 baseFile= 0,
                 baseOut = 1,
                 check = False,
+                inplace=False,
                 prefix = 'results',
                ):
 #     verbose = 2 - silent
@@ -575,6 +607,8 @@ def job__script(scriptPath, ODIR=None,
     if silent < 2:
         sys.stdout.write(  u'[JOBCMD]{JOBCMD}\n'.format(**locals()).replace(tempDIR,'') )
     
+    if inplace:
+        ODIR = '$PWD'
     
     CMD='''
 mkdir -p {ODIR} || exit 1
@@ -582,11 +616,6 @@ time {{
     set -e;      
     cat {scriptPath} | tee {ODIR}/{scriptFile} | tee {scriptTemp} > /dev/null
     chmod +x {scriptTemp} 
-#    cp -f {scriptPath} {ODIR}/{scriptFile}; 
-#    cp -f {tempDIR}/{scriptFile};
-#    chmod +x {tempDIR}/{scriptFile}
-#    cp -f {scriptPath} {BASE}/.scripts/{isoTime}/{scriptFile}; 
-#    chmod +x {scriptFile} ;
 
     cd {ODIR}; 
     {JOBCMD}
@@ -1102,17 +1131,33 @@ class Directory(object):
             pass
         return DIR
         
-    def getFile(self,key,default= None,commonprefix=1,raw=0):
+    def getFiles(self,key):
         key = os.path.join( self.DIR, key)
         res  =glob.glob(key)
+        res = sorted(res)
+        return res
+    
+    def getFile(self,key,default= None,commonprefix=None,common_prefix=1,raw=0):
+        '''
+        raise Exception if file cannot be found
+        '''
+        
+        #### legacy
+        if commonprefix is not None:
+            common_prefix = commonprefix
+        #### legacy
+            
+        res = self.getFiles(key)
         if len(res) == 0:
 #             if force:
-            return default
-            raise Exception('File does not exists:%s' % key)                        
+            if default is not None:
+                return default
+        
+            raise Exception('File does not exists:%s in %s' % (key, self.DIR_))                        
         elif len(res)==1:
             res = res[0]
         else:
-            if commonprefix:
+            if common_prefix:
                 res = os.path.commonprefix(res)
 
         return res
