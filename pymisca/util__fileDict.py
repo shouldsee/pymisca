@@ -1,9 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 import argparse
 # import pymisca.ext as pyext
 import json,os,sys
 import functools,collections
+
+import pymisca.tree as pyTree
+
+
 json.load_ordered= functools.partial(json.load,
                                     object_pairs_hook=collections.OrderedDict,)
 def dictFilter(oldd,keys):
@@ -75,6 +79,12 @@ parser.add_argument('--show',default=False,action='store_true')
 parser.add_argument('--basename',default=False,action='store_true')
 parser.add_argument('--absolute',default=False,action='store_true')
 
+
+        
+    
+
+
+
 def fileDict__main(
         ofname = 'FILE.json', 
          ifname=None,
@@ -91,13 +101,14 @@ def fileDict__main(
     for key in ['ofname','ifname','lines','show','basename','absolute']:
         if key in argD.keys():
             argD.pop(key)
+            
+    
     if ifname is not None:
         res = jsonFile2dict(ifname,force=force)
         argD = dict__update(res,argD)
 #         if os.path.exists(args.ofname):
 #             d = fileDict__load(fname=args.ofname)
 #             argD.update(vars(d))
-    
     
     if ofname is not None:
         d = jsonFile2dict(ofname,force=force)
@@ -126,15 +137,25 @@ def fileDict__main(
         save = showSave
     else:
         save = True
-        
+    
+
+
+
+#     output = collections.OrderedDict()
+    
+
+#     argD = dict__flat2tree(argD)
     if save:
         d.update(argD)
+#        d = TreeDict.from_flatDict(d)                
+        d = pyTree.TreeDict.from_flatPathDict(d)                
         fileDict__save(d=d, 
                        fname=ofname)
             
 #             with open(ofname,'r') as f:
 #                 print(f.read())
 #             print(os.system('cat %s'%ofname))
+#     print ('[DONE]')
     return d
 main = fileDict__main
 #             print(d)    
