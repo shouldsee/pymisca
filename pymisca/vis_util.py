@@ -18,6 +18,10 @@ except Exception as e:
 #     ('[WARN]:not installed:%s' % str(e))
     
 import matplotlib.ticker as mticker
+
+def color__defaultCycle():
+    res = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    return res 
 def hide_axis(ax,which='both'):
     if which in ['x','both']:
 #         ax.get_xaxis().set_visible(False)
@@ -903,6 +907,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
            ybin =None,
             spanPer = 99.9,
             nMax=3000,
+            refline = (1,0),
 #            axis = [0,1,2]
            ):
     ''' Plot histo/scatter/density qc for two variables
@@ -974,7 +979,8 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     ax = axs[1];
     if ax is not None:
         plt.sca(ax)
-        abline()
+        if refline:
+            abline(*refline)
         plt.xlabel(xlab);plt.ylabel(ylab)
         plt.xlim(xlim);plt.ylim(ylim)
 
