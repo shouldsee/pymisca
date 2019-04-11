@@ -13,6 +13,9 @@ import subprocess
 import re
 import collections
 # import pymisca.header as pyheader
+
+
+
 def job__shellexec(d):
     try:
         d['result'] = shellexec(d['CMD'])
@@ -156,10 +159,10 @@ def silentShellexec(cmd,silent=1,**kwargs):
     res = shellexec(cmd=cmd, silent=silent,**kwargs)
     return res
 
-def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8'):
+def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8',error='raise'):
     executable = real__shell(executable)
     if silent != 1:
-        buf = cmd +'\n'
+        buf = '[CMD]{cmd}\n'.format(**locals())
         if hasattr(silent,'write'):
             silent.write(buf)
         else:
@@ -179,10 +182,15 @@ def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8'):
             res = res.strip()
 
         except subprocess.CalledProcessError as e:
-
-            raise RuntimeError(
-                "command '{}' return with error (code {}): {}\
-            ".format(e.cmd, e.returncode, e.output))
+            if error=='raise':
+                raise RuntimeError(
+                    "command '{}' return with error (code {}): {}\
+                ".format(e.cmd, e.returncode, e.output))
+            elif error=='ignore':
+                
+                res = 'FAIL'
+                
+                
     
          #### allow name to be returned
         return res

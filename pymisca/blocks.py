@@ -5,9 +5,41 @@ import pymisca.util__fileDict
 import os
 import funcy
 
+import pymisca.ext as pyext
+
 '''
 Everything here needs to be backwards compatible
 '''
+
+def compute__OUTDIR(**args):
+    '''
+    Compute the directory to output
+    '''
+    def func(**args):
+
+        INPUTDIR = args['INPUTDIR']
+        pathLevel = args['pathLevel']
+        inplace  = args['inplace']
+        prefix = args.get('prefix','')
+        suffix = args.get('suffix','')
+
+        if not inplace:
+            CWD = ''
+            OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
+        else:
+            CWD = pyext.base__file(INPUTDIR)
+            OUTDIR = pyext.os.path.basename(
+                pyext.runtime__file(silent=0)
+            ).rsplit('.',1)[0]
+#             del CWD
+        OUTDIR = os.path.join(prefix,OUTDIR)
+        OUTDIR = os.path.join(OUTDIR,suffix)
+        OUTDIR = os.path.join(CWD,OUTDIR)
+        OUTDIR = os.path.normpath(OUTDIR)
+        
+
+        return OUTDIR
+    return funcy.partial(func,**args)
 
 def bookkeep(INPUTDIR=None,
              argD = {},
@@ -82,3 +114,9 @@ def symlink(renamer,relative = True,**kwargs):
             pysh.symlink(fname=k,ofname=v,relative =relative,**kwargs)
         return renamer.values()
     return job
+
+def job__script(*a,**kw):
+#     def workF(*a,**kw):
+#         return pyext.job__script(*a,**kw)
+    return funcy.partial(pyext.job__script,*a,**kw)
+        
