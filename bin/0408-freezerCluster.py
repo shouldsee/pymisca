@@ -58,33 +58,14 @@ parser.add_argument('--lossTol', default = 0.01, type=float)
 
 parser.add_argument('--query', default = 'index==index', type=unicode)
 
+parser.add_argument('--figsize', default = [12,8],nargs=2,type=float )
+parser.add_argument('--width_ratios', default = [3,10,0],nargs=3, type=float)
+#         figsize=[ 12, 8 ],
+#         width_ratios = [3,10,0],        
 
 # data = '/home/shouldsee/work/ana__900'
     
 
-# def main(
-#     data= None,
-#     baseDist = None,
-#     XCUT = None,
-#     # XCUT = 50
-#     YCUT = None,
-#     figsize=[ 12, 8 ],
-#     quick = None,
-#     start = None,
-#     end = None, 
-#     baseFile=None,
-# #     CUTOFF_SCORE=None,
-#     stepSize = None,
-#     cluMax = None,
-#     seed = None,
-#     verbose = None,
-#     reduce_entropy = None,
-#     query = None,
-#     silent=None,    
-#     lossTol = None,
-#     debug = None,
-#     pathLevel = None,
-# ):
     
 def main(**kwargs):        
 #     print (type(quick))
@@ -129,7 +110,10 @@ def main(**kwargs):
         XCUT = None,
         # XCUT = 50
         YCUT = None,
-        figsize=[ 12, 8 ],
+        figsize= None,
+        width_ratios = None,
+#         figsize=[ 12, 8 ],
+#         width_ratios = [3,10,0],        
         quick = None,
         start = None,
         end = None, 
@@ -296,12 +280,13 @@ def main(**kwargs):
                 fig = plt.figure()
                 clu.hist('score',bins=30)
                 figs['hist-score'] = plt.gcf()
-
+            
+            
             if 1:
                 pp = spanel.panelPlot([spanel.fixCluster(clu['clu']), 
                                        vdf,
                                       ],figsize=figsize,
-                                      width_ratios=[2,10,0],
+                                      width_ratios=width_ratios,
 
                                        show_axa=1
                                      )
@@ -315,7 +300,7 @@ def main(**kwargs):
                 pp = spanel.panelPlot([spanel.fixCluster(clu['clu']), 
                                        vdf,
                                       ],figsize=figsize,
-                                      width_ratios=[2,10,0],
+                                      width_ratios=width_ratios,
 
                                        show_axa=1
                                      )
