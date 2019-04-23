@@ -448,6 +448,173 @@ class resp__MCE__surfer(object):
         args = list(args)
         args[-1] = wresp
         return tuple(args)     
+
+class resp__random__dirichlet(object):
+    def __init__(self,
+                 scale=1.0,
+#                  stepSize = 0.1,
+#                  maxIter = 20,
+#                  beta = 1.0, 
+# #                  n_draw = 1,
+#                  debug = True,
+                 debug = False,
+                 **kwargs):
+#         self.
+        self._debug = debug        
+        self._hist = []
+        self.scale = scale
+#         self.stepSize = stepSize
+#         self.maxIter = int(maxIter)
+#         self.beta = beta
+#         self.n_draw = int(n_draw)
+        
+            
+    def __call__(self, *args):
+#         beta = self.beta
+#     def weight__entropise(*args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+        eps = 1E-16
+#         wresp = pymisca.proba.random__dirichlet(wresp)        
+        log_proba += -pynp.logsumexp(log_proba,axis=1)
+        proba = np.exp(log_proba)
+        
+        p_unif = 1./ len(proba.T)
+        
+#         temp = 0.25
+#         temp = 0.45
+        temp = 0.25
+    
+#         temp = 1.00
+#         scale = len(proba.T)
+#         scale = 1.0
+#         scale = 1./ (len(proba.T)**2)
+    
+    
+        K = float(len(proba.T))
+        scale = 1./ K
+        
+#         temp =  K / (K + 1.)
+# #         print 'K=',K
+#         proba = (( 1. - temp) * proba + temp*p_unif ) 
+#         wresp = proba
+        
+    
+        
+# #         proba = (( 1. - temp) * proba + temp* ) 
+#         proba = ( 1. * proba + K )/ (K+1) 
+#         wresp = proba        
+        
+        temp =  0.50
+#         temp =  0.00
+        
+        proba = (( 1. - temp) * proba + temp*p_unif ) 
+
+        wresp = proba
+#         proba 
+        
+        wresp = pymisca.proba.random__dirichlet(wresp * scale) 
+        wresp = wresp + eps
+#         + eps
+
+#         wresp = pymisca.proba.random__dirichlet(proba * scale + eps) 
+
+#         + eps
+        
+        if self._debug:
+            print (np.min(wresp),np.max(wresp))
+
+        args = list(args)
+        args[-1] = wresp
+        return tuple(args)   
+    
+class resp__momentum(object):
+    def __init__(self,
+#                  alpha = 0.5,
+                 alpha = 0.5,
+#                  scale=1.0,
+#                  stepSize = 0.1,
+#                  maxIter = 20,
+#                  beta = 1.0, 
+# #                  n_draw = 1,
+#                  debug = True,
+                 debug = False,
+                 **kwargs):
+#         self.
+        self._debug = debug        
+        self._hist = []
+#         self.scale = scale
+        self._last_resp  = None
+        self.alpha = alpha
+        
+            
+    def __call__(self, *args):
+        iteration, weight, distributions, log_likelihood, log_proba, wresp = args
+        K = float(len(wresp.T))
+        L = len(wresp)
+        eps = 1E-16
+        
+        alpha = self.alpha
+        if self._last_resp is None:
+            #### reinitialised memory to a 
+#             self._last_resp = wresp * 0. + 1./ K
+#             self._last_resp = wresp * 0. +  1./K
+            self._last_resp = wresp * 0.
+            Ka = 15
+            Ka = int(K)
+            self._last_resp[:,:Ka] = 1./Ka
+            alpha = 0.            
+            
+            alpha  =1.
+#             self._last_resp=  pymisca.proba.random__dirichlet(self._last_resp * K)
+#             self._last_resp=  pymisca.proba.random__dirichlet(self._last_resp * K)
+        else:
+            alpha = alpha
+            
+        log_proba += - np.log(weight)
+        log_proba += - pynp.logsumexp(log_proba,axis=1)
+        
+        proba  = proba_c = proba_current= np.exp(log_proba)
+        
+
+        if 0:
+            pass
+        
+        if 0:
+            ### using a mixutre instead of summation
+    #         gamma  = 0.2
+            random_proba = pymisca.proba.random__dirichlet(wresp * 0 + 1. )
+
+            gamma = 1./K 
+            gamma_ = np.random.random(size=(L,1))
+            proba = random_proba * (gamma_ > gamma) + proba_current * (gamma_ <= gamma)
+        
+        
+        ### mix at the param level
+#         proba = pymisca.proba.random__dirichlet( proba_c * K + 2 )
+#         proba = pymisca.proba.random__dirichlet( (proba_c + 1. )* K )
+#         proba = pymisca.proba.random__dirichlet( ((proba_c  ) + 1./K) * K )
+#         proba = ( ((proba_c  ) + 1./K)/2. )
+#         alpha = 1.0
+        alpha = self.alpha
+#         alpha = self.alpha = 0.5
+        proba =  ( (alpha) * (proba_c  ) + (1. - alpha) * 1./K) 
+    
+    
+#         proba = pymisca.proba.random__dirichlet( (proba_c  )* K + 1.)
+        
+#         proba = (1.- alpha) * self._last_resp + ( alpha ) * ( proba  )/2.      
+#         proba = (1.- alpha) * proba + ( alpha) * self._last_resp
+        
+        wresp = proba
+        self._last_resp = wresp
+                                                                             
+        
+        if self._debug:
+            print (np.min(wresp),np.max(wresp))
+
+        args = list(args)
+        args[-1] = wresp
+        return tuple(args)     
     
 class resp__entropise(object):
     def __init__(self,beta = 1.0):

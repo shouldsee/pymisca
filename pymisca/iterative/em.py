@@ -36,6 +36,7 @@ def em(data, distributions,
 #        weight_callback = callback__weight__entropise,
        fix_weights = None,
        progress_callback = None,
+       update_proba = 1.0,
 #        callback = None,
       ):
     """Fit a mixture of probability distributions using the Expectation-Maximization (EM) algorithm.
@@ -85,7 +86,8 @@ def em(data, distributions,
         for d in range(n_distr):
 #             if d in idx_active:
             if idx_active[d]:
-                distributions[d].estimate_parameters(data, wresp[:, d])    
+                if np.random.random() <= update_proba:
+                    distributions[d].estimate_parameters(data, wresp[:, d])    
             
     def weight_resp(resp):
         if sample_weights is not None:

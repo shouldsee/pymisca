@@ -10,6 +10,9 @@ import pymisca.models
 # as pycbk
 from pymisca.shell import job__shellexec
 
+import pymisca.shell as pysh
+
+
 import pymisca.fop
 # import funcy
 
@@ -22,6 +25,7 @@ def EMMixture__anneal(data,start,end,
                        ofname='mdl0.npy',
                        baseDist = None,
                       callbacks = [],
+                      **kwargs
                        
                       ):
     assert baseDist is not None
@@ -48,6 +52,7 @@ def EMMixture__anneal(data,start,end,
     hist = mdl.fit(X=data,verbose=3,
                    max_iters=nIter,min_iters = nIter,
                    callbacks=callbacks,
+                   **kwargs
 
     #                callback=lambda *x:pyext.sys.stdout.write(str(x))
                   )
@@ -143,3 +148,22 @@ def job__cluster__mixtureVMF__incr(
     np.save(alias + '.npy',mdl0,)
     return mdl0
 
+
+
+def wigFile__filter(ifname, ODIR='.', ofname = None, awk='$5>20'):
+
+    if ofname is None:
+        ofname=  pyext.getBname(ifname) + '.bed'
+    p = pipe__wig2bed(fname=ifname)
+    p = pysh.shellpopen("awk '{awk}' | tee \"{ODIR}/{ofname}\" | head ".format(**locals()), p.stdout,)
+    
+    
+    resHead = pysh.pipe__getSafeResult(p)
+    return ofname
+
+def pipe__it2wig2bed(**kw):
+    p = pysh.ShellPipe()
+    p.chain('convert2bed -iwig')
+    p.chain('tee test.out')
+    p.chain("awk '$5 > 10' ")
+    return p
