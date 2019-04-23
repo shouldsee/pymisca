@@ -162,10 +162,13 @@ class TreeDict(collections.OrderedDict):
         d[route[-1]] = value
         
     @classmethod
-    def from_flatPathDict(cls, flatPathDict,sep=None):
+    def from_flatPathDict(cls, flatPathDict,sep=None, sort=True):
         self = cls()
         if sep is not None:
             self.set__sep(sep)
-        for k,v in flatPathDict.items():
+        it = flatPathDict.iteritems()
+        if sort is True:
+            it = sorted(it,key= lambda x:x[0])
+        for k,v in it:
             self.setFlatLeaf( k, v)
         return self
