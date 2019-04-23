@@ -76,7 +76,7 @@ def base__file(fname='',
         BASE=baseFile
     
     if not isinstance(BASE, basestring):
-        BASE = base__check(strict = 1)
+        BASE = base__check(strict = 1,silent=silent)
 #        BASE  = os.environ.get( HOST,None)
 #        assert BASE is not None
     BASE = BASE.rstrip('/')
