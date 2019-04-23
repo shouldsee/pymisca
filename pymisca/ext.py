@@ -139,10 +139,27 @@ def func__inDIR(func,DIR='.'):
 #     finally:
 #         pyext.os.chdir(ODIR)
         
-def df__iterdict(df):
-    it = df.itertuples()
-    it = (x.__dict__ for x in it)
-    return it
+# def df__iterdict(df):
+#     it = df.itertuples()
+#     it = (x.__dict__ for x in it)
+#     return it
+
+# def df__iterdict(df):
+#     it = df.itertuples()
+#     it = (x.__dict__ for x in it)
+#     return it
+
+def df__iterdict(self, into=dict):
+    '''
+    ### See github issue https://github.com/pandas-dev/pandas/issues/25973#issuecomment-482994387
+    '''
+    it = self.iterrows()
+    for index, series in it:
+        d = series.to_dict(into=into)
+        d['index'] = index
+        yield d
+
+
         
 
 def iter__toSoft(it):
@@ -269,7 +286,7 @@ def df__format(df,fmt,**kwargs):
     it = pyext.df__iterdict(df)
     res = []
     for d in it:
-        d['index'] = d.pop('Index')
+#         d['index'] = d.pop('Index')
         d.update(kwargs)
         val = fmt.format(**d)
         res.append(val)
@@ -627,13 +644,16 @@ exit ${{PIPESTATUS[0]}};
     if ENVDIR is not None:
         CMD = 'source {ENVDIR}/bin/activate\n'.format(**locals()) + CMD
 
-    res, err  = pysh.shellpopen(CMD,silent=silent)
-    success = (err == 0)
+    p = pysh.shellpopen(CMD,silent=silent)
+#     res, err  = pysh.pipe__getResult(p)
+#     success = (err == 0)
+    suc,res = pysh.pipe__getResult(p)
+    
     if check:
-        assert success,res        
+        assert suc,res        
         return res
     else:
-        return success, res
+        return suc, res
     
 def ppJson(d):
     '''
@@ -982,7 +1002,10 @@ def readData(
         else:
             res = pd.DataFrame({},columns=columns)
     if columns is not None:
-        res.columns = columns
+        _columns = res.columns.tolist()
+        L = min(len(columns),len(_columns))
+        _columns[:L] = columns[:L]
+        res.columns = _columns
         
     if space._guess_index:
         res = pyext.guessIndex(res)
