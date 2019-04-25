@@ -531,6 +531,9 @@ def file__link(IN,OUT,force=0, forceIn = False):
 
 def file__rename(d,force=0, copy=1, **kwargs):
     for k,v in d.items():
+        DIR = os.path.dirname(v)
+        if not os.path.exists(DIR):
+            os.makedirs(DIR)
         file__link(k,v,force=force,**kwargs)
         if not copy:
             if os.path.isfile(k):
