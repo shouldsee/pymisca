@@ -15,7 +15,7 @@ from pymisca.shell import shellexec
 pyext = sys.modules[__name__]
 
 import pymisca.header as pyhead
-# pyhead.mpl__setBackend(bkd='Agg')
+# pyhead.mpl__setBackend(bkd='Agg') 
 pyhead.set__numpy__thread(vars(sys.modules['__main__']).get('NCORE',None))
 
 import pymisca.numpy_extra as pynp
@@ -159,7 +159,11 @@ def df__iterdict(self, into=dict):
         d['index'] = index
         yield d
 
-
+def df__asMapper(dfc,key1,key2):
+    res = dfc.eval('({key1},{key2})'.format(**locals()))
+    res = dict(zip(*res))
+    return res
+df2mapper=  df__asMapper
         
 
 def iter__toSoft(it):
@@ -695,8 +699,12 @@ def printlines(lst,fname = None,
 # f.close()
         with open(fname,mode) as f:
             print >>f,s.encode(encoding)
-        if callback is not None:
-            callback(fname)
+#         if callback is None:
+#             callback = 
+#         if callback is not None:
+#             res = callback(fname)
+        return fname
+        
 
 # def nTuple(lst,n,silent=1):
 #     """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
@@ -903,6 +911,7 @@ def readData(
     addFname=0, guess_index=1, columns = None,
     localise = False,
     remote = None,
+    as_buffer = False,
     baseFile = 0,
     comment='#', 
     **kwargs):
@@ -926,11 +935,16 @@ def readData(
                 fname = pyext.localise(fname)
             
         
+    if as_buffer:
+        fname = pymisca.io.unicodeIO(buf=fname)
+        
 #     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
     class space:
         fheadd = fhead
         _guess_index=guess_index
+    
+    
         
     def case(ext,):
 
@@ -991,6 +1005,7 @@ def readData(
         return res,ext
     
     try:    
+            
         res,ext = case(ext)
         if ext in ['npy',]:
             guess_index=0
@@ -1001,6 +1016,7 @@ def readData(
             raise e
         else:
             res = pd.DataFrame({},columns=columns)
+            
     if columns is not None:
         _columns = res.columns.tolist()
         L = min(len(columns),len(_columns))

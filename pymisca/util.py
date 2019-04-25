@@ -1903,11 +1903,11 @@ def TableToMat(fnames,ext='tsv',idCol ='Gene ID',valCol = 'TPM', match = 'Brad',
 #     mapper = dict(zip(mc[key],mc[val]))
 #     return mapper
 
-def df__asMapper(dfc,key1,key2):
-    res = dfc.eval('({key1},{key2})'.format(**locals()))
-    res = dict(zip(*res))
-    return res
-df2mapper=  df__asMapper
+# def df__asMapper(dfc,key1,key2):
+#     res = dfc.eval('({key1},{key2})'.format(**locals()))
+#     res = dict(zip(*res))
+#     return res
+# df2mapper=  df__asMapper
 
 def test_TableToMat():
     mcurr = meta.query('Age=="Wk2" & gtype== "Bd21"')
