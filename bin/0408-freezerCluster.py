@@ -33,6 +33,9 @@ import synotil.PanelPlot as spanel
 
 import argparse
 parser = argparse.ArgumentParser()
+# parser.add_argument('--version', default = '0421', type=unicode)
+parser.add_argument('--version', default = '0423', type=unicode)
+
 parser.add_argument('--silent', default = 0, type=int)
 parser.add_argument('--debug', default = 0, type=int)
 parser.add_argument('--data', type=unicode)
@@ -60,6 +63,7 @@ parser.add_argument('--query', default = 'index==index', type=unicode)
 
 parser.add_argument('--figsize', default = [12,8],nargs=2,type=float )
 parser.add_argument('--width_ratios', default = [3,10,0],nargs=3, type=float)
+parser.add_argument('--update_proba', default = 1.0, type=float)
 #         figsize=[ 12, 8 ],
 #         width_ratios = [3,10,0],        
 
@@ -129,6 +133,8 @@ def main(**kwargs):
         lossTol = None,
         debug = None,
         pathLevel = None,
+        version = None,
+        update_proba = None,
     ):
         dfc = data
 #         dfc = _data
@@ -178,7 +184,7 @@ def main(**kwargs):
     #     if reduce_entropy:
     #         callbacks += [ pycbk.weight__entropise(beta = reduce_entropy) ]
     #     if reduce_entropy:
-        if 1:
+#         if 1:
     #         callbacks += [ pycbk.resp__entropise(beta = reduce_entropy) ]
     #         callbacks += [ pycbk.MCE(stepSize = reduce_entropy) ]
     #         callbacks += [ pycbk.MCE(beta = reduce_entropy,
@@ -191,6 +197,8 @@ def main(**kwargs):
     #                                 aggFunc='mean') ]
 
     #         callbacks += [pycbk.resp__sample(n_draw=reduce_entropy)]
+        if version == '0421':
+            
             callbacks += [pycbk.resp__MCE__surfer(
                 stepSize=stepSize,
     #             beta = reduce_entropy,
@@ -198,6 +206,15 @@ def main(**kwargs):
                 debug=debug,
     #                                               maxIter=reduce_entropy
                                                  )]
+        elif version =='0422':
+            callbacks += [
+                pycbk.resp__random__dirichlet(),]
+        elif version =='0423':
+            callbacks += [
+                pycbk.resp__momentum(alpha=stepSize)
+                ,]
+        else:
+            assert 0, version
 
         config['callbacks'] = callbacks
 
@@ -205,6 +222,7 @@ def main(**kwargs):
 
         job = pyext.functools.partial( pyjob.EMMixture__anneal,
                                        start=start, end=end,seed=seed,
+                                      update_proba = update_proba,
                               **config)
     #     mdl0 = job(dfc)
     #         mdl0 = pyjob.EMMixture__anneal(dfc, 

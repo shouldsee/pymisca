@@ -12,6 +12,20 @@ try:
     import fisher
 except Exception as e:
     warnings.warn(str(e))
+    
+import pymisca.numpy_extra as pynp
+    
+def random__dirichlet(alpha,size=None):
+    '''
+    See https://stats.stackexchange.com/questions/69210/drawing-from-dirichlet-distribution
+    '''
+    alpha = np.array(alpha)
+#     alpha = np.stack([alpha])
+    gammas = np.random.gamma(alpha,scale=1)
+    diris = pynp.arr__rowNorm(gammas,axis=1)
+    return diris
+
+    
 def index__getFisher(cluIndex,featIndex,
                      bkdIndex = None,
                      key = None,

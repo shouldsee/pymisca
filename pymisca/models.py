@@ -1,4 +1,5 @@
-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import pymisca.numpy_extra as pynp
 np = pynp
 import pymisca.ext as pyext
@@ -590,17 +591,7 @@ class vmfDistribution(pymod.distribution):
 #         logP = logP + np.log(self._get_fct(data))
         return  logP
     
-#     def _get_fct(self, data,keepdims=0):
-# #         L2 = np.sum(np.square(data),axis=1,keepdims=keepdims)
-# #         L2sqrt = np.sqrt(L2)
-# #         fct = np.exp(L2sqrt)
-#         if self.sample_weights is not None:
-#             fct = self.sample_weights
-#             if keepdims == 1:
-#                 fct = fct[:,None]
-#         else:
-#             fct = 1.
-#         return fct
+
     
     def estimate_parameters(self, data, weights):
         if not self.dummy:
@@ -632,9 +623,185 @@ class vmfDistribution(pymod.distribution):
 
         return result    
     
+class MultinomialLike(pymod.distribution):
+    def __init__(self, beta = None, mean = None, D= None, asInt=0):
+        if beta is None:
+            beta = 1.0
+        if mean is None:
+            self.mean = None
+        else:
+            mean = np.array(mean)
+            assert np.allclose(mean.sum(),1.)
+        self.beta = beta
+        self.mu = self.mean
+#         = np.array(mean)
+#         self.mean = self.mean
+#         assert np.allclose(self.mean.sum(),1.)
+        if D is None:
+            D = len(self.mean)
+        self.D = D
+        
+    def random_init(self, random_state=None):
+        if random_state is not None:
+            np.random.seed(random_state)
+        mu = np.random.random((self.D,)) 
+        mu = mu/np.sum(mu)
+        
+        self.mean = mu
+         
+    def _log_pdf(self, data):
+        logP = np.dot( data, self.mean) * self.beta
+        logP = logP.astype(float)
+
+#         logP += count.dot(np.log(self.mean))
+ 
+        return logP      
     
+    def estimate_parameters(self, data, weights):
+        weights =  weights[:, np.newaxis]
+        wwdata  =  data * weights
+        rvct = np.sum(wwdata, axis=0) / np.sum(weights,axis=0)
+        self.mean = rvct / np.sum(rvct)
+        
+        
+        
+# class SignedWeights(pymod.distribution):
+#     def __init__(self, beta = None, mean = None, D= None, asInt=0):
+#         if beta is None:
+#             beta = 1.0
+#         if mean is None:
+#             self.mean = None
+#         else:
+#             mean = np.array(mean)
+#             assert np.allclose(mean.sum(),1.)
+#         self.beta = beta
+#         self.mu = self.mean
+# #         = np.array(mean)
+# #         self.mean = self.mean
+# #         assert np.allclose(self.mean.sum(),1.)
+#         if D is None:
+#             D = len(self.mean)
+#         self.D = D
+        
+#     def random_init(self, random_state=None):
+#         if random_state is not None:
+#             np.random.seed(random_state)
+#         mu = np.random.random((self.D,)) 
+#         mu = mu/np.sum(mu)
+        
+#         self.mean = mu
+         
+#     def _log_pdf(self, data):
+#         logP = np.dot( data, self.mean) * self.beta
+#         logP = logP.astype(float)
+
+# #         logP += count.dot(np.log(self.mean))
+ 
+#         return logP      
     
+#     def estimate_parameters(self, data, weights):
+#         weights =  weights[:, np.newaxis]
+#         wwdata  =  data * weights
+#         rvct = np.sum(wwdata, axis=0) / np.sum(weights,axis=0)
+#         self.mean = rvct / np.sum(rvct)    
+
+# class vmfDistribution(pymod.distribution):
+#     """Von-mises Fisher distribution with parameters (mu, kappa).
+#     Ref: Clustering on the Unit Hypersphere using von Mises-Fisher Distributions
+#     http://www.jmlr.org/papers/volume6/banerjee05a/banerjee05a.pdf
+#     """
+
+#     def __init__(self, 
+#                  mu = None, 
+#                  kappa = None,
+#                  beta = 1.,
+#                  D = None,
+# #                  normalizeSample = False,
+# #                  sample_weights = None,
+#                  positive=0,
+#                  meanNorm=None, ###dummy
+#                 ):
+#         if mu is not None:
+#             mu = np.array(mu)
+
+#             assert len(mu.shape) == 1, "Expect mu to be 1D vector!"
+#             if all(mu==0):
+#                 self.dummy = True
+#             else:
+#                 self.dummy = False
+#             self.D = len(mu)
+#         else:
+#             assert D is not None
+#             self.D = D
+#             self.dummy = False
+#         self.kappa = None
+# #         if kappa is not None:
+# #             assert len(np.shape(kappa)) == 0,"Expect kappa to be 0D vector"
+# #             kappa = float(kappa)
+# #         self.kappa = kappa
+#         self.beta = beta
+#         self.sample_weights = None
+# #         sample_weights
+#         self.mu = mu
+# #         self.radius = np.sum(self.mu ** 2) ** 0.5
+# #         self.D = len(mu)
+#         self.positive = positive
     
+#     @property
+#     def radius(self):
+#         radius = np.sum(self.mu ** 2) ** 0.5
+#         return radius
+# #     def D(self):
+# #         return len(self.mu)
+#     @property
+#     def params(self):
+#         return {'mu':self.mu,
+# #                 'kappa':self.kappa,
+#                 'beta':self.beta}
+#     def random_init(self,random_state=None):
+#         if random_state is not None:
+#             np.random.seed(random_state)
+# #             np.random.set_state(random_state)
+#         mu = np.random.random((self.D,)) 
+#         if not self.positive:
+#             mu = mu- 0.5
+#         mu = mu / l2norm(mu)
+#         self.mu = mu
+        
+#     def _log_pdf(self, data):
+#         logP = np.dot( data, self.mu) * self.beta
+#         return  logP
+    
+
+#     def estimate_parameters(self, data, weights):
+#         if not self.dummy:
+# #             fct = 1.
+# #             wdata = data * fct
+#             weights =  weights[:, np.newaxis]
+# #             weights =  weights[:, np.newaxis] * self._get_fct(data,keepdims=1)
+#             #     * self._get_fct(data,keepdims=1)
+#             wwdata  =  data * weights
+#             rvct = np.sum(wwdata, axis=0) / np.sum(weights,axis=0)
+#             rnorm = l2norm(rvct)
+#             self.mu = rvct / rnorm * self.radius
+            
+# #             if self.kappa is not None:
+# #                 r = rnorm
+# #                 new_kappa =  (r * self.D - r **3 )/(1. - r **2)
+# #                 assert new_kappa > 0.
+# #                 self.kappa = new_kappa
+            
+#     def __repr__(self):
+#         po = np.get_printoptions()
+
+#         np.set_printoptions(precision=3)
+
+#         try:
+#             result = "MultiNorm[μ={mu},]".format(mu=self.mu,)
+#         finally:
+#             np.set_printoptions(**po)
+
+#         return result        
 
     
     

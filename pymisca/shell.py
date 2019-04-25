@@ -14,6 +14,7 @@ import re
 import collections
 # import pymisca.header as pyheader
 
+pysh=sys.modules[__name__]
 
 
 def job__shellexec(d):
@@ -159,7 +160,11 @@ def silentShellexec(cmd,silent=1,**kwargs):
     res = shellexec(cmd=cmd, silent=silent,**kwargs)
     return res
 
-def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8',error='raise'):
+def shellexec(cmd,debug=0,silent=0,executable=None,
+              encoding='utf8',error='raise',
+              shell = 1,
+              **kwargs
+             ):
     executable = real__shell(executable)
     if silent != 1:
         buf = '[CMD]{cmd}\n'.format(**locals())
@@ -172,8 +177,9 @@ def shellexec(cmd,debug=0,silent=0,executable=None,encoding='utf8',error='raise'
         return 'dbg'
     else:
         try:
-            res = subprocess.check_output(cmd,shell=1,
-                                         executable=executable)
+            res = subprocess.check_output(cmd,shell=shell,
+                                         executable=executable,
+                                         **kwargs)
 
 #             p.stdin.close()
             if encoding is not None:
@@ -199,21 +205,115 @@ def getMD5sum(fname,silent=1):
     res = shellexec('md5sum %s'%fname,silent=silent)[:32]
     return res
 
-def shellpopen(cmd,debug=0,silent=0,executable=None):
+def pipe__getResult(p, input = None, encoding='utf8', check=False):
+    res = p.communicate(input=input)[0]
+    suc = p.returncode==0
+    if encoding is not None:
+        res = res.decode(encoding)
+        
+    if not check:
+        return suc, res
+    if check:
+        suc = suc & (res!='')
+        assert suc,'return code {p.returncode} != 0 or output is empty' .format(**locals())
+        return res
+    
+def pipe__getSafeResult(p,check=True,**kw):
+    return pipe__getResult(p,check=check,**kw)
+
+def shellpopen(cmd,
+                 stdin=subprocess.PIPE,
+                 stdout=subprocess.PIPE,
+               debug=0,silent=0,executable=None,
+                 shell = 1,
+                 bufsize= 1,
+                 **kwargs):
     executable = real__shell(executable)
     if not silent:
-        print (cmd)
+        sys.stdout.write(u'[CMD] %s\n'%cmd)
     if debug:
         return 'dbg'
     else:
         p = subprocess.Popen(
                      cmd,
-                     shell=1,
-                     bufsize=1,
+                     shell=shell,
+                     bufsize=bufsize,
                      executable=executable,
-                     stdout=subprocess.PIPE,
-                     stdin=subprocess.PIPE)
-        res = p.communicate()[0]
+                     stdin=stdin,
+                     stdout = stdout,
 
-        return res,p.returncode
+                    **kwargs)
+        return p
+#         res = p.communicate()[0]
+#         return res,p.returncode
+
+
+
+
+def pipe__cat(p=None,fname= None, **kwargs):
+    if fname is None:
+        fname = '-' 
+    p = pysh.shellpopen('cat "{fname}"'.format(**locals()), **kwargs)
+    return p
+
+
+
+def pipe__wig2bed(p = None, stdin=None, fname = '-', ):
+    assert fname is not None
+    if p is not None:        
+#         stdin = p.stdout
+        pass
+    else:
+        p = pipe__cat(fname=fname)
+    p = pysh.shellpopen('convert2bed -i wig',  stdin=p.stdout)
+    return p
+
+
+class ShellPipe(list):
+    def __init__(self, 
+                 p0 = None, 
+                 fname=None):
+        super(ShellPipe,self).__init__()
+        if p0 is None:
+            p0 = pysh.pipe__cat(fname=fname)
+            cmd= 'cat %s'%fname
+        else:
+            assert fname is None,'conflict "fname" and "p0"'
+            cmd = '' ### cannot capture cmd from an existing pipe
+        self.p = self.p0 = p0
+        self.addElement(p=self.p,
+                        cmd=cmd)
+        self.stdin = self.p0.stdin
+        
+    def addElement(self, p,cmd):
+#         self.append(collections.OrderedDict(cmd=cmd))
+        self.append(collections.OrderedDict(p=p, cmd=cmd))
+        
+    def checkResult(self, check=True, cmd='head'):
+        self.p0.stdin.close()
+        if cmd:
+            self.chain(cmd,)
+        res =  pysh.pipe__getResult( self.p, check=check)            
+        return res
+    
+    def readIter(self,it,
+                 delay = False,
+                 lineSep = '',
+#                  mapper=map
+                ):
+        it = (u'%s%s'%(x,lineSep) for x in it)
+        
+        if delay:
+            mapper = itertools.imap()
+        else:
+            mapper = map
+        return mapper(self.p0.stdin.write,it)
+
+    def chain(self, cmd, stdin=None,**kw):
+        if stdin is None:
+            stdin = self.p.stdout
+        self.p = pysh.shellpopen(cmd=cmd, stdin=stdin,**kw)
+        self.addElement(p=self.p,cmd=cmd)
+
+
 # shellexec = shellopen
