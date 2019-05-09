@@ -15,27 +15,38 @@ def compute__OUTDIR(**args):
     '''
     Compute the directory to output
     '''
-    def func(**args):
+#     def func(**args):
+    def func(INPUTDIR,inplace,pathLevel=0,prefix=None,suffix=None,**kw):
+        del kw
+        
+        if prefix is None:
+            prefix = ''
+        if suffix is None:
+            suffix = ''
 
-        INPUTDIR = args['INPUTDIR']
-        pathLevel = args['pathLevel']
-        inplace  = args['inplace']
-        prefix = args.get('prefix','')
-        suffix = args.get('suffix','')
+#         INPUTDIR = args['INPUTDIR']
+# #         pathLevel = args['pathLevel']
+#         pathLevel = args.get('pathLevel',0)
+#         inplace  = args['inplace']
+#         prefix = args.get('prefix','')
+#         suffix = args.get('suffix','')
 
         if not inplace:
-            CWD = ''
-            OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
+            CWD = pyext.base__file()
+            if pathLevel:
+                OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
+            else:
+                OUTDIR = ''
         else:
             CWD = pyext.base__file(INPUTDIR)
             OUTDIR = pyext.os.path.basename(
                 pyext.runtime__file(silent=0)
             ).rsplit('.',1)[0]
 #             del CWD
-        OUTDIR = os.path.join(prefix,OUTDIR)
-        OUTDIR = os.path.join(OUTDIR,suffix)
-        OUTDIR = os.path.join(CWD,OUTDIR)
-        OUTDIR = os.path.normpath(OUTDIR)
+        OUTDIR = os.path.join(prefix, OUTDIR)
+        OUTDIR = os.path.join(OUTDIR, suffix)
+        OUTDIR = os.path.join(CWD, OUTDIR)
+        OUTDIR = os.path.normpath( OUTDIR)
         
 
         return OUTDIR
@@ -87,7 +98,17 @@ def printPath(
     '''
     return shellsafe(CMD=CMD,prefix=prefix)
 
-def printRelPath(save=True):
+def printPath():
+    def worker():
+        cwd = os.getcwdu()
+        print(cwd)
+        return cwd    
+    return worker
+printCWD = printPath
+
+def printRelPath(save=True,rel=None):
+    if rel is None:
+        rel = pyheader.base__file()        
     def workF():
 #         CDIR = pyext.os.getenv('PWD')
         CDIR = os.getcwdu()
@@ -95,7 +116,7 @@ def printRelPath(save=True):
 #         print (CDIR)
         REL = os.path.relpath( 
             CDIR, 
-            pyheader.base__file(),
+            rel,
 #             pyext.shellexec('real $BASE')
         )
         print(REL)

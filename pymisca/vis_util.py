@@ -18,10 +18,21 @@ except Exception as e:
 #     ('[WARN]:not installed:%s' % str(e))
     
 import matplotlib.ticker as mticker
+import matplotlib as mpl
 
 def color__defaultCycle():
     res = plt.rcParams['axes.prop_cycle'].by_key()['color']
     return res 
+def cmap__defaultCycle():
+    def cmap(x):
+        colors =res = color__defaultCycle()
+        it = itertools.cycle(res)
+        res = next(itertools.islice(it,x,x+1))
+        return res
+#         return colors[x]
+    return cmap
+get__cmap__defaultCycle = cmap__defaultCycle
+
 def hide_axis(ax,which='both'):
     if which in ['x','both']:
 #         ax.get_xaxis().set_visible(False)
@@ -695,6 +706,8 @@ def heatmap(C,
             xlab = '',
             ylab = '',
             main = '',
+            xlim = None,
+            ylim = None,
             xtick = None,
             ytick = None,
             transpose=0,
@@ -706,6 +719,7 @@ def heatmap(C,
             marginInSquare=(2,2),
             squareSize = (0.2,0.2),
             interpolation = 'nearest',
+            origin = 'lower',
 #             antialiased=False,
             
             **kwargs
@@ -731,7 +745,10 @@ def heatmap(C,
         fig,ax = getMarginedAxis(shape,
             squareSize = squareSize,
             marginInSquare= marginInSquare,figsize=figsize)
-        
+    if xlim is None:
+        xlim = ax.get_xlim()
+    if ylim is None:
+        ylim = ax.get_ylim()
 
     if vlim is not None:
         if any([x is None for x in vlim]):
@@ -757,9 +774,11 @@ def heatmap(C,
 # #             ytick = list(ytick)[::-1]
 #     else:
 #         origin = 'lower'
-    im = ax.matshow(C,aspect='auto', 
+    im = ax.matshow(C,
+                    aspect='auto', 
                     cmap = cmap,
-#                     origin = origin, 
+                    origin = origin, 
+                    extent = list(xlim) + list(ylim),
 #                     antialiased=antialiased,
                     interpolation = interpolation,
                     **kwargs)
@@ -908,6 +927,9 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
             spanPer = 99.9,
             nMax=3000,
             refline = (1,0),
+            cmap=None,
+            
+#             color=None,
 #            axis = [0,1,2]
            ):
     ''' Plot histo/scatter/density qc for two variables
@@ -951,10 +973,7 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
         if ax is not None:
             plt.sca(ax)
             histoLine  (xs,BX,alpha=0.4)    
-        ax = axs[1];
-        if ax is not None:
-            plt.sca(ax)
-            plt.scatter(xs,ys,markersize,label=key, marker='.')
+
         ax = axs[2];
         if ax is not None:
             plt.sca(ax)
@@ -963,18 +982,38 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
         if ax is not None:
             plt.sca(ax)
             ct,BX,BY = np.histogram2d(xs, ys,(BX,BY))
-            plt.pcolormesh(BX,BY,np.log2(1+ct).T,)
+            X = np.log2(1+ct).T
+            ax.imshow(X, interpolation='nearest',
+                      aspect='auto', 
+                      origin='lower',
+                      cmap=cmap,
+                       extent = np.hstack([ pyext.np.span(BX), 
+                                        pyext.np.span(BY) ]))
+#             plt.pcolormesh(BX,BY,np.log2(1+ct).T, cmap=cmap)
+            
+        ax = axs[1];
+        if ax is not None:
+            plt.sca(ax)
+            plt.scatter(xs,ys,markersize,label=key, marker='.') 
+            
     [ax.grid(1) for ax in axs[:3] if ax is not None]
+    
     ax = axs[0];
     if ax is not None:
         plt.sca(ax)
         plt.xlabel(xlab)
         plt.xlim(xlim)
+        
     ax = axs[2];
     if ax is not None:
         plt.sca(ax)
         plt.ylabel(ylab)
         plt.ylim(ylim)
+
+    ax = axs[3];
+    if ax is not None:
+        plt.sca(ax)
+        plt.xlabel(xlab); plt.ylabel(ylab)
 
     ax = axs[1];
     if ax is not None:
@@ -984,10 +1023,6 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
         plt.xlabel(xlab);plt.ylabel(ylab)
         plt.xlim(xlim);plt.ylim(ylim)
 
-    ax = axs[3];
-    if ax is not None:
-        plt.sca(ax)
-        plt.xlabel(xlab); plt.ylabel(ylab)
     return axs
 # pyvis.heatmap=heatmap
 import random
@@ -1301,6 +1336,7 @@ def getMarginAxes(ax=None,shape=None,shapeInSquare=(10,10),
     axisLeft = axs[0]
     axisBottom = axs[3]
     return (axisMain,axisLeft,axisBottom)
+
 def getMarginedAxis(
     squareShape,
     squareSize = (0.2,0.2),
@@ -1316,3 +1352,156 @@ def getMarginedAxis(
                              shape=shape,
                             marginInSquare=marginInSquare,)[0]
     return fig,ax
+
+def axis__subaxis(ax,rect,labelPower=0.0,axisbg='w'):
+    '''
+    Adapted from: https://stackoverflow.com/a/17479417/8083313
+    params:
+        rect: a 4-tuple (left,bottom,width,height)
+    '''
+
+    fig = ax.figure
+    box = ax.get_position()
+    width = box.width
+    height = box.height
+    inax_position  = ax.transAxes.transform(rect[0:2])
+    transFigure = fig.transFigure.inverted()
+    infig_position = transFigure.transform(inax_position)    
+    x = infig_position[0]
+    y = infig_position[1]
+    width *= rect[2]
+    height *= rect[3]  # <= Typo was here
+    subax = fig.add_axes([x,y,width,height],
+#                          axisbg=axisbg
+                        )
+    xtklab = subax.get_xticklabels()
+    if xtklab:
+#         x_labelsize = xtklab[0].get_size()
+        x_labelsize = subax.get_xticklabels()[0].get_size()
+        x_labelsize *= rect[2]**labelPower
+        subax.xaxis.set_tick_params(labelsize=x_labelsize)
+    ytklab = subax.get_yticklabels()
+    if ytklab:
+        ytklab = y_labelsize = subax.get_yticklabels()[0].get_size()
+        y_labelsize *= rect[3]**labelPower
+        subax.yaxis.set_tick_params(labelsize=y_labelsize)
+#     y_labelsize = subax.get_yticklabels()[0].get_size()
+#     if labelPower!=0.:
+#         x_labelsize *= rect[2]**labelPower
+#         y_labelsize *= rect[3]**labelPower
+    return subax
+
+def axis__plotter__data__stratifyPlot(
+    ax, plotter, data,                          
+                          debug=False,
+#                           xlim, ylim,
+#                           xBinner=None, yBinner = None, 
+                          groupKey=None,
+#                           colorKey=None,
+                          grid=1,
+                          
+                         **kw):
+    '''
+    Reapply plotter on stratified datasets
+    '''
+    if groupKey is None:
+        groupKey = lambda *x:0
+#     if colorKey is None:
+#         colorKey = groupKey
+    
+    
+    it = itertools.groupby(sorted( data, key=groupKey),
+                           key=groupKey)
+    dataByKey = pyext.collections.OrderedDict([(k,list(v)) for k,v in it])
+#                       list(v) for k,v in it}
+    
+    axs = []
+    L = len(dataByKey)
+    if debug:
+        print ('[L]',L)
+    for axi,(key,_data) in enumerate( dataByKey.iteritems()):
+
+        _ax = pyvis.axis__subaxis( ax, [0, 1./L *axi ,
+                                        1., 1./L ],
+                                  labelPower=0.)
+        _ax.get_shared_x_axes().join( _ax, ax)
+
+        if debug:
+            print axi,str(_ax),_ax.__repr__()
+        plotter(ax= _ax, axi=axi,data=_data, **kw)
+        
+        ytk = _ax.get_yticks([])
+        if len(ytk):
+            ytk = ytk[1:]
+            _ax.set_yticks(ytk)
+        _ax.grid(grid)
+        _ax.set_xticks([])
+        axs += [_ax]
+        
+    pyvis.hide_Axes(ax)
+        
+    return axs,dataByKey,ax
+
+def axis__data__histogram2d( ax, data,  
+                            xlim, ylim,
+                xs=None,
+                ys = None,
+                cmap=None, 
+                colorKey = None,
+                axi = None,
+                frameInY = 0,
+                xBinner=None,
+                yBinner=None,
+                norm = None,
+#                 xlim = 
+                **kw
+               ):
+    '''
+    :params:
+        xs and ys are functions
+        xlim and ylim are compulsory
+        xBinner and yBinner are functions
+        axi index the axis
+    
+    '''
+    del colorKey
+    assert xs is not None
+    assert ys is not None
+    ivdqs = data
+    if callable(xs):
+        xs = xs(data)
+    if callable(ys):
+        ys = ys(data)
+    if axi is None:
+        axi = 0
+    if cmap is None:
+        cycle = pyvis.get__cmap__defaultCycle()
+        cmap =  mpl.colors.LinearSegmentedColormap.from_list('_temp',colors=['white',cycle(axi)])
+    
+    if xBinner is None:
+        xBinner = lambda xlim: np.arange(*xlim,step=10)
+    if yBinner is None:
+        yBinner = lambda ylim: np.arange(*ylim,step=1) + 0.5
+    if norm is None:
+        norm = mpl.colors.LogNorm(vmin=1)
+
+#     xs = [gs(ivdq).coordSum/2. for ivdq in ivdqs]
+#     ys = [ivdq.length for ivdq in ivdqs]
+#     ys = [colorKey(ivdq)*frameInY + ivdq.length for ivdq in ivdqs]
+
+    xbin = xBinner(xlim)
+    ybin = yBinner(ylim)
+    ct = np.histogram2d(
+                   x=xs,
+                   y=ys,
+                   bins=(xbin,ybin))[0]
+    
+
+    ax.matshow(ct.T, extent = list(xlim)+list(ylim),
+               aspect='auto',origin='bottom',
+               norm = norm,
+               cmap=cmap,
+               **kw)
+
+    ax.xaxis.tick_bottom()
+    return ax

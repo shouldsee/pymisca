@@ -94,11 +94,12 @@ def fileDict__main(
          absolute=False,
          showSave=False,
          force = 1,
+         treeSep = '.',
          argD = {},
          **kwargs):
     
     #### We can pass through kwargs directly
-    for key in ['ofname','ifname','lines','show','basename','absolute']:
+    for key in ['ofname','ifname','lines','show','basename','absolute','treeSep']:
         if key in argD.keys():
             argD.pop(key)
             
@@ -148,7 +149,7 @@ def fileDict__main(
     if save:
         d.update(argD)
 #        d = TreeDict.from_flatDict(d)                
-        d = pyTree.TreeDict.from_flatPathDict(d)                
+        d = pyTree.TreeDict.from_flatPathDict(d,sep=treeSep)                
         fileDict__save(d=d, 
                        fname=ofname)
             

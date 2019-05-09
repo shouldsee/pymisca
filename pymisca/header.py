@@ -2,6 +2,17 @@ import os,sys
 import pymisca.shell as pysh
 import warnings
 
+def runtime__dict():
+    import __main__
+    res = vars(__main__)
+    return res
+
+def runtime__file(silent=1):
+    dct = runtime__dict()
+    res = dct['__file__']
+    if not silent:
+        sys.stdout.write (res+'\n')
+    return res
 
 
 def set__numpy__thread(NCORE = None):
@@ -44,8 +55,14 @@ def mpl__setBackend(bkd='agg',
     if (bkdCurr != bkd) and (bkdCurr not in whitelist):
         matplotlib.use(bkd)
 
-def base__check(BASE='BASE',strict=0,silent=0):
-    res = os.environ.get(BASE,'')
+def base__check(BASE='BASE',strict=0,silent=0,
+#                 default=None
+               ):
+#     if default is None:
+#         default = ''
+    default = ''
+    res = os.environ.get(BASE, default)
+    
     if res == '':
         if strict:
             raise Exception('variable ${BASE} not set'.format(**locals()))
@@ -120,3 +137,18 @@ def nTuple(lst,n,silent=1):
             print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
     return zip(*[lst[i::n] for i in range(n)])    
     
+    
+bedHeader = [
+   'chrom',
+ 'start',
+ 'end',
+ 'acc',
+ 'score',
+ 'strand',
+ 'FC',
+ 'neglogPval',
+ 'neglogQval',
+ 'summit',
+ 'img']
+    
+bettyHeader = ['OLD_DATA_ACC','SPEC_PATHOGEN','SPEC_HOST','TREATMENT','LIB_STRATEGY']

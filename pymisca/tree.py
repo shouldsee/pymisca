@@ -1,4 +1,56 @@
+import contextlib2
 import collections
+
+import pymisca.patch
+import json
+import os
+import functools
+import warnings
+# import contextlib2
+def getPathStack(pathList, stack=None, _class=None, force=0, 
+	debug=None, printOnExit=None):
+#     stack = None
+#     assert stack is None,
+    if stack is not None:
+        warnings.warn('[getPathStack] argument "stack" has been removed')
+        stack = None
+        
+    if _class is None:
+        def _class(*x):
+            p = pymisca.patch.FrozenPath(*x)
+            p.debug=debug
+            p.printOnExit = printOnExit
+            return p
+    assert not isinstance(pathList, basestring),'Path list can not be a single basetring:{pathList}'.format(**locals())
+    e = None
+    for i,pathElement in enumerate(pathList):
+#         print pathElement
+        if not i:
+            if stack is None:
+                stack = contextlib2.ExitStack()
+                d = _class('.')
+#                 d = _class(pathElement)
+            else:
+                d = stack.d
+        try:
+            _d = d.realpath() / pathElement
+            _d = _class(_d)
+            if force:
+                _d.makedirs_p()
+            stack.enter_context(_d)
+            d = _d
+        except Exception as e:
+            break 
+            
+    if e is not None:
+        e.strerror =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
+        + 'with choices %s '%  json.dumps(d.dirs(),indent=4) +'\n[ERROR] ' \
+        + e.strerror
+#         stack.__exit__()
+        raise e
+    stack.d = d
+    return stack
+
 
 class TreeDict_0410(collections.OrderedDict):    
     '''
@@ -152,12 +204,21 @@ class TreeDict(collections.OrderedDict):
             d = res
         return d
         
+    def getRoute(self, flatPath):
+        if self._sep:
+            route = flatPath.split(self._sep)
+        else:
+            route = [flatPath]
+        return route
+
     def getFlatLeaf(self, flatPath):
-        route = flatPath.split(self._sep)
+#         route = flatPath.split(self._sep)
+        route = self.getRoute(flatPath)
+    
         return self.walk(route)
         
     def setFlatLeaf(self,flatPath, value):
-        route = flatPath.split(self._sep)
+        route = self.getRoute(flatPath)
         d = self.walk(route[:-1])
         d[route[-1]] = value
         
@@ -166,9 +227,11 @@ class TreeDict(collections.OrderedDict):
         self = cls()
         if sep is not None:
             self.set__sep(sep)
+
         it = flatPathDict.iteritems()
         if sort is True:
             it = sorted(it,key= lambda x:x[0])
         for k,v in it:
             self.setFlatLeaf( k, v)
         return self
+    

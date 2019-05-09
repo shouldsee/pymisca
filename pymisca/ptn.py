@@ -1,6 +1,10 @@
 import re
 # import pymisca.shell as pysh
 import pandas as pd
+fastqLike = ".(fastq|fq)(.gz$|$)"
+baseSpace0424 = ptn = r'(?P<ALIAS>.*_S(?P<SAMPLE_ID_INT>\d{1,3}))(?P<HASH_LIKE>)?_L(?P<chunk>\d+)_R(?P<read>[012])_(?P<trail>\d{1,4})\.(?P<ext>.+)'
+firthLike0424 = ptn2 = r'(?P<ALIAS>.*_(?P<SAMPLE_ID_INT>\d{1,2}))-(?P<HASH_LIKE>\d{8})'
+
 def getCounts__bowtie2log(buf):
     '''
     Example:

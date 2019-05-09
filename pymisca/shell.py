@@ -17,6 +17,15 @@ import collections
 pysh=sys.modules[__name__]
 
 
+def module__getPath(module,
+#                     callback = None,
+                   ):
+    if isinstance(module,basestring):
+        module = sys.modules[module]
+    d = vars(module)
+    PKG_DIR = d['__path__'][0]
+    return PKG_DIR
+
 def job__shellexec(d):
     try:
         d['result'] = shellexec(d['CMD'])
@@ -163,6 +172,7 @@ def silentShellexec(cmd,silent=1,**kwargs):
 def shellexec(cmd,debug=0,silent=0,executable=None,
               encoding='utf8',error='raise',
               shell = 1,
+              getSuccessCode = False,
               **kwargs
              ):
     executable = real__shell(executable)
@@ -171,7 +181,7 @@ def shellexec(cmd,debug=0,silent=0,executable=None,
         if hasattr(silent,'write'):
             silent.write(buf)
         else:
-            sys.stdout.write(buf)
+            sys.stderr.write(buf)
 #         print (cmd)
     if debug:
         return 'dbg'
@@ -186,36 +196,49 @@ def shellexec(cmd,debug=0,silent=0,executable=None,
                 res=  res.decode(encoding)
             
             res = res.strip()
+            suc = True
 
         except subprocess.CalledProcessError as e:
+            errMsg = u"command '{}' return with error (code {}): {}\
+                ".format(e.cmd, e.returncode, e.output)
+            e = RuntimeError(
+                    errMsg)
             if error=='raise':
-                raise RuntimeError(
-                    "command '{}' return with error (code {}): {}\
-                ".format(e.cmd, e.returncode, e.output))
+                raise e
             elif error=='ignore':
                 
-                res = 'FAIL'
-                
+#                 res = 'FAIL'
+                res = (errMsg)
+                suc = False
                 
     
          #### allow name to be returned
-        return res
+        if getSuccessCode:
+            return suc,res
+        else:
+            return res
     
 def getMD5sum(fname,silent=1):
     res = shellexec('md5sum %s'%fname,silent=silent)[:32]
     return res
 
-def pipe__getResult(p, input = None, encoding='utf8', check=False):
-    res = p.communicate(input=input)[0]
+def pipe__getResult(p, input = None, encoding='utf8', check=False, errEmptyStdout=True,CMD=None):
+    stdout,stderr = p.communicate(input=input)
+    res = stdout
     suc = p.returncode==0
+    if errEmptyStdout:
+        suc = suc & (res!='')  
+    
     if encoding is not None:
         res = res.decode(encoding)
         
     if not check:
         return suc, res
+    
     if check:
-        suc = suc & (res!='')
-        assert suc,'return code {p.returncode} != 0 or output is empty' .format(**locals())
+        assert suc,\
+        'Command "{CMD}" returned error or empty output:\n[stdout]:{stdout}\n[stderr]:{stderr}'.format(**locals())        
+#         assert suc,'return code {p.returncode} != 0 or output is empty' .format(**locals())
         return res
     
 def pipe__getSafeResult(p,check=True,**kw):
@@ -224,6 +247,7 @@ def pipe__getSafeResult(p,check=True,**kw):
 def shellpopen(cmd,
                  stdin=subprocess.PIPE,
                  stdout=subprocess.PIPE,
+               stderr = subprocess.PIPE,
                debug=0,silent=0,executable=None,
                  shell = 1,
                  bufsize= 1,
@@ -241,6 +265,7 @@ def shellpopen(cmd,
                      executable=executable,
                      stdin=stdin,
                      stdout = stdout,
+                    stderr = stderr,
 
                     **kwargs)
         return p

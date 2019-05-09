@@ -1,10 +1,15 @@
 from __future__ import absolute_import
 
 from pymisca.header import *
+from pymisca.tree import *
+from pymisca.shell import *
+
+from pymisca.wraptool import Worker
+
 import os, sys, subprocess, io, glob, inspect
 import json
 import functools, itertools, copy,re
-import collections
+import collections, contextlib2
 import urllib2,urllib,io    
 import pymisca.fop as pyfop
 import pymisca.pandas_extra as pypd
@@ -37,6 +42,10 @@ import pymisca.io
 import slugify
 
 import datetime
+
+##### pymisca.shell
+real__dir = pysh.real__dir
+
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     return res
@@ -55,20 +64,59 @@ def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
     graph = pymisca.graph.graph_build(lst,as_df = as_df, sep=sep , **kwargs)
     return graph
 
-def runtime__file(silent=1):
-    import __main__
-    res = vars(__main__)['__file__']
-    if not silent:
-        sys.stdout.write (res+'\n')
+
+
+
+def dir__isin(PWD,DIR):
+    return re.match( DIR +'.*$', PWD)  is not None
+
+
+def dir__getGenomeFasta(DIR,
+                        globSeq=['*.fasta','*.fa','*.fna'],
+                        singleFile=True,
+                       ):
+    return dir__globSequences(DIR,globSeq=globSeq,singleFile=singleFile)
+
+def dir__globSequences(DIR,globSeq=None,singleFile=0):
+    '''Find a single 
+    '''
+    DIR = pyext.os.path.realpath(DIR)
+    assert pyext.os.path.exists(DIR)
+    with pyext.FrozenPath(DIR) as d:
+        res = None
+#         print (d.files())
+        for ptn in globSeq:
+            res = d.glob(ptn)
+            if res:
+                if singleFile:
+                    assert len(res)==1,'{res}\n{d}/{ptn}'.format(**locals())
+                break
+        assert res is not None,'No files matched in {DIR} with glob sequences {globSeq}'.format(**locals())
+        res = (res)[0]
     return res
 
-def dir__indexify(DIR,silent=1):
+def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True):
+    if OPTS is None:
+        OPTS = ''
 #     find . -type f -exec du -a {} +
 #     cmd = 'cd %s ; du -a --apparent-size .' % DIR
     DIR = DIR.rstrip('/')
-    cmd = 'cd %s ; find . -type f -exec du -a --apparent-size {} +' % DIR
-    res = pysh.shellexec(cmd,silent=silent)
-    res = pyext.read__buffer(res,columns=['SIZE','FILEACC'],header=None,ext='tsv')
+    cmd = 'cd {DIR} ; find . {OPTS} -type f -exec du -a --apparent-size {{}} +'.format(**locals())
+    COLS = ['SIZE','EXT','REL_PATH','FULL_PATH','BASENAME','FILEACC','REALDIR','DIR']
+    res = pd.DataFrame([],columns=COLS)
+    resBuf = pysh.shellexec(cmd,silent=silent)
+    res = res.append(
+        pyext.read__buffer(resBuf,columns=['SIZE','FILEACC'],header=None,ext='tsv'),
+#         axis=0,
+    )
+    if res.empty:
+        assert not checkEmpty,'DIR={DIR} is empty'.format(**locals())
+        return res
+#     res = res.append(res_)
+    
+#     if res.empty:
+#         res = pd.DataFrame([],columns=['SIZE','FILEACC','REL_PATH','REALDIR','FULL_PATH'])
+#         return res
     res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
     res['SIZE'] = res['SIZE'].astype(int)
     
@@ -119,13 +167,14 @@ def dict__autoFill(TO, FROM, keys = None):
                 TO[key] = res
     return TO.copy()
 
-def func__inDIR(func,DIR='.'):
-    pysh.shellexec('mkdir -p %s' %DIR)    
+def func__inDIR(func,DIR='.', debug=0):
+    pysh.shellexec('mkdir -p %s' %DIR,silent=1-debug)    
 #     ODIR = pyext.os.getcwd()
-    ODIR = pyext.os.getenv('PWD')
-    print ('[ODIR]')
-    print (ODIR)
-    print (pysh.shellexec('pwd -L'))
+    ODIR = os.getenv('PWD')
+    if debug:
+        print ('[ODIR]')
+        print (ODIR)
+        print (pysh.shellexec('pwd -L'))
     with pymisca.patch.FrozenPath(DIR):
         res = func()
         return res
@@ -455,6 +504,14 @@ def df__sanitiseColumns(dfc):
     dfc = dfc.rename(columns=dict(zip(cols,res)))
     return dfc
 
+def it__len(it):
+    it,_it = itertools.tee(it)
+    i = -1
+    for i, _ in enumerate(_it):
+        pass
+    return it, i + 1
+
+
 def it__toExcel(it,ofname,engine='xlsxwriter',sheetFunc=lambda k:'__'.join(k),
                 silent=0,**kwargs):
     f = pd.ExcelWriter(ofname,engine=engine,**kwargs)
@@ -510,12 +567,16 @@ def file__notEmpty(fpath):
     '''
     return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
 
-def file__link(IN,OUT,force=0, forceIn = False):
+def file__link(IN,OUT,force=0, forceIn = False, link='link'):
+    
+    linker = getattr(os,link)
     
     #### Make sure input is not an empty file
-    if not file__notEmpty(IN):
+    if not file__notEmpty(IN) and link !='symlink':
         if not forceIn:
             return IN
+    if os.path.abspath(OUT) == os.path.abspath(IN):
+        return OUT
         
     if os.path.exists(OUT):
         if force:
@@ -525,19 +586,42 @@ def file__link(IN,OUT,force=0, forceIn = False):
             assert 'OUTPUT already exists:%s'%OUT
     else:
         pass
-    os.link(IN,OUT)
+    
+    
+    try:
+        if link=='symlink':
+            IN  =os.path.realpath(IN)
+            OUT = os.path.realpath(OUT)
+            IN = os.path.relpath( IN,os.path.dirname(OUT))
+        linker(IN,OUT)
+    except Exception as e:
+        d = dict(PWD=os.getcwdu(),
+                 IN=IN,
+                 OUT=OUT)
+        print ppJson(d)
+#         print ('[PWD]%s'%os.getcwdu())
+#         print('l')
+        raise e
+        
     return OUT
 
 
 def file__rename(d,force=0, copy=1, **kwargs):
     for k,v in d.items():
         DIR = os.path.dirname(v)
-        if not os.path.exists(DIR):
-            os.makedirs(DIR)
+        if DIR:
+            if not os.path.exists(DIR):
+                os.makedirs(DIR)
         file__link(k,v,force=force,**kwargs)
         if not copy:
             if os.path.isfile(k):
                 os.remove(k)
+                
+def file__wsv2tsv(FNAME,silent=0):
+    res = pyext.shellexec("sed 's/[ \t]\+/\t/g' {FNAME} | sed 's/[ \t]\+$//g'> {FNAME}.tsv".format(**locals()),
+                   silent=silent)
+    FNAME = '%s.tsv'%FNAME
+    return FNAME
             
 # def file__backup(IN)
 def read__buffer(buf,**kwargs):
@@ -984,7 +1068,7 @@ def readData(
             res = pyext.read_json(fname,**kwargs)
             space._guess_index=0
         elif ext == 'npy':
-            res = np.load(fname)
+            res = np.load(fname,**kwargs)
             space._guess_index=0
         elif ext == 'it':
             res = fname
@@ -1139,8 +1223,17 @@ def file__size(uri,baseFile=0,silent=1):
     Source: https://stackoverflow.com/a/4498128/8083313
     '''
     uri = pyext.uri__resolve(uri, baseFile=baseFile)
-    CMD = "curl -sI {uri} | awk '/Content-Length/ {{ print $2 }}'".format(**locals())
-    res = pysh.shellexec(CMD,silent=silent).strip()
+    if uri.startswith('file://'):
+        fname = uri.replace('file://','')
+        if not os.path.exists(fname):
+            res = 0
+        else:
+            res = os.path.getsize(fname)
+    else:
+        #### Use curl if file is not local
+        CMD = "curl -sI {uri} | awk '/Content-Length/ {{ print $2 }}'".format(**locals())
+        res = pysh.shellexec(CMD,silent=silent).strip()
+        
     if not res:
         res = 0
     res = int(res)
@@ -1149,12 +1242,16 @@ def file__size(uri,baseFile=0,silent=1):
 #### Class defs
 
 
-
 class Directory(object):
-    def __init__(self, DIR, baseFile=0, *args,**kwargs):
+# class Directory(pymisca.patch.FrozenPath):
+    def __init__(self, 
+                 DIR, baseFile=0, 
+                 *args,**kwargs):
+#         super(Directory,self).__init__(*args,**kwargs)
         assert isinstance(DIR,basestring)
         self.DIR_ = DIR
         self.baseFile = baseFile
+        
     def toJSON(self):
         return json.dumps(self.__dict__)
 
