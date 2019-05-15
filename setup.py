@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #from setuptools import setup
 from distutils.core import setup
-
+import setuptools
 import os
 
 #from pip.req import parse_requirements
@@ -14,6 +14,7 @@ import os
 FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
 required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
 
+#required = ['git+https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip']
 print (required)
 setup(
 	name='pymisca',
