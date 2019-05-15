@@ -24,4 +24,4 @@ line_profiler
 #git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
 mixem @ https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip
 #fisher @ https://github.com/brentp/fishers_exact_test/archive/master.zip
-fisher @ https://github.com/shouldsee/fishers_exact_test/archive/710ce9f.zip
+fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
