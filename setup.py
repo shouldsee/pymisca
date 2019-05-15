@@ -2,14 +2,19 @@
 #from setuptools import setup
 from distutils.core import setup
 
+import os
+
 #from pip.req import parse_requirements
 #required = parse_requirements('requirements.txt', session='hack')
 #with open('requirements.txt') as f:
 #    required = f.read().splitlines()
 
-required = ['numpy','scipy','matplotlib']
+# required = ['numpy','scipy','matplotlib',
+# 'fisher@https://github.com/brentp/fishers_exact_test/archive/master.zip',]
+FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
+required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
 
-print required
+print (required)
 setup(
 	name='pymisca',
 	version='0.1',

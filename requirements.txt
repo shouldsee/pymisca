@@ -4,18 +4,24 @@
 #git+git://github.com/shouldsee/pymisca.git@2b532eae424cf1992771f6e8179b4b115377bb8b
 #pip uninstall pymisca -y; pip install git+git://github.com/shouldsee/pymisca.git  --user
 
+#git+git://github.com/shouldsee/mixem.git@9ad994805009545f5befb65b8de9c877bb4f3137
+#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
+
 numpy
 scipy
 matplotlib==2.2.3
-git+git://github.com/shouldsee/mixem.git@9ad994805009545f5befb65b8de9c877bb4f3137
-#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
 bcbio-gff
 pandas
 jinja2
-scikit_learn
+scikit_learn==0.20.3
 funcy
 path.py
 wrapt
 autograd
 slugify
 matplotlib_venn
+line_profiler
+#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
+mixem @ https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip
+fisher @ https://github.com/brentp/fishers_exact_test/archive/master.zip
+
