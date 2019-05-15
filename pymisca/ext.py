@@ -44,7 +44,7 @@ import slugify
 import datetime
 
 ##### pymisca.shell
-real__dir = pysh.real__dir
+dir__real = real__dir = pysh.real__dir
 
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -52,7 +52,8 @@ def datenow():
 
 def path__norm(s):
     s = unicode(s)
-    s = re.sub('/','-',s)
+    s = re.sub('[_]','-',s)
+    s = re.sub('[/]','__',s)
     s = slugify.slugify(s)
     return s
 # dir__norm = unicode__norm
@@ -124,7 +125,8 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True):
     res['REALDIR'] = res['DIR'] = os.path.realpath(DIR)
     res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',)
     
-    res['EXT'] = res['FULL_PATH'].str.rsplit('.',1).str.get(-1)
+    res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)    
+    res['EXT'] = res['BASENAME'].str.rsplit('.',1).str.get(-1)
 #     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
 
 #     res['FULL_PATH'] = map(os.path.normpath,
@@ -132,7 +134,6 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True):
 #     res['EXT'] = 
 #     indDF.fileacc.apply(pyext.splitPath,level=level).str.get(0)
 #     ['DIR',['/'],'FILEACC'])
-    res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)    
     res = res.set_index('FULL_PATH',drop=0)
     return res
 
@@ -995,7 +996,8 @@ def readBaseFile(fname,baseFile=1, **kwargs):
 def readData(
     fname, 
     ext=None, callback=None, 
-    addFname=0, guess_index=1, columns = None,
+    addFname=0, addFname_COL='fname',
+    guess_index=1, columns = None,
     localise = False,
     remote = None,
     as_buffer = False,
@@ -1115,8 +1117,10 @@ def readData(
     if callback is not None:
         res = callback(res)
 #         res = res.apply(callback)
-    if addFname:
-        res['fname']=fname
+    if addFname != 0:
+        if callable(addFname):
+            fname = addFname(fname)
+        res[addFname_COL]=fname
     return res
 
 
@@ -1320,3 +1324,42 @@ def dist2ppf(vals):
         per = pd.Series(per,index=vals.index, name=vals.name)
     return per
 ####
+
+
+def funcs__reduceWithPath(funcNames,force=1,funcDict=None, outDir='.',
+                          stack_kw = {}, initial=None
+                         ):
+    '''
+    Evaluate a list of functions according to their names
+    '''
+    if funcDict is None:
+        funcDict = pyext.runtime__dict()
+        
+    _stack_kw = dict(printOnExit=False,debug=False)
+    _stack_kw.update(stack_kw)
+
+    stack  = pyext.contextlib2.ExitStack()
+    d = pyext.FrozenPath(outDir)
+    d = d.abspath()
+    resList = []
+    for i,funcName in enumerate(funcNames):
+        d = d/funcName
+        for k,v in _stack_kw.items():
+            setattr(d,k,v)
+            
+        d.makedirs_p()
+        
+        stack.enter_context(d)
+        if 1:
+            func = funcDict[funcName]
+            if i==0:
+                lastRes = initial
+            try:
+                lastRes = func(lastRes,force=force)
+            except Exception as e:
+                print ('[errored] in:"%s"'%d)
+                raise e
+        resList.append( lastRes )
+        
+    stack.close()
+    return lastRes
