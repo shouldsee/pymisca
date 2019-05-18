@@ -747,9 +747,19 @@ def heatmap(C,
             marginInSquare= marginInSquare,figsize=figsize)
     if xlim is None:
         xlim = ax.get_xlim()
+        
     if ylim is None:
         ylim = ax.get_ylim()
-
+        
+    if transpose:
+        xlim,ylim = ylim,xlim
+        
+    if 1:
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+#         print ('xlim]',xlim)
+#         print ('ylim]',ylim)
+        
     if vlim is not None:
         if any([x is None for x in vlim]):
             vlim = None

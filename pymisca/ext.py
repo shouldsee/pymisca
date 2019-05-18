@@ -5,9 +5,10 @@ from pymisca.tree import *
 from pymisca.shell import *
 
 from pymisca.wraptool import Worker
+from pymisca.ptn import WrapString,WrapTreeDict,path__norm
 
 import os, sys, subprocess, io, glob, inspect
-import json
+import json, ast
 import functools, itertools, copy,re
 import collections, contextlib2
 import urllib2,urllib,io    
@@ -16,6 +17,8 @@ import pymisca.pandas_extra as pypd
 pd=pypd.pd
 import pymisca.shell as pysh
 from pymisca.shell import shellexec
+
+import ast,simpleeval
 
 pyext = sys.modules[__name__]
 
@@ -42,6 +45,8 @@ import pymisca.io
 import slugify
 
 import datetime
+import unicodedata
+
 
 ##### pymisca.shell
 dir__real = real__dir = pysh.real__dir
@@ -49,14 +54,6 @@ dir__real = real__dir = pysh.real__dir
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     return res
-
-def path__norm(s):
-    s = unicode(s)
-    s = re.sub('[_]','-',s)
-    s = re.sub('[/]','__',s)
-    s = slugify.slugify(s)
-    return s
-# dir__norm = unicode__norm
 
 def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
     lst = fnames
@@ -66,7 +63,20 @@ def fname__tograph(fnames,sep='-',as_df=1,**kwargs):
     return graph
 
 
+def dir__asJsonDB(DIR):    
+    dfc = pyext.dir__indexify(DIR).query('EXT=="json"')
+    with pyext.getPathStack([DIR],):
+        DB = collections.OrderedDict([(x,pyext.readData(x)) for  x in dfc['FILEACC']])
+    return DB
 
+def jsonDB__eval(DB, expr, glb={}, lc={}):
+    d = dict(DB=DB)
+    
+    d.update(lc)
+    res = simpleeval.SimpleEval(names=d).eval(expr)
+#     res = ast.literal_eval(expr, glb, d)
+#     res = ast.literal_eval(expr)
+    return res
 
 def dir__isin(PWD,DIR):
     return re.match( DIR +'.*$', PWD)  is not None
@@ -96,20 +106,21 @@ def dir__globSequences(DIR,globSeq=None,singleFile=0):
         res = (res)[0]
     return res
 
-def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True):
+def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True,excludeHidden=True):
     if OPTS is None:
         OPTS = ''
 #     find . -type f -exec du -a {} +
 #     cmd = 'cd %s ; du -a --apparent-size .' % DIR
     DIR = DIR.rstrip('/')
-    cmd = 'cd {DIR} ; find . {OPTS} -type f -exec du -a --apparent-size {{}} +'.format(**locals())
+    cmd = 'cd {DIR} ; find ./ {OPTS} -type f -exec du -a --apparent-size {{}} +'.format(**locals())
     COLS = ['SIZE','EXT','REL_PATH','FULL_PATH','BASENAME','FILEACC','REALDIR','DIR']
-    res = pd.DataFrame([],columns=COLS)
+    res = pd.DataFrame([], columns=COLS)
     resBuf = pysh.shellexec(cmd,silent=silent)
     res = res.append(
         pyext.read__buffer(resBuf,columns=['SIZE','FILEACC'],header=None,ext='tsv'),
 #         axis=0,
     )
+    
     if res.empty:
         assert not checkEmpty,'DIR={DIR} is empty'.format(**locals())
         return res
@@ -118,15 +129,46 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True):
 #     if res.empty:
 #         res = pd.DataFrame([],columns=['SIZE','FILEACC','REL_PATH','REALDIR','FULL_PATH'])
 #         return res
-    res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
+#     res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
+    res['FILEACC'] = res['FILEACC'].map(os.path.normpath)#.astype('unicode')
     res['SIZE'] = res['SIZE'].astype(int)
     
     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',DIR=DIR)
     res['REALDIR'] = res['DIR'] = os.path.realpath(DIR)
     res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',)
     
-    res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)    
+    res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)#.astype('unicode')
     res['EXT'] = res['BASENAME'].str.rsplit('.',1).str.get(-1)
+    
+    res = pd.DataFrame(res)
+#     res['BASENAME'] = res['BASENAME'].astype(unicode)
+    if excludeHidden and not res.empty:
+#         res=  res.loc[ ~res['BASENAME'].str.match("^\.")]
+        res = res.query('~BASENAME.str.match("^\.").values')
+        
+        if res.empty:
+            assert not checkEmpty,'DIR={DIR} is empty'.format(**locals())
+            return res
+#         assert 0,pyext.pd._version.get_versions()
+#         res = res.query('~BASENAME.str.match("^\.")')
+#         try:
+#             res = res.query('~BASENAME.str.match("^\.")')
+# #             pyext.np.save('_dbg.npy',)
+# #             res.to_pickle('__dbg.pk')
+# #             res = res.query('~BASENAME.astype("str").str.startswith(".")')
+
+# #             print res.eval('BASENAME')
+#             pass
+#             assert 0,'test'
+#         except Exception as e:
+            
+#             print(res.dtypes)
+# #             print(res['BASENAME'].dtype)
+#             print(res[['BASENAME']])
+#             raise e
+
+
+        
 #     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}')
 
 #     res['FULL_PATH'] = map(os.path.normpath,
@@ -505,12 +547,7 @@ def df__sanitiseColumns(dfc):
     dfc = dfc.rename(columns=dict(zip(cols,res)))
     return dfc
 
-def it__len(it):
-    it,_it = itertools.tee(it)
-    i = -1
-    for i, _ in enumerate(_it):
-        pass
-    return it, i + 1
+
 
 
 def it__toExcel(it,ofname,engine='xlsxwriter',sheetFunc=lambda k:'__'.join(k),

@@ -26,6 +26,7 @@ class Worker(object):
         '''
         scope = self.frame.f_back.f_locals
         return scope
+    
     def __del__(self):
         ### Clear circular reference
         del self.frame
@@ -34,6 +35,7 @@ class Worker(object):
     def __init__(self,
                  frame = None,
                  scope=None, 
+                 BASE = None,
                  baseDir= None, silent=0, check=True,
                 stack = None):
         '''
@@ -43,28 +45,39 @@ class Worker(object):
             frame = inspect.currentframe()
         self.frame = frame
 
-        if baseDir is None:
-            baseDir = pymisca.header.base__check('BASE', strict=1)
+        if baseDir is not None:
+            assert BASE is None,'Cannot specify both'
+            BASE = baseDir
+            
+        if BASE is None:
+            BASE = pymisca.header.base__check('BASE', strict=1)
 #         self.baseDir = pymisca.header.base__check(default=baseDir,strict=0)
         else:
             pass
-        self.baseDir = os.path.realpath(baseDir)
-        
+        self.BASE = os.path.realpath(BASE)
         self.silent = silent
         self.check = check
         self.stack = stack 
         
         if not self.silent:
-            print (self.msg__baseDir())
+            print (self.msg__BASE())
             
 #         if scope is None:
 #             scope = self.scope
 # #             scope = pymisca.header.runtime__dict()
 #         self._scope = scope
+    @property 
+    def baseDir(self):
+        '''legacy'''
+        return self.BASE 
                     
-    def msg__baseDir(self):
+    def msg__BASE(self):
         s = '[Worker]: Inputing and outputing at "{self.baseDir}"'.format(**locals())
         return s
+    
+    def msg__baseDir(self):
+        return self.msg__BASE()
+        
 
     def setEnv(self,**kw):
         for k,v in kw.items():
@@ -106,7 +119,7 @@ class Worker(object):
                         
 #             def _job():
             if 1:
-                with pymisca.tree.getPathStack([jobDir,self.baseDir],stack=self.stack) as stack:
+                with pymisca.tree.getPathStack([jobDir,self.BASE],stack=self.stack) as stack:
                     self.setEnv( BASE= stack.d.abspath() )
 
 #                 self.setEnv(BASE=self.baseDir)
@@ -137,6 +150,7 @@ class Worker(object):
     def fill(self, fmt,**kw):
         kw.update(**self.scope)
         kw.update(**vars(self))
+        kw['baseDir'] = kw['BASE']
 #         res = fmt.format(**self.scope)
         res = fmt.format(**kw)
         return res
@@ -147,6 +161,8 @@ class Worker(object):
         print ('[LastLine]%s'%res)
         return res
 
+    
+    
 if __name__ =='__main__':
     w = Worker()
     w.runJob('echo "helloWorld"')

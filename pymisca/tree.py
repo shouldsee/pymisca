@@ -1,10 +1,14 @@
+'''
+Contains a custom tree TreeDict(), with some utilities on transforming a Iterator()
+Author: Feng Geng
+Email: fg368@cam.ac.uk
+'''
 import contextlib2
-import collections
+import functools,itertools,collections
 
 import pymisca.patch
 import json
 import os
-import functools
 import warnings
 # import contextlib2
 def getPathStack(pathList, stack=None, _class=None, force=0, 
@@ -235,3 +239,9 @@ class TreeDict(collections.OrderedDict):
             self.setFlatLeaf( k, v)
         return self
     
+
+
+if __name__ =='__main__':
+    ### def it__window()
+    assert list(it__window((range(1)),n=2,step=1,fill=None,keep=1)) == [(1,None)]
+    assert list(it__window((range(4)),n=2,step=1,fill=None,keep=1)) == [(0, 1), (1, 2), (2, 3), (3, None)]    

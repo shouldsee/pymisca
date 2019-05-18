@@ -55,8 +55,7 @@ def nTuple(lst,n,silent=1):
             print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
     return zip(*[lst[i::n] for i in range(n)])
 
-def quote(s):
-    return u'"%s"'%s
+
 
 def xargsShellCMD(CMD, lst):
 # def getHeaders(lst):

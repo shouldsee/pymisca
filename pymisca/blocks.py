@@ -11,14 +11,16 @@ import pymisca.ext as pyext
 Everything here needs to be backwards compatible
 '''
 
-def compute__OUTDIR(**args):
+def compute__OUTDIR__old(**args):
     '''
     Compute the directory to output
     '''
 #     def func(**args):
-    def func(INPUTDIR,inplace,pathLevel=0,prefix=None,suffix=None,**kw):
+    def func(INPUTDIR, inplace,pathLevel=0,prefix=None,suffix=None,baseFile=None, INPUTDIR_norm= None,
+             **kw):
         del kw
-        
+        if INPUTDIR_norm is None:
+            INPUTDIR_norm = True
         if prefix is None:
             prefix = ''
         if suffix is None:
@@ -32,13 +34,15 @@ def compute__OUTDIR(**args):
 #         suffix = args.get('suffix','')
 
         if not inplace:
-            CWD = pyext.base__file()
+            CWD = pyext.base__file(baseFile=baseFile)
             if pathLevel:
                 OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
             else:
                 OUTDIR = ''
+            if INPUTDIR_norm:
+                OUTDIR = pyext.path__norm(OUTDIR)
         else:
-            CWD = pyext.base__file(INPUTDIR)
+            CWD = pyext.base__file(INPUTDIR,baseFile=baseFile)
             OUTDIR = pyext.os.path.basename(
                 pyext.runtime__file(silent=0)
             ).rsplit('.',1)[0]
@@ -51,6 +55,60 @@ def compute__OUTDIR(**args):
 
         return OUTDIR
     return funcy.partial(func,**args)
+
+def compute__OUTDIR(**args):
+    '''
+    Compute the directory to output
+    '''
+#     def func(**args):
+    def func(INPUTDIR, inplace,pathLevel=0,prefix=None,suffix=None,baseFile=None, INPUTDIR_norm= None,
+             **kw):
+        del kw
+        if INPUTDIR_norm is None:
+            INPUTDIR_norm = True
+        if prefix is None:
+            prefix = ''
+        if suffix is None:
+            suffix = ''
+
+#         INPUTDIR = args['INPUTDIR']
+# #         pathLevel = args['pathLevel']
+#         pathLevel = args.get('pathLevel',0)
+#         inplace  = args['inplace']
+#         prefix = args.get('prefix','')
+#         suffix = args.get('suffix','')
+
+        if not inplace:
+            CWD = pyext.base__file(baseFile=baseFile)
+            if pathLevel:
+                OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
+            else:
+                OUTDIR = ''
+            if INPUTDIR_norm:
+                OUTDIR = pyext.path__norm(OUTDIR)
+        else:
+            CWD = pyext.base__file(INPUTDIR,baseFile=baseFile)
+            OUTDIR = ''
+#          OUTDIR = pyext.getBname(pyext.runtime__file(silent=0))
+#             del CWD
+        SELFALI = pyext.getBname(pyext.runtime__file(silent=0))
+        OUTDIR = os.path.join(SELFALI, OUTDIR)
+        OUTDIR = os.path.join(prefix, OUTDIR)
+        OUTDIR = os.path.join(OUTDIR, suffix)
+        OUTDIR = os.path.join(CWD, OUTDIR)
+        OUTDIR = os.path.normpath( OUTDIR)
+        
+
+        return OUTDIR
+    return funcy.partial(func,**args)
+
+def compute__wrapOUTDIR( TRACE_PARAM_KEYS, **args):
+    traceParamKeys = TRACE_PARAM_KEYS
+    assert 'suffix' not in args,'[]  "suffix" will be overwritten'
+#     args['suffix']
+    suffix = pyext.WrapTreeDict(pyext.dictFilter(args,traceParamKeys)).toWrapString()
+    func = compute__OUTDIR(suffix=suffix, **args)
+    return func
 
 def bookkeep(INPUTDIR=None,
              argD = {},

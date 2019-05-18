@@ -1,6 +1,7 @@
 import os,sys
-import pymisca.shell as pysh
 import warnings
+import itertools
+import pymisca.shell as pysh
 
 def runtime__dict():
     import __main__
@@ -122,7 +123,7 @@ def execBaseFile(fname,):
 #     exec(open(fname).read(), g)
     return
     
-def nTuple(lst,n,silent=1):
+def list__nTuple(lst,n,silent=1):
     """ntuple([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
     
     Group a list into consecutive n-tuples. Incomplete tuples are
@@ -136,7 +137,44 @@ def nTuple(lst,n,silent=1):
         if L % n != 0:
             print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
     return zip(*[lst[i::n] for i in range(n)])    
-    
+nTuple = list__nTuple
+
+def it__window(seq, n=2,step=1,fill=None,keep=0):
+    '''Returns a sliding window (of width n) over data from the iterable
+   s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...  
+   Adapted from: https://stackoverflow.com/a/6822773/8083313
+'''   
+    it = iter(seq)
+    result = tuple(itertools.islice(it, n))    
+    if len(result) < n:
+        result = result + (fill,) * (n-len(result))
+        if keep:
+            yield result
+        else:
+            pass
+        return
+    else:
+        yield result
+#     else:
+
+    while True:        
+        elem = tuple( next(it, fill) for _ in range(step))
+        result = result[step:] + elem        
+        if elem[-1] is fill:
+            if keep:
+                yield result
+            break
+        yield result
+    pass    
+window = it__window
+
+def it__len(it):
+    it,_it = itertools.tee(it)
+    i = -1
+    for i, _ in enumerate(_it):
+        pass
+    return it, i + 1
+
     
 bedHeader = [
    'chrom',
