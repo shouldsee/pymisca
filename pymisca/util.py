@@ -13,6 +13,7 @@ else:
     matplotlib = mpl = sys.modules['matplotlib']
 plt = getattr(matplotlib,'pyplot',None)
 if plt is None:
+    sys.modules['matplotlib'].use('Agg')
     import matplotlib.pyplot as plt
 #     try:
 #         plt = matplotlib.pyplot
