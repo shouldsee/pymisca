@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 #from setuptools import setup
 from distutils.core import setup
-import setuptools
-import os
+#import setuptools
+import os,glob,sys
 
 #from pip.req import parse_requirements
 #required = parse_requirements('requirements.txt', session='hack')
@@ -24,6 +24,20 @@ setup(
              'pymisca.model_collection',
              'pymisca.iterative',
              ],
+#   entry_points = {
+#           'console_scripts': [
+#               'command-name = pymisca.directory_hashmirror_0520:main',                  
+#           ],              
+#       },
+    scripts = glob.glob('bin/*.py'),
+#     package_data={'pymisca': ['*.sh','*.json','*.csv','*.tsv','*.npy','*.pk',
+#                              'resources/*','genomeConfigs/*',],
+# #                  'runtime_data':['wraptool/*.{ext}'.format(**locals()) 
+# #                                  for ext in 
+# #                                  ['json','csv','tsv','npy','pk']],
+#                  },
+    include_package_data=True,    
+#     scripts = {'bin':'*.py'},
 	license='GPL3',
 	author='Feng Geng',
 	author_email='shouldsee.gem@gmail.com',

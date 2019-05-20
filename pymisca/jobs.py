@@ -12,7 +12,7 @@ from pymisca.shell import job__shellexec
 
 import pymisca.shell as pysh
 
-
+import hashlib
 import pymisca.fop
 # import funcy
 
@@ -167,3 +167,27 @@ def pipe__it2wig2bed(**kw):
     p.chain('tee test.out')
     p.chain("awk '$5 > 10' ")
     return p
+
+def dir__toHashDir(DIR=None,pathDF = None,
+                   suffix='hashed-sha256', hashFunc = lambda x:hashlib.sha256(x).hexdigest(),
+                   copy = 1,force=1,
+                  **kwargs):
+    if pathDF is None:
+        assert DIR is not None
+        pathDF = pyext.dir__indexify(DIR,**kwargs)
+    else:
+        if DIR is None:
+            DIR = pathDF['DIR'][0]
+    res = pathDF
+    OUTDIR = DIR.rstrip('/') + '-' + suffix
+
+    res['EXT'] = res['EXT'].map(pyext.os.path.basename)
+    res['DATA_ACC'] = res['FILEACC'].str.split('/',1).str.get(0)
+    res['SHA256'] = res['FILEACC'].map(hashFunc)
+    res['FULL_PATH_HASHED'] = pyext.df__format(res,'{OUTDIR}/{DATA_ACC}-{SHA256}.{EXT}',OUTDIR=OUTDIR)
+    mapper = pyext.df__asMapper(res,'FULL_PATH','FULL_PATH_HASHED')
+    pyext.file__rename(mapper, copy=copy,force=force)
+    
+    totalSize = pyext.size__humanReadable(res['SIZE'].sum()*1024**1)
+    msg = 'Hashed {res.shape} items, of total size {totalSize}'.format(**locals())    
+    return res,msg

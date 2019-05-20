@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from pymisca.header import *
 from pymisca.tree import *
 from pymisca.shell import *
+from pymisca.logging_extra import *
 
 from pymisca.wraptool import Worker
 from pymisca.ptn import WrapString,WrapTreeDict,path__norm
@@ -50,6 +51,11 @@ import unicodedata
 
 ##### pymisca.shell
 dir__real = real__dir = pysh.real__dir
+
+def size__humanReadable(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
+    """ Returns a human readable string reprentation of bytes,
+    Source: https://stackoverflow.com/a/43750422/8083313"""
+    return str(bytes) + units[0] if bytes < 1024 else size__humanReadable(bytes>>10, units[1:])
 
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
