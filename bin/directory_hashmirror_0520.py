@@ -14,7 +14,7 @@ import argparse
 
 import watchdog.events
 import watchdog.observers
-import time,sys,os,logging,glob
+import time,sys,os,logging,glob,datetime
 # ,logging,glob
 
 
@@ -24,13 +24,17 @@ parser= argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('--INPUTDIR',type=unicode, 
                     help="A directory to be hashedT")
+parser.add_argument('--minIntervalSeconds',type=int, default=30,
+                    help="")
 class MyEventHandler(watchdog.events.LoggingEventHandler):
     """Logs all the events captured."""
-    def __init__(self,INPUTDIR,logger= None):
+    def __init__(self,INPUTDIR,logger= None, minIntervalSeconds = 30):
         self.INPUTDIR = INPUTDIR
         if logger is None:
             logger = logging.getLogger()
         self.logger = logger
+        self.lastTime = datetime.datetime.now()
+        self.minIntervalSeconds = minIntervalSeconds
 
     def on_any_event(self, event):
         """Catch-all event handler.
@@ -40,12 +44,24 @@ class MyEventHandler(watchdog.events.LoggingEventHandler):
         :type event:
             :class:`FileSystemEvent`
         """    
+        while True:
+            tNow = datetime.datetime.now()
+            dt = (tNow - self.lastTime)
+            ddt = (dt.total_seconds() - self.minIntervalSeconds)
+            if ddt>0:
+                self.lastTime = tNow
+                break
+            else:
+                toSleep = -ddt 
+                self.logger.warn('Recevied signal, but gonna sleep for {toSleep} seconds'.format(**locals()))
+                time.sleep(-ddt)
+            
         res, msg = pymisca.jobs.dir__toHashDir(DIR=self.INPUTDIR)
         res.to_csv(self.INPUTDIR.rstrip('/')+'.index.csv')
         self.logger.warn(msg)
         return res
     
-def main(INPUTDIR):
+def main(INPUTDIR,minIntervalSeconds):
     
     assert INPUTDIR is not None
     
@@ -67,7 +83,8 @@ def main(INPUTDIR):
     
 
         
-    event_handler = MyEventHandler(INPUTDIR = INPUTDIR,logger=logger)
+    event_handler = MyEventHandler(INPUTDIR = INPUTDIR,logger=logger,
+                                   minIntervalSeconds=minIntervalSeconds)
     
     observer = watchdog.observers.Observer()
     observer.schedule(event_handler, INPUTDIR, recursive=True)
