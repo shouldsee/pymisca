@@ -59,7 +59,7 @@ class MyEventHandler(watchdog.events.LoggingEventHandler):
         res, msg = pymisca.jobs.dir__toHashDir(DIR=self.INPUTDIR)
         res.to_csv(self.INPUTDIR.rstrip('/')+'.index.csv')
         self.logger.warn(msg)
-        return res
+        return
     
 def main(INPUTDIR,minIntervalSeconds):
     
