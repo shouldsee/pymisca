@@ -14,6 +14,7 @@ import argparse
 
 import watchdog.events
 import watchdog.observers
+import watchdog.observers.polling
 import time,sys,os,logging,glob,datetime
 # ,logging,glob
 
@@ -34,7 +35,8 @@ class MyEventHandler(watchdog.events.LoggingEventHandler):
             logger = logging.getLogger()
         self.logger = logger
         self.lastTime = datetime.datetime.now()
-        self.minIntervalSeconds = minIntervalSeconds
+#         self.minIntervalSeconds = minIntervalSeconds
+        self.minIntervalSeconds = -1
 
     def on_any_event(self, event):
         """Catch-all event handler.
@@ -55,7 +57,9 @@ class MyEventHandler(watchdog.events.LoggingEventHandler):
                 toSleep = -ddt 
                 self.logger.warn('Recevied signal, but gonna sleep for {toSleep} seconds'.format(**locals()))
                 time.sleep(-ddt)
-            
+                
+#         import watchdog.observers.api
+# watchdog.observers.api.DEFAULT_EMITTER_TIMEOUT    
         res, msg = pymisca.jobs.dir__toHashDir(DIR=self.INPUTDIR)
         res.to_csv(self.INPUTDIR.rstrip('/')+'.index.csv')
         self.logger.warn(msg)
@@ -86,7 +90,14 @@ def main(INPUTDIR,minIntervalSeconds):
     event_handler = MyEventHandler(INPUTDIR = INPUTDIR,logger=logger,
                                    minIntervalSeconds=minIntervalSeconds)
     
-    observer = watchdog.observers.Observer()
+#     observer = watchdog.observers.Observer()
+#     watchdog.observers.polling.DEFAULT_EMITTER_TIMEOUT = minIntervalSeconds
+#     observer = watchdog.observers.polling.PollingObserver(
+    observer = watchdog.observers.polling.PollingObserverVFS(
+        pyext.os.stat,
+        pyext.os.listdir,
+        polling_interval=minIntervalSeconds,
+    )
     observer.schedule(event_handler, INPUTDIR, recursive=True)
     observer.start()
     
@@ -101,4 +112,3 @@ def main(INPUTDIR,minIntervalSeconds):
 if __name__ == '__main__':
     args = parser.parse_args()
     main(**vars(args))
-
