@@ -137,11 +137,13 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True,excludeHidden=True):
 #         return res
 #     res['FILEACC'] = map(os.path.normpath,res['FILEACC'])
     res['FILEACC'] = res['FILEACC'].map(os.path.normpath)#.astype('unicode')
+    res['DIRACC'] = res['FILEACC'].map(os.path.dirname)
     res['SIZE'] = res['SIZE'].astype(int)
     
     res['REL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',DIR=DIR)
     res['REALDIR'] = res['DIR'] = os.path.realpath(DIR)
     res['FULL_PATH'] = pyext.df__format(res,'{DIR}/{FILEACC}',)
+    res['FULL_DIR_PATH'] = pyext.df__format(res,'{DIR}/{DIRACC}',)
     
     res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)#.astype('unicode')
     res['EXT'] = res['BASENAME'].str.rsplit('.',1).str.get(-1)
@@ -183,6 +185,8 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True,excludeHidden=True):
 #     indDF.fileacc.apply(pyext.splitPath,level=level).str.get(0)
 #     ['DIR',['/'],'FILEACC'])
     res = res.set_index('FULL_PATH',drop=0)
+    res.index.name = 'INDEX'
+    
     return res
 
 def arr__exp2m1(X):
