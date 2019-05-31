@@ -8,7 +8,7 @@ pip install -r requirements.txt ## --user
 python setup.py install ## --user  for local install
 ```
 
-### Example Usage
+### [Deprecated_function] Example Usage 
 
 Run a pipeline and output to "$PWD/results"
 
