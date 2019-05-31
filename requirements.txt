@@ -29,7 +29,7 @@ mixem
 
 #fisher @ https://github.com/brentp/fishers_exact_test/archive/master.zip
 #fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
-git+https://github.com/brentp/fishers_exact_test@c8af591
+-e git+git://github.com/brentp/fishers_exact_test@c8af591
 regex
 simpleeval
 watchdog
