@@ -13,8 +13,8 @@ import os,glob,sys
 # 'fisher@https://github.com/brentp/fishers_exact_test/archive/master.zip',]
 FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
 required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
-#required = [ x.strip() for x in required if x.find(' @ ')==-1 and x ] 
-required = [ x.strip() for x in required if x ] 
+required = [ x.strip() for x in required if x.find(' @ ')==-1 and x ] 
+#required = [ x.strip() for x in required if x ] 
 
 #required = ['git+https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip']
 print (required)

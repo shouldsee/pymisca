@@ -28,8 +28,8 @@ line_profiler
 mixem
 
 #fisher @ https://github.com/brentp/fishers_exact_test/archive/master.zip
-#fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
--e git+git://github.com/brentp/fishers_exact_test@c8af591
+#fisher @t://github.com/brentp/fishers_exact_test@c8af591
+fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
 regex
 simpleeval
 watchdog
