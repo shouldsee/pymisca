@@ -8,6 +8,7 @@ from pymisca.io_extra import *
 
 from pymisca.wraptool import Worker
 from pymisca.ptn import WrapString,WrapTreeDict,path__norm,template__format,f
+from pymisca.atto_string import AttoString
 
 import os, sys, subprocess, io, glob, inspect
 import json, ast

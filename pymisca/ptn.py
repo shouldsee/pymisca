@@ -224,15 +224,20 @@ class WrapString(unicode):
     '''
     SEP = '__'
     PTN_BRAKETED = PTN_BRAKETED 
+    DBRA = BRAKET
+#     DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
 #     BRAKET= DBRA
-
+    @classmethod
+    def DBRA_STRIPPED(cls):
+        res = {k:v.strip('\\') for k,v in cls.DBRA.items()}
+        return res
     @classmethod
     def new(cls, *a,**kw):
         self = cls.__new__(cls,*a,**kw )
         return self
         
     def __new__(cls, s, VERSION=None, sep = None,
-                BRAKET = DBRA):
+                BRAKET = None):
         # optionally do stuff to value here
         s = opt__toWrap(s)
         self = super(WrapString, cls).__new__(cls, s)
@@ -242,8 +247,8 @@ class WrapString(unicode):
         if sep is None:
             sep = cls.SEP
         self.SEP = sep 
-        self.DBRA = BRAKET
-        self.DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
+#         self.DBRA = BRAKET
+#         self.DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
         
 #         self.sep = sep
         # optionally do stuff to self here
@@ -253,17 +258,17 @@ class WrapString(unicode):
         res = regex.fullmatch(
             s.PTN_BRAKETED.format(**s.DBRA), 
             s)      
-        return res
+        return res is not None
     
-    def rewrap(self, BRAKET= None):
+    def rewrap(self):
         s = self
-        s = quote(s, self.DBRA_STRIPPED)
+        s = quote(s, self.DBRA_STRIPPED())
         s = self.__class__(s)
         return s
     
     def dewrap(self, BRAKET = None):
         s = self
-        s = dequote(s, self.DBRA)
+        s = dequote(s, self.DBRA )
         s = self.__class__(s)        
         return s
     
