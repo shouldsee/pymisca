@@ -16,16 +16,19 @@ Install `pymisca` dev-version.
 pip2 install git+https://github.com/shouldsee/pymisca
 ```
 
-### Extra dependencies
+### For dev and test
 
 ```sh
+git clone --depth 1 https://github.com/shouldsee/pymisca
 pip install -r requirements.txt ## --user
 python setup.py install ## --user  for local install
 ```
 ### Examples
 
+Make sure you are in the git source tree
+
 ```sh
-python2 examplesrun-pipeline-0608.py
+python2 examples/run-pipeline-0608.py
 ```
 
 ### [Deprecated_function] Example Usage 
