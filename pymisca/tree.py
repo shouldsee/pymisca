@@ -12,6 +12,7 @@ import os
 import warnings
 # import contextlib2
 def getPathStack(pathList, stack=None, _class=None, force=0, 
+                 mode = 511,
 	debug=None, printOnExit=None):
 #     stack = None
 #     assert stack is None,
@@ -40,18 +41,27 @@ def getPathStack(pathList, stack=None, _class=None, force=0,
             _d = d.realpath() / pathElement
             _d = _class(_d)
             if force:
-                _d.makedirs_p()
+                _d.makedirs_p(mode=mode)
             stack.enter_context(_d)
             d = _d
         except Exception as e:
             break 
             
     if e is not None:
-        e.strerror =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
-        + 'with choices %s '%  json.dumps(d.dirs(),indent=4) +'\n[ERROR] ' \
-        + e.strerror
-#         stack.__exit__()
-        raise e
+        try:
+            e.strerror =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
+            + 'with choices %s '%  json.dumps(d.dirs(),indent=4) +'\n[ERROR] ' \
+            + e.strerror
+#     else:
+#             print('[Exception is None]')
+#     #         stack.__exit__()
+        except:
+            pass
+        finally:
+            raise e
+#             raise e
+#     except:
+#         raise e
     stack.d = d
     return stack
 
@@ -183,6 +193,10 @@ class TreeDict(collections.OrderedDict):
     def __init__(self,*a,**kw):
         super(TreeDict,self).__init__(*a,**kw)
         self._sep='.'
+#         for k,v in self.iteritems():
+        [ self.walk([k]) for k in self]
+#             self[k] = TreeDict(v)
+            
 	self._parent = None
         
     def __missing__(self, key):
@@ -238,6 +252,18 @@ class TreeDict(collections.OrderedDict):
         for k,v in it:
             self.setFlatLeaf( k, v)
         return self
+
+def treeDict__truncate(d, level):
+    d = d.copy()
+    for k,v in d.iteritems():
+        if isinstance(v,dict):
+            if level > 0:
+                v = treeDict__truncate(v, level=level-1)
+            else:
+                v = v.keys()
+        d[k] = v
+    return d
+TreeDict.truncate = treeDict__truncate
     
 
 
