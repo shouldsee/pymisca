@@ -11,9 +11,11 @@ class AttoString(pymisca.ptn.WrapString):
     COLON = '@-@'
     NULL_STRING_LIST = ['NA','None','null']
     _DICT_CLASS = _DICT_CLASS 
+    
     @classmethod
     def fromDict(cls,v):
         assert 0,'Use "{0}.fromContainer()" instead'.format(cls.__name__)
+        
     def toDict(s):
         cls = type(s)
         assert 0,'Use "{0}.toContainer()" instead'.format(cls.__name__)
