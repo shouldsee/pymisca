@@ -203,18 +203,30 @@ def container__castEmpty(v):
 #     strict = kw.get('strict',1)
 if __name__ == '__main__':
 
-    testList = [
-        list('123'),
-        [list('123')],
-        [],
-        ['','123'],
-        ['','123',''],
-        ['123',''],
-        {"1":"2", "3":{"4":"5"}},
-        #{"1":"2", "3":{"4":5}}, #### 
-        {"1":None,'b':'ccccc'},
-               ]
+#     testTuplesList = [
+#         list('123'),
+#         [list('123')],
+#         [],
+#         ['','123'],
+#         ['','123',''],
+#         ['123',''],
+#         {"1":"2", "3":{"4":"5"}},
+#         #{"1":"2", "3":{"4":5}}, #### 
+#         {"1":None,'b':'ccccc'},
+#                ]
+    from collections import OrderedDict
+    testTupleList = \
+    [(u'[1_@@_2_@@_3]', [u'1', u'2', u'3']),
+     (u'[[1_@@_2_@@_3]]', [[u'1', u'2', u'3']]),
+     (u'', ''),
+     (u'[_@@_123]', ['', u'123']),
+     (u'[_@@_123_@@_]', ['', u'123', '']),
+     (u'[123_@@_]', [u'123', '']),
+     (u'[1@-@2_@@_3@-@[4@-@5]]',
+      OrderedDict([(u'1', u'2'), (u'3', OrderedDict([(u'4', u'5')]))])),
+     (u'[1@-@NA_@@_b@-@ccccc]', OrderedDict([(u'1', None), (u'b', u'ccccc')]))]
 
+    testList = [x[0] for x in testTupleList]
     testList = map(container__castEmpty, testList)
 
     # import IPython.display as ipd
@@ -230,12 +242,12 @@ if __name__ == '__main__':
 
     res2 = res = map(lambda x:wrap1__toContainer(x,debug=0),res)
     _print(res)
-    for x in testList:
+    for x,expect in testTupleList:
         out = (AttoString.fromContainer(x,strict=0)).toContainer()
-        if isinstance(x,dict):
-            pass
+#         if isinstance(x,dict):
+#             pass
 
-        assert out == x,(out,x)
+        assert out == expect,(x,out,expect)
     it = zip(res0,res2,res1)
 #     for e in zip(res0,res1,res2):
     print(json.dumps(it,indent=4))
