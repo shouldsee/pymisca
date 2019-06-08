@@ -95,6 +95,7 @@ def string__iter__elementWithLevel(s,SEP,BRA,KET,level,debug=0):
 
 
 class AttoString( pymisca.ptn.WrapString):
+# class AttoString( unicode):
 #     SEP = '_@@_'
 #     COLON = '@-@'
 #     NULL_STRING_LIST = ['NA','None','null']
@@ -232,7 +233,16 @@ def wrap1__fromContainer(cls, v,
     return s
 AttoString.fromContainer = classmethod(wrap1__fromContainer)    
 
-def _toContainer( s, **kw):
+DEFAULT_TYPE = object()
+
+# import pymisca.atto_util
+# print(pymisca.atto_util)
+def getDefaultRegistry():
+    import pymisca.atto_util
+    return pymisca.atto_util.TYPE_REGISTRY
+def _toContainer( s, 
+                 type_registry=None, 
+                 **kw):
     '''
     '''
     _this_func = _toContainer
@@ -242,40 +252,66 @@ def _toContainer( s, **kw):
     NULL_STRING_LIST = s.NULL_STRING_LIST
     BRA,KET = s.BRA(), s.KET()
     debug = kw.get('debug',0)
+    
+    if type_registry is None:
+        type_registry = getDefaultRegistry()
         
-    if s.fullmatch():
-        s = s.dewrap()
-        it = string__list__members(s,SEP=SEP,BRA=BRA,KET=KET,debug=debug)
-                
-        if debug:
-            return list(it)
-#         
-        lst = []
-        for i, _sp in enumerate(it):
-            if not i:
-                ##### get type
-                ele =  list(string__list__members(_sp, COLON, BRA, KET,debug=debug))
-                if len(ele) <=1:
-                    TYPE = list
-                elif len(ele) == 2:
-                    TYPE = _DICT_CLASS
-                else:
-                    assert 0, (len(ele),ele,type(ele),_sp,s)
-#                 print(TYPE,ele,_sp)
-
-            if TYPE is _DICT_CLASS:
-                ele = list(string__list__members( _sp, COLON, BRA, KET,debug=debug))
-                assert len(ele) == 2, (ele,_sp)
-                ele[1] = _this_func( s.new(ele[1]), **kw)
+    ##### inferType 
+    TYPE = DEFAULT_TYPE
+    if s:            
+        #### check whether initialise as custom class
+        it = s._elementWithLevel(s,level=0)
+        buf = ''
+        for x in it:
+            if x[0]=='PLA':
+                buf += x[-2] ## msg,level,_a,_s
             else:
-                ele = _this_func( s.new(_sp), **kw)
+                if x[0] == 'BRA':
+                    if buf:
+                        TYPE = type_registry[buf]
+#                     s = x[-1]
+                break
                 
-                
-            lst.append(ele)
-        
-        v = lst = TYPE(lst)
-        
+    
+
+    
+    if TYPE is not DEFAULT_TYPE:
+        v = TYPE.fromAttoString(s)
+    elif s.fullmatch():
+
+            s = s.dewrap()
+            it = string__list__members(s,SEP=SEP,BRA=BRA,KET=KET,debug=debug)
+
+            if debug:
+                return list(it)
+        #         
+            lst = []
+            for i, _sp in enumerate(it):
+                if not i:
+                    ##### get type
+                    ele =  list(string__list__members(_sp, COLON, BRA, KET,debug=debug))
+                    if len(ele) <=1:
+                        TYPE = list
+                    elif len(ele) == 2:
+                        TYPE = _DICT_CLASS
+                    else:
+                        assert 0, (len(ele),ele,type(ele),_sp,s)
+        #                 print(TYPE,ele,_sp)
+
+                if TYPE is _DICT_CLASS:
+                    ele = list(string__list__members( _sp, COLON, BRA, KET,debug=debug))
+                    assert len(ele) == 2, (ele,_sp)
+                    ele[1] = _this_func( s.new(ele[1]), **kw)
+                else:
+                    ele = _this_func( s.new(_sp), **kw)
+
+
+                lst.append(ele)
+
+            v = lst = TYPE(lst)
+
     else:
+        
         if s in s.NULL_STRING_LIST:
             v = None
         else:
