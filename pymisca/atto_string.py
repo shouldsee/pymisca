@@ -203,17 +203,7 @@ def container__castEmpty(v):
 #     strict = kw.get('strict',1)
 if __name__ == '__main__':
 
-#     testTuplesList = [
-#         list('123'),
-#         [list('123')],
-#         [],
-#         ['','123'],
-#         ['','123',''],
-#         ['123',''],
-#         {"1":"2", "3":{"4":"5"}},
-#         #{"1":"2", "3":{"4":5}}, #### 
-#         {"1":None,'b':'ccccc'},
-#                ]
+
     from collections import OrderedDict
     testTupleList = \
     [(u'[1_@@_2_@@_3]', [u'1', u'2', u'3']),
