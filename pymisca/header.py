@@ -3,6 +3,32 @@ import warnings
 import itertools
 import pymisca.shell as pysh
 
+import inspect
+
+import sys,inspect
+def module__getClasses(mod):
+    '''https://stackoverflow.com/a/1796247/8083313
+    '''
+    if isinstance(mod,basestring):
+        mod = sys.modules[mod]
+    clsmembers = dict(inspect.getmembers(mod, inspect.isclass))
+    return clsmembers
+
+
+def get__frameDict(frame=None,level=0):
+    '''
+    if level==0, get the calling frame
+    if level > 0, walk back <level> levels from the calling frame
+    '''
+    if frame is None:
+        frame = inspect.currentframe().f_back
+
+    for i in range(level):
+        frame = frame.f_back
+    context = frame.f_locals
+    del frame
+    return context
+
 def runtime__dict():
     import __main__
     res = vars(__main__)
@@ -175,6 +201,14 @@ def it__len(it):
         pass
     return it, i + 1
 
+def self__install(
+    lst=['/data/repos/pymisca'
+                  ]):
+    if isinstance(lst,basestring):
+        lst = [lst]
+    CMDS =[ 'cd {DIR} && python2 setup.py install --user &>LOG && echo DONE'.format(DIR=x) for x in lst]
+    res = map(pysh.shellexec,CMDS)
+    print (res)
     
 bedHeader = [
    'chrom',
