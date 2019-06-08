@@ -16,6 +16,10 @@ def dictFilter(oldd,keys):
     )
     return d
 
+def dictGetList(oldd,keys):
+    d =collections.OrderedDict( ((k,oldd[k]) for k in keys) )
+    return d
+
 def jsonFile2dict(fname,force= 0):
     if os.path.exists(fname):
         if os.stat(fname).st_size != 0:
