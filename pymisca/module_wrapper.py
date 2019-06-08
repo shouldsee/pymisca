@@ -288,12 +288,12 @@ def worker__step(DB_WORKER, this_func ,DB_SCRIPT,strict=0, VERSION=None, copy = 
         
         _res = _func(DB_WORKER)
         
-        if DB_WORKER['RUNTIME']['MSG']:
+        if DB_WORKER['RUNTIME'].get('MSG',None):
             worker__msg__verbose(DB_WORKER, 
                                  **DB_WORKER['RUNTIME'].pop('MSG')
                                 )
             
-        if DB_WORKER['RUNTIME']['EXIT_MSG']:
+        if DB_WORKER['RUNTIME'].get('EXIT_MSG',{}):
             if not DB_WORKER['RUNTIME']['SILENT']:
                 print(DB_WORKER['RUNTIME']['EXIT_MSG'])
             break
