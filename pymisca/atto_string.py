@@ -46,8 +46,7 @@ def wrap1__fromContainer(cls, v,
         lst = ( this_func(cls, _v, **kw)
 #                       .rewrap()
                      for _v in v)
-
-#         s = wrap__fromContainer(cls, v, **kw).rewrap()        
+    
     elif isinstance(v, dict):
         lst = []
         for ele in v.iteritems():
@@ -63,9 +62,6 @@ def wrap1__fromContainer(cls, v,
                     pass
                 else:
                     assert isinstance(v,basestring),'Value must be basestring when strict=True:"%s"'%(ele,)
-                    
-#                 if type(v) not in [lis]
-#                 %v
                 
             _v = '{0}{1}{2}'.format(
                 this_func(cls, k, **kw),
@@ -88,57 +84,39 @@ def wrap1__fromContainer(cls, v,
 AttoString.fromContainer = classmethod(wrap1__fromContainer)
 
 
+def string__iter__elements(s,SEP,BRA,KET):
+    i = i_old = 0
+    level = 0
+    while True:
+        _s = s[i:]
+        if not _s:
+            break
+        if _s.startswith(BRA):
+            level += 1
+        elif _s.startswith(KET):
+            level -= 1
+        elif _s.startswith(SEP):
+            if level ==0:
+                yield s[i_old:i]
+                i_old = i + len(SEP)
 
+        i += 1
+    yield s[i_old:i]    
+    
 def wrap1__toContainer( s, **kw):
     '''
     '''
     _this_func = wrap1__toContainer
-    
-    
     
     SEP = s.SEP
     COLON = s.COLON
     NULL_STRING_LIST = s.NULL_STRING_LIST
     BRA,KET = s.DBRA_STRIPPED['BRA'], s.DBRA_STRIPPED['KET']
     debug = kw.get('debug',0)
-    ##### get type
-#     if regex.fullmatch(
-#         PTN_BRAKETED.format(**s.DBRA), 
-#         s):
-    def getNextElement(s):
-        posSep = s.find(s.SEP)
-        if posSep == -1:
-            s = None
-        else:
-            s = s[posSep:]
-        return s
-#         s = s[posSep:]
-#         posBra = s.find(s.DBRA_STRIPPED['BRA'])
-#         if posSep <= posBra:
-#             s = s
         
     if s.fullmatch():
         s = s.dewrap()
-        def iter__elements(s,SEP=SEP):
-            i = i_old = 0
-            level = 0
-            while True:
-                _s = s[i:]
-                if not _s:
-                    break
-                if _s.startswith(BRA):
-                    level += 1
-                elif _s.startswith(KET):
-                    level -= 1
-                elif _s.startswith(SEP):
-                    if level ==0:
-                        yield s[i_old:i]
-                        i_old = i + len(SEP)
-                    
-                i += 1
-            yield s[i_old:i]
-                
-        it = iter__elements(s)
+        it = string__iter__elements(s,SEP,BRA,KET)
                 
         if debug:
             return list(it)
@@ -146,22 +124,23 @@ def wrap1__toContainer( s, **kw):
         lst = []
         for i, _sp in enumerate(it):
             if not i:
-                ele =  list(iter__elements(_sp,SEP=COLON))
+                ##### get type
+                ele =  list(string__iter__elements(_sp, COLON, BRA, KET))
                 if len(ele) ==1:
                     TYPE = list
                 elif len(ele) == 2:
-#                 if s.find(s.COLON) < s.find(BRA):
                     TYPE = _DICT_CLASS
                 else:
                     assert 0, (len(ele),ele)
-#                     TYPE = list
-                
+
             if TYPE is _DICT_CLASS:
-                ele = list(iter__elements( _sp,SEP=COLON))
+                ele = list(string__iter__elements( _sp, COLON, BRA, KET))
                 assert len(ele) == 2, (ele,_sp)
                 ele[1] = _this_func( s.new(ele[1]), **kw)
             else:
                 ele = _this_func( s.new(_sp), **kw)
+                
+                
             lst.append(ele)
         
         v = lst = TYPE(lst)
@@ -198,9 +177,7 @@ def container__castEmpty(v):
     
     return v
 
-    
-    
-#     strict = kw.get('strict',1)
+
 if __name__ == '__main__':
 
 
