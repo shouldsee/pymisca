@@ -3,9 +3,29 @@
 Miscellaneous utilities and visualisation snippets oriented towards functional programming
 
 ## Installation
+
+Make sure you have git installed by
+
+```sh
+sudo apt-get install -y git
+```
+
+Install `pymisca` dev-version.
+
+```sh
+pip2 install git+https://github.com/shouldsee/pymisca
+```
+
+### Extra dependencies
+
 ```sh
 pip install -r requirements.txt ## --user
 python setup.py install ## --user  for local install
+```
+### Examples
+
+```sh
+python2 examplesrun-pipeline-0608.py
 ```
 
 ### [Deprecated_function] Example Usage 
