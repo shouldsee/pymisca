@@ -242,12 +242,16 @@ if __name__ == '__main__':
 
     res2 = res = map(lambda x:wrap1__toContainer(x,debug=0),res)
     _print(res)
-    for x,expect in testTupleList:
-        out = (AttoString.fromContainer(x,strict=0)).toContainer()
+    for expect,x in testTupleList:
+#         out = (AttoString.fromContainer(x,strict=0)).toContainer()
+        out = (AttoString.fromContainer(x,strict=0))
+        back = out.toContainer()
+#         .toContainer()
 #         if isinstance(x,dict):
 #             pass
 
         assert out == expect,(x,out,expect)
+        assert back==  x, (x,out,back)
     it = zip(res0,res2,res1)
 #     for e in zip(res0,res1,res2):
     print(json.dumps(it,indent=4))
