@@ -6,7 +6,7 @@ import StringIO
 import warnings
 
 
-import pymisca.io
+import pymisca.io_extra
 ##### Shell util
 import tempfile
 import subprocess
@@ -15,6 +15,7 @@ import collections
 # import pymisca.header as pyheader
 
 pysh=sys.modules[__name__]
+
 
 
 def module__getPath(module,
@@ -60,7 +61,7 @@ def nTuple(lst,n,silent=1):
 def xargsShellCMD(CMD, lst):
 # def getHeaders(lst):
     with tempfile.TemporaryFile() as f:
-        f = pymisca.io.unicodeIO(handle=f)
+        f = pymisca.io_extra.unicodeIO(handle=f)
         f.write(u' '.join(map(quote,lst)))
         f.seek(0)
         p = subprocess.Popen('xargs {CMD}'.format(**locals()),stdin=f,stdout=subprocess.PIPE,shell=True)
@@ -97,14 +98,17 @@ def file__cat(files,ofname='temp.txt',silent=1,bufsize=1024*1024*10):
                 shutil.copyfileobj(fd, wfd, bufsize)    
     return ofname
 
-def file__header(fname,head = 10,silent=1,ofname = None):
+def file__header(fname,head = 10,silent=1,ofname = None, 
+                 bufferClass = pymisca.io_extra.unicodeIO ):
     if ofname == 'auto':
         ofname = fname + '.head%d'%head
     cmd = 'head -n{head} {fname}'.format(**locals())
     if ofname is not None:
         cmd = cmd + '>{ofname}'.format(**locals())
     res = shellexec(cmd, silent=silent)
-    res = pymisca.io.unicodeIO(buf=res)
+    if bufferClass is not None:
+        res  = bufferClass(res)
+#     res = bufferClass
     if ofname is not None:
         return ofname
     else:
@@ -168,12 +172,17 @@ def silentShellexec(cmd,silent=1,**kwargs):
     res = shellexec(cmd=cmd, silent=silent,**kwargs)
     return res
 
-def shellexec(cmd,debug=0,silent=0,executable=None,
+def shellexec(cmd,debug=0,silent=0,
+              executable=None,
               encoding='utf8',error='raise',
+#               env = None,
               shell = 1,
               getSuccessCode = False,
               **kwargs
              ):
+#     _env = os.environ.copy()
+#     _env = _env.update(env or {})
+    
     executable = real__shell(executable)
     if silent != 1:
         buf = '[CMD]{cmd}\n'.format(**locals())
@@ -187,6 +196,7 @@ def shellexec(cmd,debug=0,silent=0,executable=None,
     else:
         try:
             res = subprocess.check_output(cmd,shell=shell,
+#                                           env=_env,
                                          executable=executable,
                                          **kwargs)
 

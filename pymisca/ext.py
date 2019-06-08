@@ -4,9 +4,10 @@ from pymisca.header import *
 from pymisca.tree import *
 from pymisca.shell import *
 from pymisca.logging_extra import *
+from pymisca.io_extra import *
 
 from pymisca.wraptool import Worker
-from pymisca.ptn import WrapString,WrapTreeDict,path__norm
+from pymisca.ptn import WrapString,WrapTreeDict,path__norm,template__format,f
 
 import os, sys, subprocess, io, glob, inspect
 import json, ast
@@ -40,7 +41,7 @@ import pymisca.graph
 
 FrozenPath = pymisca.patch.FrozenPath
 
-import pymisca.io
+import pymisca.io_extra
 
 
 import slugify
@@ -48,9 +49,38 @@ import slugify
 import datetime
 import unicodedata
 
+import configparser
+
+_DICT_CLASS = collections.OrderedDict
 
 ##### pymisca.shell
 dir__real = real__dir = pysh.real__dir
+
+
+def getErrorInfo():
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    print(exc_type, fname, exc_tb.tb_lineno)
+    del fname
+    return locals()
+
+def path__toSafePath(FNAME):
+    FNAME = FNAME.replace('\\','')
+    return FNAME
+
+def df__fillna(dfc,fill=['NA']):
+    vals = dfc.values
+    idx = dfc.isnull().values
+    for x,y in zip(*np.where(idx)):
+        vals[x,y] = fill
+    dfc = pd.DataFrame(vals,columns=dfc.columns,index=dfc.index)
+    return dfc
+
+def fastq__readCountAppx(FNAME,readLength):
+    
+    fileSizeInByte = pyext.file__size(FNAME)
+    readCount = fileSizeInByte // (2 * readLength + 60)
+    return readCount
 
 def size__humanReadable(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
     """ Returns a human readable string reprentation of bytes,
@@ -83,6 +113,47 @@ def jsonDB__eval(DB, expr, glb={}, lc={}):
 #     res = ast.literal_eval(expr, glb, d)
 #     res = ast.literal_eval(expr)
     return res
+def dict__key__func(d,key,func,*a,**kw):
+    _ = d[key] = func(d[key],*a,**kw)
+    return _
+
+def pathDF__combineMetaTsv(pathDF,COLS=None,
+                           addFname_COL='SUBCSV_FNAME', FILE_KEY='FULL_PATH',**kw):
+    '''
+    pathDF = pyext.dir__indexify(DIR).query('EXT=="tsv"').query('BASENAME.str.match("[^_]")')
+    '''
+    if COLS is None:
+        COLS= '''
+        DATA_ACC
+        OLD_DATA_ACC
+        FNAME
+        TAG
+        TREATMENT
+        LIB_STRATEGY
+        SPEC_PATH
+        SPEC_HOST
+        '''.replace('\t','').replace(' ','').strip().splitlines()
+
+    # COLS = 'DATA_ACC	OLD_DATA_ACC	SPEC_PATH	SPEC_HOST	TREATMENT	LIB_STRATEGY	FNAME	TAG'.split('\t')
+    dfs = [pyext.readData(x,
+                          addFname=pyext.os.path.basename,
+                          addFname_COL=addFname_COL,**kw
+                         ) for x in pathDF[FILE_KEY]]
+    
+    COLS = list(COLS)+[addFname_COL]
+    print(COLS)
+    dfs.insert(0,pd.DataFrame(columns=COLS))
+    df = pd.concat(dfs,axis=0)[COLS]
+    df.insert(0,addFname_COL,df.pop(addFname_COL))
+    return df
+#     df
+
+#     dupDf = df.query('OLD_DATA_ACC.duplicated(0)')
+#     print(dupDf.shape)
+#     df = uniqDf = df.drop_duplicates(subset=['OLD_DATA_ACC'])
+#     df['DATA_ACC_INT']  = df['OLD_DATA_ACC'].str.extract('[H]?(\d{8,9})',expand=False,)
+#     return df
+
 
 def dir__isin(PWD,DIR):
     return re.match( DIR +'.*$', PWD)  is not None
@@ -112,13 +183,33 @@ def dir__globSequences(DIR,globSeq=None,singleFile=0):
         res = (res)[0]
     return res
 
-def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True,excludeHidden=True):
+def dir__indexSubdirectory(INPUTDIR,depth=1,
+                           opt_type='-type d',
+                           opt_exec='-exec du -s --apparent-size {} +',
+                          silent=0,):
+    with pyext.getPathStack([INPUTDIR]):    
+        INPUTDIR = INPUTDIR.rstrip('/')
+        CMD = 'find ./ -mindepth {depth} -maxdepth {depth} {opt_type} {opt_exec}'.format(**locals())
+        buf = pyext.shellexec(CMD,silent=silent)
+        dfc = pyext.read__buffer(buf,ext='tsv',header=None,columns=['SIZE','FILEACC'])
+        if len(dfc.columns)==0:
+            dfc.index.name='FILEACC'
+            dfc = dfc.reset_index()
+#             dfc.columns = ['FILEACC',]
+        
+        dfc['FILEACC'] = dfc['FILEACC'].str.replace('^./','')
+        dfc['DIR_PARENT'] = pyext.os.path.realpath(INPUTDIR)
+        dfc['FILE_FULL_PATH'] = pyext.df__format(dfc,'{DIR_PARENT}/{FILEACC}')
+
+    return dfc
+
+def dir__indexify(DIR,silent=1,OPTS=None,OPTS_exec = 'du -al --apparent-size', checkEmpty=True,excludeHidden=True,TYPE='f'):
     if OPTS is None:
         OPTS = ''
 #     find . -type f -exec du -a {} +
 #     cmd = 'cd %s ; du -a --apparent-size .' % DIR
     DIR = DIR.rstrip('/')
-    cmd = 'cd {DIR} ; find ./ {OPTS} -type f -exec du -a --apparent-size {{}} +'.format(**locals())
+    cmd = 'cd {DIR} && find ./ {OPTS} -type {TYPE} -exec {OPTS_exec} "{{}}" +'.format(**locals())
     COLS = ['SIZE','EXT','REL_PATH','FULL_PATH','BASENAME','FILEACC','REALDIR','DIR']
     res = pd.DataFrame([], columns=COLS)
     resBuf = pysh.shellexec(cmd,silent=silent)
@@ -147,6 +238,7 @@ def dir__indexify(DIR,silent=1,OPTS=None,checkEmpty=True,excludeHidden=True):
     
     res['BASENAME']  = res['FILEACC'].map(pyext.os.path.basename)#.astype('unicode')
     res['EXT'] = res['BASENAME'].str.rsplit('.',1).str.get(-1)
+    res['BNAME'] = res['BASENAME'].str.rsplit('.').str.get(0)
     
     res = pd.DataFrame(res)
 #     res['BASENAME'] = res['BASENAME'].astype(unicode)
@@ -336,6 +428,13 @@ def arr__l2norm(x,axis=None,keepdims=0):
     res = np.sum(x**2,axis=axis,keepdims=keepdims)**0.5
     return res
 
+def list__randomChoice(lst,as_list=0, **kw):
+    idx = np.random.choice(range(len(lst)),**kw)
+    res = map(lst.__getitem__,idx)
+    if not as_list:
+        res = np.array(res)
+    return res
+
 
 def list__paste0(ss,sep=None,na_rep=None,castF=unicode):
     '''Analogy to R paste0
@@ -386,15 +485,20 @@ def df__paste0(df,keys,
 #     res = pyutil.paste0(lst, sep=sep)
     return res
 
-def df__format(df,fmt,**kwargs):
+def df__format(df,fmt, formatter = None, **kwargs):
+    if formatter is None:
+        formatter = lambda d: pyext.template__format(fmt, d)
+        
     '''Format for each row of a pd.Dataframe
     '''
     it = pyext.df__iterdict(df)
     res = []
     for d in it:
 #         d['index'] = d.pop('Index')
-        d.update(kwargs)
-        val = fmt.format(**d)
+        d.update(kwargs)#
+        val = formatter(d)
+#         val = pyext.template__format(fmt,d)
+#         val = fmt.format(**d)
         res.append(val)
     return res
 
@@ -600,6 +704,27 @@ def to_tsv(df,fname,header= None,index=None, **kwargs):
     df.to_csv(fname,sep='\t',header= header, index= index, **kwargs)
     return fname
 
+def file__read__configSections(inputFile):
+
+    config = configparser.ConfigParser( allow_no_value= True,strict=False)
+    config.optionxform=unicode
+    config.read(inputFile)
+    d = pyext._DICT_CLASS(config)
+    d.pop('DEFAULT')
+
+    def section__serialise(sec):
+        lst = []
+        for k,v in sec.iteritems():
+            assert v is None, pyext.ppJson(dict(sec=sec,v=v,k=k,
+                           MSG='configSection file cannot contain "="'))
+            lst.append(k)
+        buf = '\n'.join(lst,)
+        return buf
+
+    for k in d:
+        pyext.dict__key__func(d,k,section__serialise)
+    return d
+
 def file__callback(fname,callback,mode='r'):
     if isinstance(fname,basestring):
         with open(fname,mode) as f:
@@ -615,7 +740,7 @@ def file__notEmpty(fpath):
     '''
     return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
 
-def file__link(IN,OUT,force=0, forceIn = False, link='link'):
+def file__link(IN,OUT,force=0, forceIn = False, link='link',relative=1):
     
     linker = getattr(os,link)
     
@@ -626,10 +751,12 @@ def file__link(IN,OUT,force=0, forceIn = False, link='link'):
     if os.path.abspath(OUT) == os.path.abspath(IN):
         return OUT
         
-    if os.path.exists(OUT):
+#     if os.path.exists(OUT):
+    if os.path.isfile(OUT) or os.path.islink(OUT):
         if force:
-            assert os.path.isfile(OUT)
+#             assert os.path.isfile(OUT) or os.path.islink(OUT)
             os.remove(OUT)
+#             print ('removed[OUT]%s'%OUT)
         else:
             assert 'OUTPUT already exists:%s'%OUT
     else:
@@ -639,8 +766,11 @@ def file__link(IN,OUT,force=0, forceIn = False, link='link'):
     try:
         if link=='symlink':
             IN  =os.path.realpath(IN)
-            OUT = os.path.realpath(OUT)
-            IN = os.path.relpath( IN,os.path.dirname(OUT))
+            
+#             OUT = os.path.realpath(OUT)
+#             OUT = os.path
+            if relative:
+                IN = os.path.relpath( IN,os.path.dirname(OUT))
         linker(IN,OUT)
     except Exception as e:
         d = dict(PWD=os.getcwdu(),
@@ -673,7 +803,7 @@ def file__wsv2tsv(FNAME,silent=0):
             
 # def file__backup(IN)
 def read__buffer(buf,**kwargs):
-    res = pyext.readData(pymisca.io.unicodeIO(buf=buf),**kwargs)
+    res = pyext.readData(pymisca.io_extra.unicodeIO(buf=buf),**kwargs)
     return res
 
 
@@ -1072,7 +1202,7 @@ def readData(
             
         
     if as_buffer:
-        fname = pymisca.io.unicodeIO(buf=fname)
+        fname = pymisca.io_extra.unicodeIO(buf=fname)
         
 #     ext = ext or guess_ext(fname,check=1)[1]
 #     kwargs['comment'] = comment    
@@ -1094,7 +1224,8 @@ def readData(
                      'star-quantseq',
                      'excel',
                     ]:
-            res = pd.read_table(fname, comment = comment, **kwargs)
+            res = pd.read_csv(fname, comment = comment, sep='\t', **kwargs)
+#             res = pd.read_table(fname, comment = comment, **kwargs)
             if ext in ['count', 'stringtie','tab',]:
                 res.rename(columns={'Gene ID':'gene_id',
                                    'Gene Name':'gene_name',
@@ -1123,7 +1254,7 @@ def readData(
             res = fname
             if not hasattr(res,'readline'):
                 res = open(res,'r')
-                res = pymisca.io.unicodeIO(res)
+                res = pymisca.io_extra.unicodeIO(handle=res)
 #             res = ( x for x in fname)
             space._guess_index=0
             
@@ -1274,6 +1405,7 @@ def file__size(uri,baseFile=0,silent=1):
     Source: https://stackoverflow.com/a/4498128/8083313
     '''
     uri = pyext.uri__resolve(uri, baseFile=baseFile)
+#     uri = urllib.quote(uri.replace('\\','')    
     if uri.startswith('file://'):
         fname = uri.replace('file://','')
         if not os.path.exists(fname):
@@ -1289,6 +1421,8 @@ def file__size(uri,baseFile=0,silent=1):
         res = 0
     res = int(res)
     return res
+
+
 
 #### Class defs
 
