@@ -38,6 +38,13 @@ if __name__ == '__main__':
     print(s,)
     v = AttoPath.fromAttoString(s)
     print(v,)
+    
+    s = 'AttoPath@--_::_home_::_shouldsee_::_Documents_::_repos_::_pymisca--@'
+    v0 = v = pyext.AttoString.new(s).toContainer()
+    print(v.__repr__())
+    v1 = v = pyext.AttoString.fromContainer([v])
+    v2 = v = v.toContainer()
+    pyext.printlines([v0,v1,v2])    
 #     def toAttoString():
         
 # pyext.path_extra

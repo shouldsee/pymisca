@@ -168,6 +168,7 @@ class AttoString( pymisca.ptn.WrapString):
 
 # @classmethod
 def wrap1__fromContainer(cls, v,
+
 #                    serialiser
                    **kw):
     this_func = wrap1__fromContainer
@@ -183,7 +184,11 @@ def wrap1__fromContainer(cls, v,
     if v is None:
         v = NULL_STRING_LIST[0]
     
-    if type(v) in [int,float,] or isinstance(v,basestring):
+    if False:
+        pass
+    elif hasattr(v,'toAttoString'):
+        lst = v.toAttoString()        
+    elif type(v) in [int,float,] or isinstance(v,basestring):
 #         s = unicode(v)
         lst = unicode(v)
 #         lst = None
@@ -215,6 +220,7 @@ def wrap1__fromContainer(cls, v,
             )
             lst.append(_v)
             
+
     else:
         TYPE = type(v)
         msg = 'Dont know how to intepret type:{TYPE}'.format(**locals())
