@@ -258,8 +258,9 @@ if __name__ == '__main__':
         s = AttoString.fromDict(v)
     except Exception as e:
         print e
+        
     try:
-        s = res[0].toDict()
+        s = res1[0].toDict()
     except Exception as e:
         print e
     
