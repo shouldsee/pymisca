@@ -2,14 +2,55 @@ import re,glob
 import regex
 import slugify,unicodedata
 
+import simpleeval
+import inspect
+
 
 import itertools,collections
 import pymisca.header
 # import pymisca.shell as pysh
 import pandas as pd
 fastqLike = ".(fastq|fq)(.gz$|$)"
+
 baseSpace0424 = ptn = r'(?P<ALIAS>.*_S(?P<SAMPLE_ID_INT>\d{1,3}))(?P<HASH_LIKE>)?_L(?P<chunk>\d+)_R(?P<read>[012])_(?P<trail>\d{1,4})\.(?P<ext>.+)'
 firthLike0424 = ptn2 = r'(?P<ALIAS>.*_(?P<SAMPLE_ID_INT>\d{1,2}))-(?P<HASH_LIKE>\d{8})'
+
+
+calculon0606 = ptn = r'[H\-\/](?P<HASH_LIKE>\d{8})/.*L(?P<chunk>\d+)_R(?P<read>[012])\.(?P<ext>.+)'
+
+import pymisca.tree
+
+
+
+_DICT_CLASS = collections.OrderedDict
+        
+    
+def template__format(template, context=None):
+    functions = {'list':list}
+    functions.update( simpleeval.DEFAULT_FUNCTIONS) 
+
+    if context is None:
+        context = pymisca.header.get__frameDict(level=1)
+        
+    ptn =  '([^{]?){([^}]+)}'
+    class counter():
+        i = -1
+
+    def count(m):
+        counter.i += 1
+        return m.expand('\\1{%d}'%counter.i)
+    
+    s = template
+    template = re.sub(ptn,string=s, repl= count)
+    exprs = [x[1] for x in re.findall(ptn,s)]
+    
+    
+    vals = map(simpleeval.SimpleEval(names=context,
+                                    functions=functions).eval,exprs)
+    res = template.format(*vals)
+    del context
+    return res
+f = fformat = template__format
 
 def getCounts__bowtie2log(buf):
     '''
@@ -182,31 +223,50 @@ class WrapString(unicode):
     A subclassed string for serialisation keyword arguments
     '''
     SEP = '__'
-    BRAKET= DBRA
-#     def __init__(self,s,sep=None):
-#         if sep is None:
-#             sep  = '__'
-#         self.sep = sep
+    PTN_BRAKETED = PTN_BRAKETED 
+#     BRAKET= DBRA
 
-    def __new__(cls, s, ):
+    @classmethod
+    def new(cls, *a,**kw):
+        self = cls.__new__(cls,*a,**kw )
+        return self
+        
+    def __new__(cls, s, VERSION=None, sep = None,
+                BRAKET = DBRA):
         # optionally do stuff to value here
         s = opt__toWrap(s)
         self = super(WrapString, cls).__new__(cls, s)
+        if VERSION is None:
+            VERSION = '20190528'
+        self.VERSION = VERSION
+        if sep is None:
+            sep = cls.SEP
+        self.SEP = sep 
+        self.DBRA = BRAKET
+        self.DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
+        
 #         self.sep = sep
         # optionally do stuff to self here
         return self
     
-    def rewrap(self, BRAKET=DBRA_STRIPPED):
+    def fullmatch(s,):
+        res = regex.fullmatch(
+            s.PTN_BRAKETED.format(**s.DBRA), 
+            s)      
+        return res
+    
+    def rewrap(self, BRAKET= None):
         s = self
-        s = quote(s,BRAKET)
+        s = quote(s, self.DBRA_STRIPPED)
         s = self.__class__(s)
         return s
     
-    def dewrap(self, BRAKET=DBRA):
+    def dewrap(self, BRAKET = None):
         s = self
-        s = dequote(s,BRAKET)
+        s = dequote(s, self.DBRA)
         s = self.__class__(s)        
         return s
+    
     def toOptString(self):
         s = self
         s = wrap__toOptString(s)
@@ -225,11 +285,17 @@ class WrapString(unicode):
     def __init__(self,s):
         pass
     
-def wrap__fromDict(cls, d, sep=None):
+def wrap__fromDict(cls, d, 
+                   **kw):
     '''
     Serialise a dictionary into a WrapString
     '''
+    if not isinstance(d,dict):
+        d = _DICT_CLASS(d)
+    
+    sep = kw.get('sep',None)
     if sep is None:
+# #         sep = '__'
         sep = cls.SEP
 #         sep = '__'
     lst = [None]*len(d)
@@ -238,15 +304,15 @@ def wrap__fromDict(cls, d, sep=None):
         
         if type(v) in [int,float,] or isinstance(v,basestring):
 #         if isinstance(v,basestring):
-            v = WrapString(v).rewrap()
+            v = WrapString.new(v, **kw).rewrap()
             k = '--%s'%k
         elif isinstance(v, dict):
-            v = wrap__fromDict(cls, v, sep=sep).rewrap()
+            v = wrap__fromDict(cls, v, **kw).rewrap()
 #             v = dict__asWrap(v).rewrap()
             k = '--%s'%k
         elif isinstance(v, list):
             v = collections.OrderedDict(zip(v,[None]*len(v)))
-            v = wrap__fromDict(cls, v, sep=sep).rewrap()
+            v = wrap__fromDict(cls, v, **kw).rewrap()
             k = '--%s'%k
 
         elif v is None:
@@ -263,7 +329,7 @@ def wrap__fromDict(cls, d, sep=None):
     lst = [x for x in lst if x]
 #     print (lst)
     s = sep.join(lst)
-    s = WrapString(s)
+    s = WrapString.new(s,**kw)
     return s
 WrapString.fromDict = classmethod(wrap__fromDict)
 
@@ -285,7 +351,9 @@ def safeGlob(ptn):
     res = glob.glob(ptn)
     return res
 
-def wrap__toDict(self, debug=0, level=-1,_level = 0):
+def wrap__toDict(self, debug=0, level=-1, _level = 0,
+#                  truncate = None
+                ):
     '''
     Opposite of wrap__fromDict 
     level: controls how much deseriealisation will be done. For example, it is not 
@@ -313,8 +381,14 @@ def wrap__toDict(self, debug=0, level=-1,_level = 0):
             if debug:
                 print('[prefix,wrap]{prefix},{wrap}'.format(**locals()))
 
+            
+            if wrap.startswith('?'):
+                pass
+            else:
+                wrap = wrap__toDict(wrap,level=level,_level=_level+1)
+                
             lst.extend( _parse_prefix( prefix) )
-            lst.append( wrap__toDict(wrap,level=level,_level=_level+1))
+            lst.append(wrap )
 
             lastSpan = span
 
@@ -344,6 +418,7 @@ def wrap__toDict(self, debug=0, level=-1,_level = 0):
         else:
             d[x0] = None
             
+
     return d
 WrapString.toDict = (wrap__toDict)
 
