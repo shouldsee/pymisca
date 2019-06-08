@@ -13,7 +13,7 @@ sudo apt-get install -y git
 Install `pymisca` dev-version.
 
 ```sh
-pip2 install git+https://github.com/shouldsee/pymisca
+pip2 install git+https://github.com/shouldsee/pymisca -U
 ```
 
 ### For dev and test
