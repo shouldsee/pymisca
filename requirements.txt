@@ -48,3 +48,4 @@ dill
 
 lxml
 requests
+git+https://github.com/shouldsee/lazydict@768a262
