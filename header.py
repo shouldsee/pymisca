@@ -2,12 +2,8 @@ import os,sys,re
 import warnings
 import itertools,functools
 import pymisca.shell as pysh
-
 import inspect
-
 import sys,inspect
-
-
 import operator
 import collections
 import sys
