@@ -21,6 +21,7 @@ autograd
 slugify
 matplotlib_venn
 line_profiler
+ipython==5.8.0
 
 #git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
 #mixem @ https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip
@@ -29,7 +30,21 @@ mixem
 
 #fisher @ https://github.com/brentp/fishers_exact_test/archive/master.zip
 #fisher @t://github.com/brentp/fishers_exact_test@c8af591
-fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
+
+#fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
+git+git://github.com/shouldsee/fishers_exact_test@d3c69ea
 regex
 simpleeval
 watchdog
+commentjson
+filelock
+
+decorator
+pytz
+tzlocal
+
+##parallel
+dill
+
+lxml
+requests
