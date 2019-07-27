@@ -1,11 +1,222 @@
-import os,sys
+import os,sys,re
 import warnings
-import itertools
+import itertools,functools
 import pymisca.shell as pysh
-
 import inspect
-
 import sys,inspect
+import operator
+import collections
+import sys
+import types
+_this_mod = sys.modules[__name__]
+
+
+def sanitise__argName(s):
+# def funcArgName_sanitised(s,):
+    return re.sub("[^a-zA-Z0-9_]",'_',s)
+
+def PlainFunction(f):
+    f._plain =True
+    return f
+def is__plainFunction(f):
+    return getattr(f,'_plain',False)
+
+def func__setAs(other, setter, name=None):
+    class temp():
+        _name = name
+    def dec(func):
+#         functools.wraps(f)
+        if temp._name is None:
+            temp._name = func.__name__
+
+        setter(other, temp._name, func)
+        return func
+    return dec    
+def func__setAsAttr(other, *a):
+    return  func__setAs(other, setattr,*a)
+setAttr = func__setAsAttr
+
+def func__setAsItem(other, *a):
+    return  func__setAs(other, operator.setitem,*a)
+setItem = func__setAsItem
+
+
+
+@setAttr(_this_mod, "renameVars")
+def func__renameVars(varnames=['xxx','y']):
+    def dec(f,varnames=varnames):
+        # code = copy.copy(f.__code__)
+        code = f.__code__
+        if isinstance(varnames, list):
+            _varnames = tuple(map(sanitise__argName,varnames))
+        if isinstance(varnames, collections.MutableMapping):
+            _varnames = tuple( sanitise__argName( varnames.get(x,x) ) 
+                              for x in code.co_varnames[:])
+
+        assert len(_varnames) == len(code.co_varnames),(_varnames, code.co_varnames)
+
+        _code = types.CodeType(
+            code.co_argcount,
+            code.co_nlocals,
+            code.co_stacksize,
+            code.co_flags,
+            code.co_code,
+            code.co_consts,
+            code.co_names,
+            _varnames,  #     code.co_varnames,
+            code.co_filename,
+            code.co_name,
+            code.co_firstlineno,
+            code.co_lnotab,
+            code.co_freevars,
+            code.co_cellvars,
+        )
+        g = types.FunctionType( _code, 
+                               f.__globals__, 
+                               f.__name__, 
+                               f.__defaults__, 
+                               f.__closure__)
+        return g
+    return dec
+
+#     return 
+# def func__setAsAttr(other, name=None,setter=setattr):
+#     class temp():
+#         _name = name
+#     def dec(func):
+# #         functools.wraps(f)
+#         if temp._name is None:
+#             temp._name = func.__name__
+
+#         setter(other, temp._name, func)
+#         return func
+#     return dec
+# setAttr = func__setAsAttr
+
+def func__setAsItem(other,name = None):
+    
+    pass
+# _devnull
+class Suppresser:
+    devnull = open(os.devnull, "w")
+    def __init__(self, suppress_stdout=False, suppress_stderr=False):
+        self.suppress_stdout = suppress_stdout
+        self.suppress_stderr = suppress_stderr
+        self.original_stdout = None
+        self.original_stderr = None
+#         self.devnull = 
+
+    def _switch(self, toSuppress=None):
+        if toSuppress is None:
+            toSuppress = self.original_stdout is None
+        if self.suppress_stdout:
+            if toSuppress:
+                if sys.stdout is not self.devnull:
+                    self.original_stdout, sys.stdout = sys.stdout, self.devnull
+            else:
+                if sys.stdout is self.devnull:
+                    self.original_stdout, sys.stdout = None, self.original_stdout
+
+        if self.suppress_stderr:
+            if toSuppress:
+                if sys.stdout is not self.devnull:
+                    self.original_stderr, sys.stderr = sys.stderr, self.devnull
+            else:
+                if sys.stdout is self.devnull:
+                    self.original_stderr, sys.stderr = None, self.original_stderr
+        return 
+    
+    def close(self):
+        self._switch(0)
+        return self
+    
+    def suppress(self):
+        self._switch(1)
+        return self
+#     def suppress(self):
+#         self._switch(1)
+        
+    def __enter__(self):
+        import sys, os
+        pass
+#         print '[pas'
+#         self._switch()
+    
+    def __exit__(self, *args, **kwargs):
+        import sys
+        self._switch()
+        
+#     def __enter__(self):
+#         import sys, os        
+#         if self.suppress_stdout:
+#             self.original_stdout, sys.stdout = sys.stdout, self.devnull
+# #             sys.stdout = self.devnull
+
+#         if self.suppress_stderr:
+#             self.original_stderr, sys.stderr = sys.stderr, self.devnull
+# #             self.original_stderr = sys.stderr
+# #             sys.stderr = self.devnull
+
+#     def __exit__(self, *args, **kwargs):
+#         import sys
+#         # Restore streams
+#         if self.suppress_stdout:
+#             sys.stdout = self.original_stdout
+
+#         if self.suppress_stderr:
+#             sys.stderr = self.original_stderr
+
+class Suppress:
+    def __init__(self, suppress_stdout=1, suppress_stderr=1):
+        self.suppress_stdout = suppress_stdout
+        self.suppress_stderr = suppress_stderr
+        self.original_stdout = None
+        self.original_stderr = None
+
+    def __enter__(self):
+        import sys, os
+        devnull = open(os.devnull, "w")
+
+        # Suppress streams
+        if self.suppress_stdout:
+            self.original_stdout = sys.stdout
+            sys.stdout = devnull
+
+        if self.suppress_stderr:
+            self.original_stderr = sys.stderr
+            sys.stderr = devnull
+
+    def __exit__(self, *args, **kwargs):
+        import sys
+        # Restore streams
+        if self.suppress_stdout:
+            sys.stdout = self.original_stdout
+
+        if self.suppress_stderr:
+            sys.stderr = self.original_stderr
+
+
+def module__toModule(mod):
+    res = collections.OrderedDict()
+    res['NAME']=mod.__name__
+    res['INPUT_FILE'] = getattr(mod,"__file__",None)
+    res['MODULE']=mod
+    return res
+
+def get__defaultModuleDict():
+#     import sys
+    d = {}
+    for k,v in sys.modules.items():
+        if v is not None:
+            d[k] = module__toModule(v)
+        else:
+            pass
+#             sys.stderr.write(k + '\n')
+    return d
+#     return {k:module__toModule(v) for k,v in sys.modules.items() if v is not None
+           
+#            }
+
 def module__getClasses(mod):
     '''https://stackoverflow.com/a/1796247/8083313
     '''
@@ -15,7 +226,13 @@ def module__getClasses(mod):
     return clsmembers
 
 
-def get__frameDict(frame=None,level=0):
+def get__frameDict(frame=None,level=0, getter="dict"):
+    return get__frame(frame,level=level+1,getter=getter)
+
+def get__frameName(frame=None,level=0, getter="func_name"):
+    return get__frame(frame,level=level+1,getter=getter)
+    
+def get__frame(frame=None,level=0, getter="dict"):
     '''
     if level==0, get the calling frame
     if level > 0, walk back <level> levels from the calling frame
@@ -25,7 +242,12 @@ def get__frameDict(frame=None,level=0):
 
     for i in range(level):
         frame = frame.f_back
-    context = frame.f_locals
+    _getter  = {
+        "dict":lambda x:x.f_locals,
+        "func_name":lambda x:x.f_code.co_name
+    }[getter]
+    context = _getter(frame)
+#     context = frame.f_locals
     del frame
     return context
 
@@ -141,8 +363,8 @@ def base__file(fname='',
             f.write(fname +'\n')
     return res        
 
-def execBaseFile(fname,):
-    fname = base__file(fname)
+def execBaseFile(fname,**kw):
+    fname = base__file(fname,**kw)
     g= vars(sys.modules['__main__'])
 #     g = __main__.globals()
     res = execfile(fname, g, g)
@@ -210,8 +432,13 @@ def self__install(
     res = map(pysh.shellexec,CMDS)
     print (res)
     
-bedHeader = [
-   'chrom',
+    
+class columns(object):
+    gtf = ['SEQID','SOURCE','TYPE','START','END','SCORE','STRAND','PHASE','ATTRIBUTES']
+    
+
+columns.bed = bedHeader = [
+ 'chrom',
  'start',
  'end',
  'acc',
@@ -223,4 +450,28 @@ bedHeader = [
  'summit',
  'img']
     
-bettyHeader = ['OLD_DATA_ACC','SPEC_PATHOGEN','SPEC_HOST','TREATMENT','LIB_STRATEGY']
+columns.betty = bettyHeader = ['OLD_DATA_ACC','SPEC_PATHOGEN','SPEC_HOST','TREATMENT','LIB_STRATEGY']
+
+
+buf = '''
+table genePredExt
+"A gene prediction with some additional info."
+    (
+    string name;        	"Name of gene (usually transcript_id from GTF)"
+    string chrom;       	"Chromosome name"
+    char[1] strand;     	"+ or - for strand"
+    uint txStart;       	"Transcription start position"
+    uint txEnd;         	"Transcription end position"
+    uint cdsStart;      	"Coding region start"
+    uint cdsEnd;        	"Coding region end"
+    uint exonCount;     	"Number of exons"
+    uint[exonCount] exonStarts; "Exon start positions"
+    uint[exonCount] exonEnds;   "Exon end positions"
+    int score;            	"Score"
+    string name2;       	"Alternate name (e.g. gene_id from GTF)"
+    string cdsStartStat; 	"Status of CDS start annotation (none, unknown, incomplete, or complete)"
+    string cdsEndStat;   	"Status of CDS end annotation (none, unknown, incomplete, or complete)"
+    lstring exonFrames; 	"Exon frame offsets {0,1,2}"
+    )
+'''
+columns.genepred = COLUMNS_GENEPREDEXT =  re.findall('.*\s+([a-zA-Z0-9]+);.*',buf)
