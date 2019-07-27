@@ -20,6 +20,10 @@ except Exception as e:
 import matplotlib.ticker as mticker
 import matplotlib as mpl
 
+_dictCenterText = dict(horizontalalignment='center',
+                        verticalalignment='center', 
+#                           transform=ax.transAxes
+                         )    
 def color__defaultCycle():
     res = plt.rcParams['axes.prop_cycle'].by_key()['color']
     return res 
@@ -61,6 +65,7 @@ def hide_Axes(ax,which='both',alpha=0.0):
     hide_ticks(ax)
     ax.patch.set_alpha(alpha)
     return ax
+hide__axes = hide_Axes
 
 def line__getLegend(line):
     res = (line,line.get_label())
@@ -71,25 +76,31 @@ def line__getLegends(lines):
     return res
 getLegends = line__getLegends
 
-
 def make_subplots(
-    L,
+    L=None,
     ncols = 4,
+    nrows = None,
     baseRowSep = 4.,
     baseColSep = 4.,
     gridspec_kw={'hspace':0.45},
+    ravel =True,
     **kwargs
 ):
     '''
     Create a grid of subplots
 '''
-    nrows = L//ncols+1
+    if L is not None:
+        nrows = L//ncols+1
+    else:
+        assert nrows is not None
     fig,axs = plt.subplots(ncols=ncols,nrows=nrows,
                             figsize=[ncols*baseColSep, 
                                      nrows*baseRowSep],
                            gridspec_kw=gridspec_kw,                           
                            **kwargs); 
-    axs = np.ravel(axs)
+    if ravel:
+        axs = np.ravel(axs)
+    
     return fig,axs
 get_subplotGrid = make_subplots
 
@@ -480,7 +491,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 import numpy as np
 
-def add_arrow(line, position=None, direction='right', size=15, color=None):
+def add_arrow(line,start_ind = 0, position=None, direction='right', size=15, color=None):
     """
     add an arrow to a line.
 
@@ -494,18 +505,26 @@ def add_arrow(line, position=None, direction='right', size=15, color=None):
     """
     if color is None:
         color = line.get_color()
+        
+#     if xdata is None:
+    if 1:
+        xdata = line.get_xdata()
+        ydata = line.get_ydata()
 
-    xdata = line.get_xdata()
-    ydata = line.get_ydata()
-
+        # find closest index
+#         start_ind = np.argmin(np.absolute(xdata - xdata.mean()))
+        end_ind = 1 - start_ind
+#     else:
+#         assert ydata is not None
+#         start_ind,end_ind = 0,1
+        
     if position is None:
         position = xdata.mean()
-    # find closest index
-    start_ind = np.argmin(np.absolute(xdata - position))
-    if direction == 'right':
-        end_ind = start_ind + 1
-    else:
-        end_ind = start_ind - 1
+
+#     if direction == 'right':
+#         end_ind = start_ind + 1
+#     else:
+#         end_ind = start_ind - 1
 
     line.axes.annotate('',
         xytext=(xdata[start_ind], ydata[start_ind]),
@@ -669,7 +688,7 @@ def histoLine(xs,bins=None,log= 0, ax = None, xlim =None, transpose= 0, normed=1
     bins = np.linspace(*xlim,
                       num=100) if bins is None else bins
 #     ys,edg = np.histogram(xs,bins,normed=normed)
-    ys,edg = np.histogram(xs,bins,density=normed)
+    ys,edg = np.histogram(xs,bins,density=normed,normed=normed)
     ct = (edg[1:] + edg[:-1])/2
     if log:
         ys = np.log1p(ys)
@@ -700,6 +719,13 @@ def cmap4vlim(vlim,debug=0):
     cmap.set_bad('black',1.)
     return cmap
 
+def df__heatmap(vdf,**kwargs):
+    assert vdf.__class__.__name__.lower().find('dataframe')!=-1,(type(vdf),)
+    res = heatmap( vdf,
+                  ytick = vdf.index,ylim=[-0.5,len(vdf.index)-0.5],
+                  xtick = vdf.columns,xlim=[-0.5,len(vdf.columns)-0.5],
+                  **kwargs)    
+    return res
 ####### Clustering
 def heatmap(C,
             ax=None,
@@ -720,6 +746,7 @@ def heatmap(C,
             squareSize = (0.2,0.2),
             interpolation = 'nearest',
             origin = 'lower',
+            getFigureAxis = False,
 #             antialiased=False,
             
             **kwargs
@@ -745,6 +772,9 @@ def heatmap(C,
         fig,ax = getMarginedAxis(shape,
             squareSize = squareSize,
             marginInSquare= marginInSquare,figsize=figsize)
+        if getFigureAxis:
+            return fig,ax
+        
     if xlim is None:
         xlim = ax.get_xlim()
         
@@ -774,7 +804,7 @@ def heatmap(C,
     C = np.ma.array (C, mask=np.isnan(C))
     if cmap is not None:
         cmap.set_bad('black',1.)
-    kwargs['vmin'],kwargs['vmax'] = vlim
+    kwargs['vmin'], kwargs['vmax'] = vlim
 
     plt.sca(ax)
 #     if plt.get_backend() == 'cairo':
@@ -932,12 +962,14 @@ def abline(k=1,y0=0,x0 = None, color = 'b', ax = None,**kwargs):
     
 def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
             markersize=None,xlim=None,ylim=None,axs = None,
-           xbin = None,
-           ybin =None,
+            xbin = None,
+            ybin =None,
             spanPer = 99.9,
             nMax=3000,
             refline = (1,0),
             cmap=None,
+            colorDict=None,
+            **kwargs
             
 #             color=None,
 #            axis = [0,1,2]
@@ -950,7 +982,12 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     axs = axs + [None] * (4-len(axs))
     xs = np.ravel(xs)
     ys = np.ravel(ys)
+    marker = kwargs.pop('marker','.')
     
+    if cmap is None:
+#         cmap = plt.get_cmap('Set1')
+#         cmap = pyvis.get__cmap__defaultCycle()
+        pass
     if nMax <0 :
         nMax= len(xs)
 
@@ -968,7 +1005,12 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
     
     df = pd.DataFrame({'xs':xs,'ys':ys,'clu':clu})
 #     nMax = 3000
-    for key, dfc in df.groupby('clu'):
+    for i,(key, dfc) in enumerate(df.groupby('clu')):
+        if colorDict is not None:
+            ci = colorDict[key]
+        else:
+            ci = i
+        color = cmap(ci) if cmap is not None else None
         if len(dfc)>nMax:
             dfcc = dfc.sample(nMax)
         else:
@@ -1003,9 +1045,11 @@ def qc_2var(xs,ys,clu=None,xlab='$x$',ylab='$y$',
             
         ax = axs[1];
         if ax is not None:
-            plt.sca(ax)
-            plt.scatter(xs,ys,markersize,label=key, marker='.') 
-            
+            #plt.sca(ax)
+            #plt.scatter(xs,ys,markersize,label=key, marker='.') 
+
+            ax.scatter(xs,ys,markersize,label=key, marker=marker,color=color,**kwargs) 
+
     [ax.grid(1) for ax in axs[:3] if ax is not None]
     
     ax = axs[0];
@@ -1515,3 +1559,90 @@ def axis__data__histogram2d( ax, data,
 
     ax.xaxis.tick_bottom()
     return ax
+
+
+
+import matplotlib.patches as _patches
+import matplotlib.colors as _colors
+from pymisca.numpy_extra import span as _span
+import matplotlib
+
+def argCast__2dcallable(z_url):
+    if z_url is not None:
+        if callable(z_url):
+            _z_url = z_url
+            ### check func signature
+        elif hasattr(z_url, '__getitem__'):
+            _z_url = lambda x,y:z_url[x][y]
+        else:
+            assert 0    
+    else:
+        _z_url = None
+    return _z_url
+
+def axis__heatmapWithUrl(ax, z, z_text=None,z_url=None, axc = None,
+                         fontsize=16,
+                         no_color=False,
+                       cmap = None,vlim=None,
+                         xticks = None, yticks= None,
+                       orientation='horizontal' ):
+#     assert z_text is None
+    width =  0.9
+    height = 0.9
+    common  = {'width':width, 'height': height}
+    _shape = z.shape
+    _cmap = cmap or plt.get_cmap()
+ #     _colors.
+    if vlim is None:
+        vmin,vmax = _span(z)
+    else:
+        vmin,vmax = vlim
+#     norm = _colors.Normalize(vmin=-1.,vmax=1.)
+    _norm = _colors.Normalize(vmin=vmin, vmax=vmax, 
+                             clip=True)
+    hwid = width * 0.5
+    hhet = height * 0.5
+    z_url = argCast__2dcallable(z_url)
+    z_text = argCast__2dcallable(z_text)
+#     if z_url is not None:
+#         if callable(z_url):
+#             _z_url = z_url
+#             ### check func signature
+#         elif hasattr(z,'__getitem__'):
+#             _z_url = lambda x,y:z_url[x][y]
+#         else:
+#             assert 0
+#     else:
+#         _z_url = lambda *x:None
+            
+    for x in range(_shape[0]):
+        for y in range(_shape[1]):
+            v = z[x,y]
+            url = z_url(x,y) if z_url is not None else None
+            if z_text is not None:
+                ax.text( x, y, z_text(x,y),
+                        fontsize=fontsize,
+                        **_dictCenterText)
+            patch = _patches.Rectangle(color=_cmap(_norm(v)),
+                                       xy=(x-hwid, y- hhet) ,
+                                       url = url,
+                                       **common)
+            if not no_color:
+                ax.add_patch(patch)
+#     fig = plt.gcf()
+    fig = ax.figure
+    if axc:
+        cb1 = matplotlib.colorbar.ColorbarBase(axc, 
+                                        cmap=_cmap,
+                                        norm=_norm,
+                                        orientation=orientation,
+                                              )
+    if xticks is not None:
+        ax.xaxis.set_ticks(range(_shape[0]) ); ax.xaxis.set_ticklabels(xticks,rotation='vertical')
+    if yticks is not None:
+        ax.yaxis.set_ticks(range(_shape[1]) ); ax.yaxis.set_ticklabels(yticks,rotation='horizontal')
+        #     ax.set_xticks()
+#     ax.set_xlim(-hwid,_shape[0] -1 + hwid)
+    ax.set_xlim(_shape[0] -1 + hwid, -hwid)
+    ax.set_ylim(-hhet,_shape[1] -1 + hhet)
+    return ax,axc
