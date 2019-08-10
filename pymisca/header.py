@@ -10,6 +10,54 @@ import sys
 import types
 _this_mod = sys.modules[__name__]
 
+import base64
+def file__png__toHtmlSrc(FNAME):
+    data_uri = base64.b64encode(open( FNAME, 'rb').read()).decode('utf-8')
+    src = "data:image/png;base64,{0}".format(data_uri)
+    return src
+def file__image__toHtmlSrc(FNAME):
+    if FNAME.endswith('.png'):
+        src = file__png__toHtmlSrc(FNAME)
+    else:
+        assert 0,(FNAME,)
+#     data_uri = base64.b64encode(open( FNAME, 'rb').read()).decode('utf-8')
+#     src = "data:image/png;base64,{0}".format(data_uri)
+    return src
+
+
+def get__anonModuleName():
+    i = 0
+    while True:
+        i += 1
+        MODULE_NAME = "__anonymous__%d"%i
+        if MODULE_NAME not in sys.modules:
+            break
+    return MODULE_NAME
+
+def list__toR__vector(lst):
+    res = "c(%s)"%(",".join(['"%s"'%x for x in lst]))
+    return res
+
+def list__call(lst,*args,**kwargs):
+    _this = list__call
+    if callable(lst):
+        return lst(*args,**kwargs)
+    elif isinstance(lst,list) or isinstance(lst,tuple):
+        return type(lst)(_this(x,*args,**kwargs) for x in lst)
+    else:
+        return lst
+
+def stringList__flatten(lst,strict=1,):
+    _this = stringList__flatten
+    if isinstance(lst,basestring):
+        return [lst]
+    elif isinstance(lst,list) or isinstance(lst,tuple):
+        lst = sum((_this(x,strict) for x in lst),[])
+        return lst
+    else:
+        if strict:
+            assert 0,(type(lst),repr(lst))
+        return [repr(lst)]
 
 def sanitise__argName(s):
 # def funcArgName_sanitised(s,):
@@ -40,6 +88,24 @@ def func__setAsItem(other, *a):
     return  func__setAs(other, operator.setitem,*a)
 setItem = func__setAsItem
 
+from collections import Counter,OrderedDict
+class OrderedCounter(Counter, OrderedDict):
+    '''
+    SOURCE:https://docs.python.org/3.4/library/collections.html?highlight=ordereddict#ordereddict-examples-and-recipes
+    '''
+    pass
+
+def xml__tag(tag,):
+    def func(x,tag=tag):
+        s = u"<{tag}>{x}</{tag}>".format(**locals())
+        return s
+    return func
+
+@setAttr(_this_mod,"q")
+@setAttr(_this_mod,"quote")
+def str__quote(s,q1='"'):
+    q2 = q1[::-1]
+    return "%s%s%s"%(q1,s,q2)
 
 
 @setAttr(_this_mod, "renameVars")
@@ -76,8 +142,17 @@ def func__renameVars(varnames=['xxx','y']):
                                f.__name__, 
                                f.__defaults__, 
                                f.__closure__)
+        g._parent = f
+        g._native= False
         return g
     return dec
+def func__getNative(f):
+    while True:
+        if not getattr(f,'_native',True):
+            f = getattr(f,'_parent')
+        else:
+            break
+    return f
 
 #     return 
 # def func__setAsAttr(other, name=None,setter=setattr):
