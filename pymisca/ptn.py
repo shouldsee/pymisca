@@ -20,14 +20,20 @@ calculon0606 = ptn = r'[H\-\/](?P<HASH_LIKE>\d{8})/.*L(?P<chunk>\d+)_R(?P<read>[
 
 import pymisca.tree
 
+import IPython
 
+
+import jinja2
+import pymisca.header
 
 _DICT_CLASS = collections.OrderedDict
         
     
-def template__format(template, context=None):
+def template__format(template, context=None, toFormat= False):
     functions = {'list':list}
+#     context['_CONTEXT'] = context
     functions.update( simpleeval.DEFAULT_FUNCTIONS) 
+    functions.update(context)
 
     if context is None:
         context = pymisca.header.get__frameDict(level=1)
@@ -47,10 +53,35 @@ def template__format(template, context=None):
     
     vals = map(simpleeval.SimpleEval(names=context,
                                     functions=functions).eval,exprs)
-    res = template.format(*vals)
+#     if vals
+        
+    if len(vals)==1 and not toFormat:
+        res = vals[0]
+    else:
+        res = template.format(*vals)
     del context
     return res
+
+def template__format(template, context=None):
+    functions = {'list':list}
+#     functions.update( simpleeval.DEFAULT_FUNCTIONS) 
+
+    if context is None:
+        context = pymisca.header.get__frameDict(level=1)
+        
+    ob = IPython.utils.text.DollarFormatter()
+    res = ob.vformat(template,args=[],kwargs = context)
+    del context
+    return res
+
 f = fformat = template__format
+
+def jf2(template, context=None,undefined=jinja2.StrictUndefined):
+    if context is None:
+        context = pymisca.header.get__frameDict(level=1)
+    res = jinja2.Template(template, undefined=undefined).render(context)
+    return res
+template__jinja2Format = jf2
 
 def getCounts__bowtie2log(buf):
     '''
@@ -156,12 +187,14 @@ def opt__brackFreeze(s):
     s = '{BRA}{s}{KET}'.format(s=s,**DBRA_STRIPPED)  
     return s
 
-def quote(s, BRAKET = None):
-    if BRAKET is None:
-        BRAKET = dict(BRA='"',KET='"')
-    s = u'{BRA}{s}{KET}'.format(s=s,**BRAKET)
-    
-    return s
+from pymisca.atto_string import quote
+# def quote(s, BRAKET = None):
+#     if BRAKET is None:
+#         BRAKET = dict(BRA='"',KET='"')
+#     s = u'{BRA}{s}{KET}'.format(s=s,**BRAKET)
+#     
+#     return s
+
 def dequote(s,BRAKET=None):
     if BRAKET is None:
         BRAKET = dict(BRA='"',KET='"')
@@ -224,8 +257,9 @@ class WrapString(unicode):
     '''
     SEP = '__'
     PTN_BRAKETED = PTN_BRAKETED 
-    DBRA = BRAKET
-#     DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
+#     DBRA = BRAKET
+    DBRA = DBRA
+    #     DBRA_STRIPPED = {k:v.strip('\\') for k,v in self.DBRA.items()}
 #     BRAKET= DBRA
     @classmethod
     def DBRA_STRIPPED(cls):
