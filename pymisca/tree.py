@@ -11,14 +11,126 @@ import json
 import os
 import warnings
 # import contextlib2
-def getPathStack(pathList, stack=None, _class=None, force=0, 
-                 mode = 511,
+
+import filelock
+import pymisca.atto_string
+import pymisca.shell
+import copy
+
+import traceback,sys,warnings
+
+import shutil
+import tempfile
+
+class TempDirScope(object):
+    def __init__(self,getTempDirName = tempfile.mkdtemp,keep=0,**kw):
+#         self._d = getTempDirName()
+        d = getTempDirName()
+        self._stack = getPathStack([d],**kw)
+        self.keep = keep
+        
+    def __getattr__(self,key):
+#         return getattr(self._stack,key)
+        return self._stack.__getattribute__(key)
+    def __enter__(self):
+        self._stack.__enter__()
+        return self._stack
+
+    def __exit__(self, *a,**kw):
+        self._stack.__exit__(*a,**kw)
+        if not self.keep:
+            shutil.rmtree(self.d)
+
+        
+def missingDirCallback__attoShortDirectory(pathElement, parentDir, mode = 511, force=0):
+    _d = parentDir
+    
+    if len(pathElement)<=255:
+        _d = _d / pathElement
+#         _d = _d.makedirs_p(mode=mode)
+    else:
+#         res = parentDir.glob("DIR_MAPPER.json")
+        FNAME = _d / "DIR_MAPPER.json"
+    
+        with filelock.FileLock(FNAME+'.lock') as lock:
+            
+            if pymisca.shell.file__notEmpty(FNAME):
+                DIR_MAPPER = pymisca.shell.read__json(FNAME,)
+            else:
+                DIR_MAPPER = collections.OrderedDict()
+#                 pyext._DICT_CLASS()
+
+            res = DIR_MAPPER.get( pathElement, None)
+            
+            if res is None:
+                res = pymisca.atto_string.AttoShortDirectory( len(DIR_MAPPER) )
+                res = res.toAttoString()
+                DIR_MAPPER[pathElement] = res
+                with open(FNAME,'w') as f:
+                    f.write(json.dumps(DIR_MAPPER, indent=4))
+#                 pyext.printlines([pyext.ppJson(DIR_MAPPER)], FNAME)
+            else:
+                pass
+            
+        _d = _d / res
+        
+    if not force:
+        assert _d.isdir(),'Directory does not exists "%s". Use force=1 to force creation' % _d
+    else:
+        _d.makedirs_p(mode=mode)
+#         print('making dir: %s'%_d,)
+#         print('exists %s '%_d, _d.exists())
+        
+    return _d    
+
+def getAttoDirectory(pathList,
+                     missingDirCallback = missingDirCallback__attoShortDirectory,
+                     **kw):
+#     kw.pop('force',None)
+    kw['missingDirCallback'] = missingDirCallback
+    res = getPathStack(pathList,**kw)
+
+    return res
+
+def AttoDirectory__toDir(attoDir,**kw):
+    stack = getAttoDirectory([attoDir],**kw)
+    stack.close()
+    return stack.d
+
+class PathStack(contextlib2.ExitStack):
+    def __init__(self,root,**kw):
+        super(PathStack,self).__init__(*a,**kw)
+        self._root=root
+    pass
+
+def getPathStack(pathList, stack=None, _class=None, 
+    force=None, 
+    missingDirCallback = None,
+    mode = 511,
+                 close = False,
+traceback_limit  =10,              
 	debug=None, printOnExit=None):
+
+    '''
+    missingDirCallback: 
+        = 1 : create directory if absent
+        = None: do nothing and raise error
+        = callable : call missingDirCallback(pathElement, parentDir)  
+    '''
+    ##### legacy
+#     if force is not None:
+# #         if force == 1:
+# #             missingDirCallback = missingDirCallback__attoShortDirectory
+#         missingDirCallback = force
+
 #     stack = None
 #     assert stack is None,
-    if stack is not None:
-        warnings.warn('[getPathStack] argument "stack" has been removed')
-        stack = None
+    assert not isinstance(pathList, basestring),'Path list can not be a single basetring:{pathList}'.format(**locals())
+
+    pathList = sum( [x.split(os.sep) for x in pathList], [] )
+#     if stack is not None:
+#         warnings.warn('[getPathStack] argument "stack" has been removed')
+#         stack = None
         
     if _class is None:
         def _class(*x):
@@ -26,43 +138,78 @@ def getPathStack(pathList, stack=None, _class=None, force=0,
             p.debug=debug
             p.printOnExit = printOnExit
             return p
-    assert not isinstance(pathList, basestring),'Path list can not be a single basetring:{pathList}'.format(**locals())
     e = None
+    # env = {}
     for i,pathElement in enumerate(pathList):
 #         print pathElement
         if not i:
+            pathElement = {'':os.sep}.get(pathElement,pathElement)
+
             if stack is None:
+                ##### [IMP] __init__()
                 stack = contextlib2.ExitStack()
                 d = _class('.')
+                stack.enter_context(d)
+                stack._root = d.realpath()
+                stack.d_rel = lambda: stack.d.realpath().relpath(stack._root)
 #                 d = _class(pathElement)
             else:
+                stack = copy.deepcopy(stack)
                 d = stack.d
         try:
+#         if 1:
             _d = d.realpath() / pathElement
             _d = _class(_d)
-            if force:
-                _d.makedirs_p(mode=mode)
+            if not _d.isdir():
+#             if not os.path.isdir(pathElement):
+#                 assert not os.path.isfile( pathElement )
+                if missingDirCallback is None:
+                    assert force,'Directory does not exists "%s". Use force=1 to force creation' % _d
+                    _d.makedirs_p(mode=mode)
+                elif callable(missingDirCallback):
+                    res = missingDirCallback(pathElement, d.realpath(), force=force)
+                    if res:
+                        _d = res
+
             stack.enter_context(_d)
             d = _d
         except Exception as e:
-            break 
-            
-    if e is not None:
-        try:
-            e.strerror =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
-            + 'with choices %s '%  json.dumps(d.dirs(),indent=4) +'\n[ERROR] ' \
-            + e.strerror
-#     else:
-#             print('[Exception is None]')
-#     #         stack.__exit__()
-        except:
-            pass
-        finally:
+            _TRACEBACK = traceback.extract_tb(  sys.exc_info()[-1], limit=traceback_limit)
+#             e.strerror = pyext.ppJson(e.TRACEBACK)
+
+            s =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
+            + 'with choices %s '%  json.dumps(d.dirs()[:10],indent=4) +'\n[ERROR] ' \
+            + getattr(e,'strerror','[no e.strerror]')
+    
+            stack.close()
+            warnings.warn(s)
+            warnings.warn(json.dumps(_TRACEBACK,indent=4))
             raise e
+            
+#             break 
+            
+#     if e is not None:
+#         try:
+# #             e.strerror = pyext.ppJson(e.TRACEBACK)
+#             e.strerror =  '\n[INFO] closest path is "{d}"\n'.format(**locals()) \
+#             + 'with choices %s '%  json.dumps(d.dirs(),indent=4) +'\n[ERROR] ' \
+#             + e.strerror
+# #     else:
+# #             print('[Exception is None]')
+# #     #         stack.__exit__()
+#         except:
+#             pass
+#         finally:
+#             stack.close()
+#             print(pyext.ppJson(e.TRACEBACK))
+#             raise e
+            
 #             raise e
 #     except:
 #         raise e
     stack.d = d
+    if close:
+        stack.close()
     return stack
 
 
