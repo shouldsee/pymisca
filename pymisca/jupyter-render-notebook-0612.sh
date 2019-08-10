@@ -1,0 +1,1 @@
+jupyter nbconvert --TemplateExporter.exclude_input=True "$@"
