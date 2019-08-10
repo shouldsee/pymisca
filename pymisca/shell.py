@@ -12,10 +12,219 @@ import tempfile
 import subprocess
 import re
 import collections
+import functools,itertools
 # import pymisca.header as pyheader
 
 pysh=sys.modules[__name__]
 
+import json
+import datetime
+
+from shutil import copystat
+class Error(EnvironmentError):
+    pass
+
+def dir__getSize(start_path = '.'):
+    '''
+    Source:https://stackoverflow.com/a/1392549/8083313
+    '''
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # skip if it is symbolic link
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size
+
+def dir__link(src,dst,
+              symlinks=False, ignore=None,
+              force = 0,
+              copyFunc=None,
+              **kw):
+    assert copyFunc is None,("auto produced")
+    
+    res = dir__copy(src,dst, 
+                    symlinks=symlinks, ignore = ignore,
+                    copyFunc = lambda x,y:file__link(x,y,force=force,**kw),
+                    **kw)
+    return res
+
+def dir__copy(src, dst, symlinks=False, ignore=None,
+             copyFunc = shutil.copy2):
+    _this_func = dir__copy
+    """
+    Adapted from python2 shutil.copytree()
+    
+    Recursively copy a directory tree 
+    with an arbitrary copyFunc(src,dest) instead of copy2
+
+    The destination directory must not already exist.
+    If exception(s) occur, an Error is raised with a list of reasons.
+
+    If the optional symlinks flag is true, symbolic links in the
+    source tree result in symbolic links in the destination tree; if
+    it is false, the contents of the files pointed to by symbolic
+    links are copied.
+
+    The optional ignore argument is a callable. If given, it
+    is called with the `src` parameter, which is the directory
+    being visited by copytree(), and `names` which is the list of
+    `src` contents, as returned by os.listdir():
+
+        callable(src, names) -> ignored_names
+
+    Since copytree() is called recursively, the callable will be
+    called once for each directory that is copied. It returns a
+    list of names relative to the `src` directory that should
+    not be copied.
+
+    XXX Consider this example code rather than the ultimate tool.
+
+    """
+    
+#     assert os.path.isdir(src),("Not a directory",src)
+    names = os.listdir(src)
+    if ignore is not None:
+        ignored_names = ignore(src, names)
+    else:
+        ignored_names = set()
+        
+    if not os.path.isdir(dst):
+        assert not os.path.isfile(dst)
+        os.makedirs(dst)
+        
+    errors = []
+    for name in names:
+        if name in ignored_names:
+            continue
+        srcname = os.path.join(src, name)
+        dstname = os.path.join(dst, name)
+        try:
+            if symlinks and os.path.islink(srcname):
+                linkto = os.readlink(srcname)
+                os.symlink(linkto, dstname)
+            elif os.path.isdir(srcname):
+                _this_func(srcname, dstname, symlinks, ignore, copyFunc)
+            else:
+                # Will raise a SpecialFileError for unsupported file types
+                copyFunc(srcname, dstname)
+        # catch the Error from the recursive copytree so that we can
+        # continue with other files
+        except Error, err:
+            errors.extend(err.args[0])
+        except EnvironmentError, why:
+            errors.append((srcname, dstname, str(why)))
+    try:
+        copystat(src, dst)
+    except OSError, why:
+        if WindowsError is not None and isinstance(why, WindowsError):
+            # Copying file access times may fail on Windows
+            pass
+        else:
+            errors.append((src, dst, str(why)))
+    if errors:
+        raise Error, errors
+        
+def file__getDateTime(fname,attr):
+    st = os.stat(fname)
+    ts = getattr( st, attr)
+    dt = datetime.datetime.fromtimestamp(ts)
+    return dt
+
+def file__getModifiedTime(fname,attr='st_mtime'):
+    return file__getDateTime(fname,attr)
+
+        
+def file__link(IN,OUT,force=0, forceIn = False, link='link',relative=1):
+    
+    linker = getattr(os,link)
+    
+    #### Make sure input is not an empty file
+    if not file__notEmpty(IN) and link !='symlink':
+        if not forceIn:
+            return IN
+    if os.path.abspath(OUT) == os.path.abspath(IN):
+        return OUT
+        
+#     if os.path.exists(OUT):
+    if os.path.isfile(OUT) or os.path.islink(OUT):
+        if force:
+#             assert os.path.isfile(OUT) or os.path.islink(OUT)
+            os.remove(OUT)
+#             print ('removed[OUT]%s'%OUT)
+        else:
+            assert 'OUTPUT already exists:%s'%OUT
+    else:
+        pass
+    
+    
+    try:
+        if link=='symlink':
+            IN  =os.path.realpath(IN)
+            
+#             OUT = os.path.realpath(OUT)
+#             OUT = os.path
+            if relative:
+                IN = os.path.relpath( IN,os.path.dirname(OUT))
+        linker(IN,OUT)
+    except Exception as e:
+        d = dict(PWD=os.getcwdu(),
+                 IN=IN,
+                 OUT=OUT)
+        print(json.dumps(d,indent=4))
+#         print ('[PWD]%s'%os.getcwdu())
+#         print('l')
+        raise e
+        
+    return OUT
+
+
+def file__rename(d,force=0, copy=1, **kwargs):
+    for k,v in d.items():
+        DIR = os.path.dirname(v)
+        if DIR:
+            if not os.path.exists(DIR):
+                os.makedirs(DIR)
+        file__link(k,v,force=force,**kwargs)
+        if not copy:
+            if os.path.isfile(k):
+                os.remove(k)        
+
+def read__json(fname,
+             object_pairs_hook=collections.OrderedDict,
+              parser = json,
+             **kwargs):
+    kwargs.update(dict(object_pairs_hook=object_pairs_hook,))
+#     if hasattr(fname,'read'):
+#         func = json.loads
+#         res = func(fname.read(),**kwargs)
+#     else:
+    if 1:
+        func = parser.load
+        res = file__callback(
+            fname,
+            functools.partial(
+                func,**kwargs
+            )
+        )
+    return res
+read_json = read__json
+
+def file__callback(fname,callback,mode='r'):
+    if isinstance(fname,basestring):
+        with open(fname,mode) as f:
+            res = callback(f)
+    else:
+        f = fname
+        res = callback(f)
+    return res
+
+def file__notEmpty(fpath):  
+    '''
+    Source: https://stackoverflow.com/a/15924160/8083313
+    '''
+    return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
 
 
 def module__getPath(module,
@@ -323,11 +532,11 @@ class ShellPipe(list):
 #         self.append(collections.OrderedDict(cmd=cmd))
         self.append(collections.OrderedDict(p=p, cmd=cmd))
         
-    def checkResult(self, check=True, cmd='head'):
+    def checkResult(self, check=True, cmd='head',**kw):
         self.p0.stdin.close()
         if cmd:
             self.chain(cmd,)
-        res =  pysh.pipe__getResult( self.p, check=check)            
+        res =  pysh.pipe__getResult( self.p, check=check,**kw)            
         return res
     
     def readIter(self,it,
