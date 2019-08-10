@@ -5,10 +5,16 @@ from pymisca.tree import *
 from pymisca.shell import *
 from pymisca.logging_extra import *
 from pymisca.io_extra import *
+from pymisca.pandas_extra import *
+from pymisca.numpy_extra import *
+from pymisca.mp_extra import *
+# from pymisca.atto_jobs import *
+# from pymisca.module_wrapper import type__resolve, t
 
+from pymisca.pandas_extra import pd, series2index
 from pymisca.wraptool import Worker
-from pymisca.ptn import WrapString,WrapTreeDict,path__norm,template__format,f
-from pymisca.atto_string import AttoString
+from pymisca.ptn import WrapString,WrapTreeDict,path__norm,template__format,f,jf2
+from pymisca.atto_string import AttoString,AttoStringDict,AttoStringList
 
 import os, sys, subprocess, io, glob, inspect
 import json, ast
@@ -23,11 +29,13 @@ from pymisca.shell import shellexec
 
 import ast,simpleeval
 
-pyext = sys.modules[__name__]
+_this_mod = pyext = sys.modules[__name__]
 
 import pymisca.header as pyhead
+import pymisca.header
 # pyhead.mpl__setBackend(bkd='Agg') 
-pyhead.set__numpy__thread(vars(sys.modules['__main__']).get('NCORE',None))
+with pymisca.header.Suppress():
+    pyhead.set__numpy__thread(vars(sys.modules['__main__']).get('NCORE',None))
 
 import pymisca.numpy_extra as pynp
 np = pynp.np
@@ -37,6 +45,8 @@ from pymisca.util__fileDict import *
 
 
 import pymisca.oop as pyoop
+util_obj = pyoop.util_obj
+
 import pymisca.patch
 import pymisca.graph
 
@@ -58,6 +68,212 @@ _DICT_CLASS = collections.OrderedDict
 dir__real = real__dir = pysh.real__dir
 
 
+import requests
+import pymisca.sklearn_extra
+
+import pymisca.atto_jobs
+import dill
+import path
+
+
+
+# import shutil
+# import tempfile
+# class TempDirScope(object):
+#     def __init__(self,getTempDirName = tempfile.mkdtemp,**kw):
+# #         self._d = getTempDirName()
+#         d = getTempDirName()
+#         self._stack = pyext.getPathStack([d],**kw)
+# #         for key in ['d','_root']:
+# #             setattr(self,
+# #                    key,
+# #                    getattr())
+#     def __getattr__(self,key):
+# #         return getattr(self._stack,key)
+#         return self._stack.__getattribute__(key)
+#     def __enter__(self):
+#         self._stack.__enter__()
+#         return self._stack
+# #         pass
+#     def __exit__(self, *a,**kw):
+#         self._stack.__exit__(*a,**kw)
+#         shutil.rmtree(self.d)
+
+        
+
+def file__asModule(INPUT_FILE, MODULE_NAME=None):
+    if MODULE_NAME is None:
+        MODULE_NAME = get__anonModuleName()
+    mod = pymisca.atto_jobs.AttoModule({"NAME":MODULE_NAME,
+                                         "INPUT_FILE":INPUT_FILE})['MODULE']
+    
+    return mod
+
+def file__importName(INPUT_FILE, NAME, frameDict= None, **kw):
+    if frameDict is None:
+        frameDict = get__frameDict(level=1)
+    
+    mod = file__asModule(INPUT_FILE,**kw)
+    if isinstance(NAME,basestring):
+        frameDict[NAME] = v = getattr(mod,NAME)
+        return v
+    elif isinstance(NAME,dict):
+        for k,v in NAME.items():
+            frameDict[v] = getattr(mod,k)
+        return 
+
+
+def dict__getDirJson(d):
+    s = pyext.ppJson([(k,d[k]) for k in d \
+                      if k.endswith("DIR") and k!="INPUTDIR"],
+                     default=repr)   
+    return s
+
+def list__toHtmlRow(vals):
+    res = '''
+    <tr>
+        {% for x in vals %}
+         <td>{{x}}</td>
+        {% endfor %}
+    </tr>
+    '''
+    res = pyext.jf2(res)  
+    return res
+
+
+def validate__fileTable(df,OUTDIR=None):
+    if OUTDIR is None:
+        OUTDIR = "."
+    OUTDIR = path.Path(OUTDIR).realpath()
+    with pyext.getPathStack([OUTDIR]):
+        if not isinstance(df,list):
+            it = pyext.df__iterdict(df)
+            it = list(it)
+        else:
+            it = df
+
+        for d in it:
+            d['FULL_PATH'] = OUTDIR / d['FILE_ACC']
+#             "{OUTDIR}/{FILE_ACC}".format(OUTDIR=OUTDIR,**d)
+#             exists = 
+            if pyext.os.path.exists(d['FULL_PATH']):
+                d['FILE_ACC_HTML'] = pyext.tag__ahref(d['FILE_ACC'])
+                d['SIZE'] = pyext.size__humanReadable( pyext.file__size(d['FULL_PATH'])) if d['FULL_PATH'].isfile() else "FOLDER"
+            else:
+                d['FILE_ACC_HTML'] = d['FILE_ACC']
+                d['FULL_PATH'] = "[DO-NOT-EXIST]"
+                d['SIZE'] = -1
+            
+    return it
+
+def dicts__toHtmlTable(dicts,header=1):
+    tups = []
+    if header:
+#         tups += [dicts[0].keys()]
+        tups += [xml__tag("thead")(pyext.list__toHtmlRow( dicts[0].keys()) )] 
+    tups += [pyext.list__toHtmlRow( x.values()) for x in dicts]
+    res = tups
+#     res = map(pyext.list__toHtmlRow, tups)
+    res = pyext.rows__toTable(res)
+    return res
+
+@pyext.setAttr( _this_mod,"rows__toHtmlTable")
+def rows__toTable(rows):
+    res = '''<table border="1">
+            {% for _row in rows %}
+            {{_row}}
+            {% endfor %}
+    </table>'''    
+    return pyext.jf2(res)
+
+def file__getReadable__ModifiedTime(fname, level='min'):
+    dt = pymisca.shell.file__getModifiedTime(fname)
+    if level == 'min':
+        s = pyext.date__formatIso(dt)
+        s = s.rsplit(':',2)[0]
+    else:
+        assert 0,(level,)
+    return s
+
+@pyext.setAttr(_this_mod,'tag__ahref')
+def tag__href(fname,text=None
+         ):
+    text  = text or fname
+    res = '''
+    <a href="{fname}">{text}</a>
+    '''.strip().format(**locals())
+    return res
+
+def scriptDict__toRawModuleDict(SCRIPTS, raw=True,**kw):
+    return scriptDict__toModuleDict(SCRIPTS,raw=raw,**kw)
+def scriptDict__toModuleDict(SCRIPTS,suffixes=['.py','.pyc','.pyson'],raw=0):
+    MODULES = d = SCRIPTS.copy()
+    for k in d:
+        if k in ["__self__"]:
+            continue
+            
+        v = d[k]
+        if v in ["__debug__", "<stdin>"]:
+            continue
+            
+        if suffixes:
+            if not any([v.endswith(s) for s in suffixes]): continue
+        mod = pymisca.atto_jobs.AttoModule({"NAME":k,
+                                      "INPUT_FILE":d[k]})
+        if raw:
+            mod = mod['MODULE']
+        d[k] = mod
+#         ["MODULE"]
+    return MODULES
+
+# import time
+# import functools
+
+# def setAttr(other, name=None):
+#     class temp():
+#         _name = name
+#     def dec(func):
+#         if temp._name is None:
+#             temp._name = func.__name__
+# #         assert 0,(other,temp._name,func)
+#         setattr(other,temp._name,func)
+#         return func
+#     return dec
+
+# import datetime
+import textwrap
+def str__wrap(s,width=20):
+    s = textwrap.wrap(s,width=width)
+    s = '\n'.join(s)
+    return s
+
+def series__sanitise(ser):
+    res = ser.str.upper()
+    res = res.str.replace('[^a-zA-Z_0-9]','_')
+    return res
+from pymisca.date_extra import *
+
+
+
+
+def url__download(url,chunk_size=8192):
+    '''https://stackoverflow.com/a/16696317/8083313'''
+    local_filename = url.split('/')[-1]
+    # NOTE the stream=True parameter below
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(local_filename, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=chunk_size): 
+                if chunk: # filter out keep-alive new chunks
+                    f.write(chunk)
+                    # f.flush()
+    return local_filename
+
+
+
+def lastLine(res):
+    return res.splitlines()[-1]
+
 def getErrorInfo():
     exc_type, exc_obj, exc_tb = sys.exc_info()
     fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
@@ -68,6 +284,23 @@ def getErrorInfo():
 def path__toSafePath(FNAME):
     FNAME = FNAME.replace('\\','')
     return FNAME
+
+
+def df__toSTATUS(indVenn,xlab='dataset_1',ylab='dataset_2'):
+#     df = pd.Series(np.nan,index=indVenn['indAny']).to_frame('STATUS');
+#     df.index.name='INDEX'
+    
+    df = indVenn[['indAll','indnot1','indnot2']]
+    df = df.melt(var_name='STATUS', value_name='INDEX').dropna(subset=['INDEX']).set_index('INDEX')
+#     .dropna()
+#     for key in ['indAll','indnot1','indnot2']:
+#         df.loc[df.index.isin(indVenn[key]),'STATUS'] = key
+    df['STATUS'] = df['STATUS'].map({'indAll':'in both datasets',
+                      'indnot1': 'not in %s'%xlab,
+                     'indnot2':'not in %s'%ylab}.get).dropna()
+    # df = df.sort_values('STATUS')
+    df = df.sort_index()
+    return df
 
 def df__fillna(dfc,fill=['NA']):
     vals = dfc.values
@@ -83,10 +316,12 @@ def fastq__readCountAppx(FNAME,readLength):
     readCount = fileSizeInByte // (2 * readLength + 60)
     return readCount
 
-def size__humanReadable(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
+def size__humanReadable(bytes,units=['','K','M','G','T', 'P','E'],suffix='B',fmt='{0:.2f}',):
     """ Returns a human readable string reprentation of bytes,
     Source: https://stackoverflow.com/a/43750422/8083313"""
-    return str(bytes) + units[0] if bytes < 1024 else size__humanReadable(bytes>>10, units[1:])
+    return \
+        fmt.format(bytes) + units[0] + suffix if bytes < 1024 \
+        else size__humanReadable(bytes/1024., units[1:],suffix,fmt)
 
 def datenow():
     res  = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -210,18 +445,23 @@ def dir__indexify(DIR,silent=1,OPTS=None,OPTS_exec = 'du -al --apparent-size', c
 #     find . -type f -exec du -a {} +
 #     cmd = 'cd %s ; du -a --apparent-size .' % DIR
     DIR = DIR.rstrip('/')
-    cmd = 'cd {DIR} && find ./ {OPTS} -type {TYPE} -exec {OPTS_exec} "{{}}" +'.format(**locals())
-    COLS = ['SIZE','EXT','REL_PATH','FULL_PATH','BASENAME','FILEACC','REALDIR','DIR']
-    res = pd.DataFrame([], columns=COLS)
-    resBuf = pysh.shellexec(cmd,silent=silent)
-    res = res.append(
-        pyext.read__buffer(resBuf,columns=['SIZE','FILEACC'],header=None,ext='tsv'),
-#         axis=0,
-    )
-    
-    if res.empty:
-        assert not checkEmpty,'DIR={DIR} is empty'.format(**locals())
-        return res
+    with pyext.getPathStack([DIR]):    
+        cmd = 'find ./ {OPTS} -type {TYPE} '.format(**locals())
+        if OPTS_exec:
+            cmd += '-exec {OPTS_exec} "{{}}" +'.format(**locals())
+
+        COLS = ['SIZE','EXT','REL_PATH','FULL_PATH','BASENAME','FILEACC','REALDIR','DIR']
+        res = pd.DataFrame([], columns=COLS)
+        resBuf = pysh.shellexec(cmd,silent=silent)
+        res = res.append(
+            pyext.read__buffer(resBuf,columns=['SIZE','FILEACC'],header=None,ext='tsv'),
+    #         axis=0,
+        )
+
+        if res.empty:
+            DIR = os.path.realpath(DIR)
+            assert not checkEmpty,'DIR={DIR} is empty'.format(**locals())
+            return res
 #     res = res.append(res_)
     
 #     if res.empty:
@@ -367,6 +607,7 @@ def iter__toSoft(it):
             if line[0] in list('!^'):
                 yield line
 def iter__toFile(it,fname,lineSep='\n'):
+    assert 0,'Obsolete, use pymisca.io_extra.it__toFile() instead'
     opened = 0
     if not hasattr(fname,'write'):
         f = io.open(fname,'w',encoding='utf8')
@@ -654,8 +895,9 @@ basename = getBname ###legacy
 #     return
 
 def sanitise__column(col):
-    col = col.replace(' ','_')
+    col = col.replace(' ','_').replace('-','_').upper()
     return col
+
 def df__sanitiseColumns(dfc):
     cols = dfc.columns
     res = cols.map(sanitise__column)
@@ -726,75 +968,75 @@ def file__read__configSections(inputFile):
         pyext.dict__key__func(d,k,section__serialise)
     return d
 
-def file__callback(fname,callback,mode='r'):
-    if isinstance(fname,basestring):
-        with open(fname,mode) as f:
-            res = callback(f)
-    else:
-        f = fname
-        res = callback(f)
-    return res
+# def file__callback(fname,callback,mode='r'):
+#     if isinstance(fname,basestring):
+#         with open(fname,mode) as f:
+#             res = callback(f)
+#     else:
+#         f = fname
+#         res = callback(f)
+#     return res
 
-def file__notEmpty(fpath):  
-    '''
-    Source: https://stackoverflow.com/a/15924160/8083313
-    '''
-    return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
+# def file__notEmpty(fpath):  
+#     '''
+#     Source: https://stackoverflow.com/a/15924160/8083313
+#     '''
+#     return os.path.isfile(fpath) and os.path.getsize(fpath) > 0
 
-def file__link(IN,OUT,force=0, forceIn = False, link='link',relative=1):
+# def file__link(IN,OUT,force=0, forceIn = False, link='link',relative=1):
     
-    linker = getattr(os,link)
+#     linker = getattr(os,link)
     
-    #### Make sure input is not an empty file
-    if not file__notEmpty(IN) and link !='symlink':
-        if not forceIn:
-            return IN
-    if os.path.abspath(OUT) == os.path.abspath(IN):
-        return OUT
+#     #### Make sure input is not an empty file
+#     if not file__notEmpty(IN) and link !='symlink':
+#         if not forceIn:
+#             return IN
+#     if os.path.abspath(OUT) == os.path.abspath(IN):
+#         return OUT
         
-#     if os.path.exists(OUT):
-    if os.path.isfile(OUT) or os.path.islink(OUT):
-        if force:
-#             assert os.path.isfile(OUT) or os.path.islink(OUT)
-            os.remove(OUT)
-#             print ('removed[OUT]%s'%OUT)
-        else:
-            assert 'OUTPUT already exists:%s'%OUT
-    else:
-        pass
+# #     if os.path.exists(OUT):
+#     if os.path.isfile(OUT) or os.path.islink(OUT):
+#         if force:
+# #             assert os.path.isfile(OUT) or os.path.islink(OUT)
+#             os.remove(OUT)
+# #             print ('removed[OUT]%s'%OUT)
+#         else:
+#             assert 'OUTPUT already exists:%s'%OUT
+#     else:
+#         pass
     
     
-    try:
-        if link=='symlink':
-            IN  =os.path.realpath(IN)
+#     try:
+#         if link=='symlink':
+#             IN  =os.path.realpath(IN)
             
-#             OUT = os.path.realpath(OUT)
-#             OUT = os.path
-            if relative:
-                IN = os.path.relpath( IN,os.path.dirname(OUT))
-        linker(IN,OUT)
-    except Exception as e:
-        d = dict(PWD=os.getcwdu(),
-                 IN=IN,
-                 OUT=OUT)
-        print ppJson(d)
-#         print ('[PWD]%s'%os.getcwdu())
-#         print('l')
-        raise e
+# #             OUT = os.path.realpath(OUT)
+# #             OUT = os.path
+#             if relative:
+#                 IN = os.path.relpath( IN,os.path.dirname(OUT))
+#         linker(IN,OUT)
+#     except Exception as e:
+#         d = dict(PWD=os.getcwdu(),
+#                  IN=IN,
+#                  OUT=OUT)
+#         print(json.dumps(d,indent=4))
+# #         print ('[PWD]%s'%os.getcwdu())
+# #         print('l')
+#         raise e
         
-    return OUT
+#     return OUT
 
 
-def file__rename(d,force=0, copy=1, **kwargs):
-    for k,v in d.items():
-        DIR = os.path.dirname(v)
-        if DIR:
-            if not os.path.exists(DIR):
-                os.makedirs(DIR)
-        file__link(k,v,force=force,**kwargs)
-        if not copy:
-            if os.path.isfile(k):
-                os.remove(k)
+# def file__rename(d,force=0, copy=1, **kwargs):
+#     for k,v in d.items():
+#         DIR = os.path.dirname(v)
+#         if DIR:
+#             if not os.path.exists(DIR):
+#                 os.makedirs(DIR)
+#         file__link(k,v,force=force,**kwargs)
+#         if not copy:
+#             if os.path.isfile(k):
+#                 os.remove(k)
                 
 def file__wsv2tsv(FNAME,silent=0):
     res = pyext.shellexec("sed 's/[ \t]\+/\t/g' {FNAME} | sed 's/[ \t]\+$//g'> {FNAME}.tsv".format(**locals()),
@@ -806,25 +1048,40 @@ def file__wsv2tsv(FNAME,silent=0):
 def read__buffer(buf,**kwargs):
     res = pyext.readData(pymisca.io_extra.unicodeIO(buf=buf),**kwargs)
     return res
+def read__npy(FNAME,allow_pickle=1, **kw):
+    return np.load(FNAME,allow_pickle=allow_pickle, **kw)
 
+def read__commentjson(FILE):
+    
+    buf =  pyext.readData( FILE, ext='it')
+    buf = ''.join(buf)
+    return simpleeval.EvalWithCompoundTypes().eval(buf)    
+    
+#     # buf =  pyext.readData('src/H00000000-rna-0620-B.json',ext='it')
+#     buf = '\n'.join([x for x in buf if x.find('#')==-1])
+#     DB_PIPE = pyext.read__buffer(buf,ext='json',)
+#     return DB_PIPE
 
-def read_json(fname,
-             object_pairs_hook=collections.OrderedDict,
-             **kwargs):
-    kwargs.update(dict(object_pairs_hook=object_pairs_hook,))
-#     if hasattr(fname,'read'):
-#         func = json.loads
-#         res = func(fname.read(),**kwargs)
-#     else:
-    if 1:
-        func = json.load
-        res = pyext.file__callback(
-            fname,
-            functools.partial(
-                func,**kwargs
-            )
-        )
-    return res
+from pymisca.shell import read_json
+
+# def read_json(fname,
+#              object_pairs_hook=collections.OrderedDict,
+#               parser = json,
+#              **kwargs):
+#     kwargs.update(dict(object_pairs_hook=object_pairs_hook,))
+# #     if hasattr(fname,'read'):
+# #         func = json.loads
+# #         res = func(fname.read(),**kwargs)
+# #     else:
+#     if 1:
+#         func = parser.load
+#         res = pyext.file__callback(
+#             fname,
+#             functools.partial(
+#                 func,**kwargs
+#             )
+#         )
+#     return res
 
 def job__baseScript(scriptPath,baseFile=1,**kwargs):
     return job__script(scriptPath,baseFile=baseFile,**kwargs)
@@ -925,11 +1182,11 @@ exit ${{PIPESTATUS[0]}};
     else:
         return suc, res
     
-def ppJson(d):
+def ppJson(d,**kw):
     '''
     Pretty print a dictionary
     '''
-    s = json.dumps(d,indent=4, sort_keys=True)
+    s = json.dumps(d,indent=4, sort_keys=True,**kw)
     return s
 
 def is_ipython():
@@ -1120,25 +1377,25 @@ def dict__combine(dcts):
                     res[k] += d[k]
     return res
 
-##### Multiprocessing map
-import multiprocessing as mp
-def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, 
-           NCORE=None,
-#            kwds = {}, 
-           **kwargs):
-    if NCORE is not None:
-        n_cpu = NCORE
-    if n_cpu > 1:
-        p = mp.Pool(n_cpu,**kwargs)
-        OUTPUT=p.map_async(f,lst, chunksize=chunksize, 
-#                            kwds = kwds,
-                           callback = callback).get(999999999999999999) ## appx. 7.6E11 years
-#         OUTPUT = p.map(f,lst)
-        p.close()
-        p.join()
-    else:
-        OUTPUT = map(f,lst)
-    return OUTPUT
+# ##### Multiprocessing map
+# import multiprocessing as mp
+# def mp_map(f,lst,n_cpu=1, chunksize= None, callback = None, 
+#            NCORE=None,
+# #            kwds = {}, 
+#            **kwargs):
+#     if NCORE is not None:
+#         n_cpu = NCORE
+#     if n_cpu > 1:
+#         p = mp.Pool(n_cpu,**kwargs)
+#         OUTPUT=p.map_async(f,lst, chunksize=chunksize, 
+# #                            kwds = kwds,
+#                            callback = callback).get(999999999999999999) ## appx. 7.6E11 years
+# #         OUTPUT = p.map(f,lst)
+#         p.close()
+#         p.join()
+#     else:
+#         OUTPUT = map(f,lst)
+#     return OUTPUT
 
 def MapWithCache(f,it,ALI='Test',nCPU=1,force=0):
     print ('[MSG] Mapping function:   Under cahce alias: %s'%(ALI))
@@ -1171,6 +1428,10 @@ def readBaseFile(fname,baseFile=1, **kwargs):
     res = pyext.readData(fname,baseFile=baseFile, **kwargs)
     return res
 
+def read__dill(fname, **kwargs):
+    with open(fname,'rb') as f:
+        return dill.load(f, **kwargs)
+    
 def readData(
     fname, 
     ext=None, callback=None, 
@@ -1240,7 +1501,9 @@ def readData(
 #             if 'Gene ID' in res.columns
             if ext == 'cufflinks':
                 pass
-            
+        elif ext == 'dill':
+            res = pyext.read__dill(fname,**kwargs)
+            space._guess_index=0
         elif ext == 'pk':
             res = pd.read_pickle(fname,**kwargs)
         elif ext == 'pandas-json':
@@ -1545,3 +1808,12 @@ def funcs__reduceWithPath(funcNames,force=1,funcDict=None, outDir='.',
         
     stack.close()
     return lastRes
+
+def arr2d__pctransform(xs,ys,silent=1,ax=None,index=None):
+    X = np.vstack([xs,ys]).T
+    pca = pymisca.sklearn_extra.pca__fitPlot( X,silent=silent,ax=ax)
+    mdl = pymisca.sklearn_extra.pca__alignToPrior(mdl=pca, prior=[[1,1],[-1,1]],silent=silent)[0]    
+    coords = mdl.transform(X)
+    columns = ['PC{i}'.format(i=i) for i in range(X.shape[1])]
+    coords = pd.DataFrame(coords,index,columns)
+    return coords, mdl

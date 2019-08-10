@@ -4,6 +4,22 @@ from numpy import *
 import sys
 pynp = sys.modules[__name__]
 
+def cdist(_X,_Y,distF,out=None):
+    I = len(_X)
+    J = len(_Y)
+    if isinstance(distF,basestring):
+#         distF = resolve_type(distF)
+        assert 0
+    
+    if out is None:
+        out = np.zeros((I,J))
+    distF = np.dot
+    for i,_x in enumerate(_X):
+        for j,_y in enumerate(_Y):
+    #         loss()
+            out[i,j] = v = distF(_x,_y)
+    return out 
+
 def oneHot(values,MAX=None):
     values = np.ravel(values)
     if MAX is None:
