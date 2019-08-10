@@ -3,10 +3,28 @@
 Author: Feng Geng (fg368@cam.ac.uk)
 An alternative serilaiser that allows customised delimiter
 '''
-import pymisca.ptn
+# import pymisca.ptn
 import collections
 import regex
+import warnings
+import sys,os
 _DICT_CLASS = collections.OrderedDict
+_this_mod = sys.modules[__name__]
+import warnings
+
+import pymisca.patch
+# import numpy as np
+import pymisca.shell
+import copy
+import errno,shutil
+
+
+
+def quote(s, BRAKET = None):
+    if BRAKET is None:
+        BRAKET = dict(BRA='"',KET='"')
+    s = u'{BRA}{s}{KET}'.format(s=s,**BRAKET)
+    return s
 
 def isSafeType(v):
     return True
@@ -90,11 +108,350 @@ def string__iter__elementWithLevel(s,SEP,BRA,KET,level,debug=0):
         if toBreak:
             break
             
+PY_TYPES = {}
+def _register(func):
+    return func
+
+@_register
+class AttoShortDirectory(unicode):
+    
+#     def __init__(self,data):
+#         self.data = data
+#         return 
+    
+#     def __repr__(self,):
+#         return self.toAttoString()
+    
+    @classmethod
+    def fromAttoString(cls, s):
+        v = _this_mod.attoMeta__fromAttoString(cls,s).toContainer()
+        assert len(v) == 1
+        v = v[0]
+        v = cls(v)
+        return v
+    
+    def toAttoString(self):
+        s = _this_mod.attoMeta__toAttoString(self, [unicode(self)])
+        return s
+PY_TYPES['AttoShortDirectory'] = AttoShortDirectory
+
+@_register
+class AttoStringDict(_DICT_CLASS):
+        
+    def toAttoString(self):
+        return attoMeta__toAttoString(self, 
+                                      AttoString.fromContainer(_DICT_CLASS(self)))
+
+    @classmethod
+    def fromAttoString(cls,v):
+        return attoMeta__fromAttoString(cls,v).toContainer()
+PY_TYPES['AttoStringDict'] = AttoStringDict
+
+@_register
+class AttoStringList(list):
+        
+    def toAttoString(self):
+        return attoMeta__toAttoString(self, 
+                                      AttoString.fromContainer(list(self)))
+
+    @classmethod
+    def fromAttoString(cls,v):
+        return attoMeta__fromAttoString(cls,v).toContainer()    
+    
+PY_TYPES['AttoStringList'] = AttoStringList
+
+# class AttoPath(unicode):
+class AttoPath(pymisca.patch.FrozenPath):
+#     sep = os.sep
+    sep = "/"
+    @classmethod
+    def _name(cls):
+        return cls.__name__    
+    def __or__(self,other):
+        return other(self) 
+    def __iter__(self):
+        return self.split(self.sep).__iter__()
+    
+    def join(self,sep):
+        return type(self)(sep.join(self))
+    
+    def as_list(self):
+        return self.split(os.sep)
+    def toAttoString(self):
+        s = _this_mod.AttoString.fromContainer(self.as_list())
+        s = _this_mod.AttoString.new( type(self).__name__ + s ) 
+        return s
+    
+    @classmethod
+    def fromAttoString(cls, v):        
+        assert v.startswith(cls._name())
+        v = v[len(cls._name()):]
+        v = _this_mod.AttoString.new(v).toContainer()
+        v = os.sep.join(v)
+        v = cls(v)
+        return v
+    
+    def __new__(cls,s):
+#         s = cls.sep.join(map(ValidAttoString, s.split(cls.sep)))
+        s = AttoString.new(s, validate=True, 
+                           BLACKLIST=''.join(
+                               set(AttoString.BLACKLIST)
+                               -set(cls.sep),
+                           )
+                          )
+        self = super(AttoPath,cls).__new__(cls, s)    
+        return self
+    def __repr__(self):
+        s = '{0}({1})'.format(type(self).__name__, 
+                                super(AttoPath,self).__repr__())
+        
+        return s
+
+    def getPathStack(self,**kw):
+        assert 0
+        def missingDirCallback(pathLastElement, parent):
+            DB_JOB = AttoString.fromAttoString(str(pathLastElement)).toContainer()
+            DB_JOB['INPUTDIR'] = unicode(parent)
+            DB_JOB.update({
+                'INPLACE':1
+                })
+            DB_JOB.update(kw)
+#             res = pymisca.module_wrapper.worker__stepWithModule(DB_JOB,**kw)
+            newDir = os.path.basename(res['LAST_DIR'])
+            assert  newDir == pathLastElement,(newDir,pathLastElement, parent)
+            return
+
+        lst = self.as_list()
+        pymisca.tree.getPathStack(lst,
+                missingDirCallback = missingDirCallback)
+
+    def resolve(self, lastN=1):
+        alive = True
+        for ele in self.as_list()[::-1]:
+            alive = alive & AttoString.isAttoString(ele)
+            if not alive:
+                break
+PY_TYPES['AttoPath'] = AttoPath
+
+class AttoHostDirectory(AttoPath):
+    ptn = '([^@]+)@([^:]+):([^\s]*)'
+    groupName = ['USERNAME','HOSTNAME','DIR']
+    template = '{USERNAME}@{HOSTNAME}:{DIR}'
+#     sep = os.sep
+#     sep = '/'
+    @classmethod
+    def _name(cls):
+        return cls.__name__        
+#     def to_AttoPath(self):
+#         return AttoPath(self)
+    
+    def is_remote(self):
+        d = self.to_dict()
+        return bool( d.get('HOSTNAME','') or d.get('USERNAME',''))
+#         return 
+
+    def to_dict(self):
+        
+        m  = next(re.finditer(self.ptn, self),None)
+        d = _DICT_CLASS()
+        if m:
+            res = zip(self.groupName, m.groups())
+            d.update(res)
+            d['DIR'] = AttoPath(d['DIR'])
+        else:
+            d['DIR'] = AttoPath(self)
+        return d
+    
+    @classmethod
+    def from_dict(cls,d):
+        d['DIR'] = AttoPath(d['DIR'])  
+        if d.get('HOSTNAME',''):
+            self = cls.template.format(**d)
+        else:
+            self = AttoPath(d['DIR'])
+
+        self = cls(self)
+        return self
+    
+    def toAttoString(self):
+        return attoMeta__toAttoString(self, 
+                                      AttoString.fromContainer(self.to_dict()))
+
+    @classmethod
+    def fromAttoString(cls,v):
+        res = attoMeta__fromAttoString(cls,v).toContainer()
+        res = cls.from_dict(res)
+        return res
+PY_TYPES['AttoHostDirectory'] = AttoHostDirectory
+
+import pymisca.date_extra
+import filelock
+class AttoCaster(object):
+    _DICT_CLASS = collections.OrderedDict
+    PARAMS_TRACED = []
+    def __init__(self, *a, **kw):
+        pass
+    def __getitem__(self,key):
+        return self._data.__getitem__(key)
+    
+    def __setitem__(self,key,val):
+        return self._data.__setitem__(key,val)
+    
+    def get(self,*a):
+        return self._data.get(*a)
+    
+    @classmethod
+    def _cast(cls, kwargs, rule = None):
+        '''
+        Casting values of "kwargs" according to "rule" dictionary
+        '''
+        if rule is None:
+            rule = copy.copy(cls.PARAMS_TRACED )
+        rule = cls._DICT_CLASS(rule)
+        
+        import pymisca.module_wrapper as _this_mod
+        kwargs = _this_mod.dict__rule__cast(kwargs, rule)
+        return kwargs        
+    
+    @classmethod
+    def _lock(cls, DIR = None):
+        return filelock.FileLock("%s.lock"% cls.__name__)     
+    
+#     @classmethod
+    def _timer( self, data = None,key = None,**kw):
+        if key is None:
+            key = type(self).__name__
+        data = self["TIME_DICT"] = self.get("TIME_DICT", self._DICT_CLASS())        
+        return pymisca.date_extra.scope__timer(data=data,key=key,**kw)
+#         return filelock.FileLock("%s.lock"% cls.__name__)     
+PY_TYPES["AttoCaster"] = AttoCaster
+
+class AttoJobResult(AttoCaster):
+    PARAMS_TRACED = _DICT_CLASS([ 
+        ("INPUTDIR",("AttoPath",None)),
+        ("OUTDIR",("AttoPath",None)),
+        ("LAST_DIR",("AttoPath",None)),
+        ("NCORE",("int",1)),
+        ("FORCE",("int",0)),
+    ])
+    
+    def __repr__(self):
+        return '%r%s'%(type(self), self._data)
+#         return repr(self._data)
+    
+    def __init__(self, fromDict=0, **kwargs):
+        self._data = self._cast(kwargs)
+        self._result = None
+        if not fromDict:
+            self._run()
+
+    def _run(self):
+        import pymisca.module_wrapper as _this_mod
+#         import pymisca.module_wrapper
+        assert self._result is None
+        res = self._result = self._cast( _this_mod.worker__stepWithModule(self._data))
+        return res
+
+    def __getitem__(self, key ):
+        res = self._result.__getitem__(key)
+        return res
+
+    def __or__(self, other ):
+        return other(self)
+    
+    def to_dict(self):
+        return self._result
+    
+    @classmethod
+    def from_dict(cls,kwargs):
+        res = cls(fromDict=1,**kwargs)
+        return res
+
+    
+    def toAttoString(self):
+        return attoMeta__toAttoString(self, 
+                                      AttoString.fromContainer(self.to_dict()))
+
+    @classmethod
+    def fromAttoString(cls,v):
+        res = attoMeta__fromAttoString(cls,v).toContainer()
+        res = cls.from_dict(res)
+#         res = cls(fromDict=1,**kwargs)
+        return res    
+#     def toAttoString(self)
+    
+PY_TYPES['AttoJobResult'] = AttoJobResult
 
 
+class CopyTo(object):
+    def __init__(self, OUTDIR = None, INPUTDIR=None, basename = None, force=0,
+                 DRY=0,
+                 errorFunc=shutil.copy2):
+        if OUTDIR is None:
+            OUTDIR = os.getcwd()
+        self.dest = OUTDIR
+        self.src = INPUTDIR
+        self.basename = basename
+        self.force = force
+        self.errorFunc = errorFunc
+        self.DRY = DRY
+#         self.allowCopy = 1
+        
+    def call_tuple(self, (FNAME, basename)):
+#         _FNAME = os.path.realpath(FNAME)
+#         FNAME = 
+        _type = type(FNAME)
+        if not os.path.isabs(FNAME):
+            srcDir = self.src or os.getcwd()
+            _src = os.path.join( srcDir, FNAME)
+        else:
+            _src = FNAME
+        if not os.path.exists(_src):
+            assert 0,("path does not exist", _src)
+            
+        _src;
+        _basename = basename or self.basename or os.path.basename( _src)
+        _dest = os.path.join( self.dest, _basename)
+        _dest = _type(_dest)
+        if not self.DRY:
+            if os.path.isdir( _src):            
+                pymisca.shell.dir__link( _src, _dest, force=self.force)
 
+    #             assert 0,"can only download file, not diretory"
+            else:
+                if not pymisca.shell.file__notEmpty( _src):
+                    assert 0, ("FILE is empty", _src)
+                else:
+
+                    pymisca.shell.real__dir(fname=_dest)
+                    if os.path.abspath(_src) == os.path.abspath(_dest):
+                        pass
+                    else:
+                        if os.path.isfile(_dest):
+                            if self.force:
+                                os.remove(_dest)
+                            else:
+                                assert 0,(self.force, "Specify force=1 to overwrite",_src,_dest)
+                        try:
+                            os.link( _src, _dest)
+                        except OSError as e:
+                            if e.errno == errno.EXDEV:
+                                self.errorFunc(_src,_dest)
+                            else:
+                                raise e
+        else:
+            pass
+        return _dest
+    
+    def __call__(self, FNAME, basename = None):
+        return self.call_tuple((FNAME,basename))
+PY_TYPES['CopyTo'] = CopyTo
 
 # class AttoString( pymisca.ptn.WrapString):
+# class ValidAttoString(AttoString):
+
+
+
 class AttoString( unicode ):
 # class AttoString( unicode):
 #     SEP = '_@@_'
@@ -106,11 +463,37 @@ class AttoString( unicode ):
     COLON = '.--.'
     NULL_STRING_LIST = ['NA','None','null']
     _DICT_CLASS = _DICT_CLASS 
-    DBRA = {'BRA':'@--','KET':'__@'}    
+    DBRA = {'BRA':'@--','KET':'__@'} 
+    BLACKLIST = " /"
  
     @classmethod
-    def new(cls, *a,**kw):
-        self = cls.__new__(cls,*a,**kw )
+    def validate(cls,v,BLACKLIST=None):
+        if BLACKLIST is None:
+            BLACKLIST = cls.BLACKLIST
+#         v = self
+        SEP = cls.SEP.replace(".","\\.")
+        COLON = cls.COLON.replace(".","\\.")
+        assert ' ' in BLACKLIST,(BLACKLIST,)
+#         INVALID = ' /'
+        ptn =  '([{BLACKLIST}]|{SEP}|{COLON})'.format(**locals())
+        if next(re.finditer( ptn,  v),None) is not None:    
+            raise RuntimeError('"{0}" matches invalider regex  {1}'.format(v,ptn) )
+        return v
+            
+        
+    @classmethod
+    def new(cls, v, force=None , validate=False, **kw):
+        if force is not None:
+            validate = not force
+            
+        self = cls.__new__(cls,v )
+#     def new(cls, *a,**kw):
+#         self = cls.__new__(cls,*a,**kw )
+        
+        #### check the AttoString is valid
+        if validate:
+            cls.validate(self, **kw)
+            
         return self
         
     def __new__(cls, s, VERSION=None,**kw):
@@ -124,15 +507,16 @@ class AttoString( unicode ):
     def __repr__(self):
         return '%s(%s)'%( self.__class__.__name__,  super(AttoString,self).__repr__())
 
-    def toAttoString(self):
-        return attoMeta__toAttoString(self,[unicode(self)])
+#     def toAttoString(self):
+#         return attoMeta__toAttoString(self,[unicode(self)])
 
-    @classmethod
-    def fromAttoString(cls,v,**kw):
-        return cls.new(attoMeta__fromAttoString(cls,v),**kw).dewrap()
-        # .__repr__())
+#     @classmethod
+#     def fromAttoString(cls,v,**kw):
+#         return cls.new(attoMeta__fromAttoString(cls,v),**kw).dewrap()
+#         # .__repr__())
 
         # return '%s%s'%( self.__class__.__name__,  super(AttoString,self).__repr__())
+    
     @classmethod
     def DBRA_STRIPPED(cls):
         res = {k:v.strip('\\') for k,v in cls.DBRA.items()}
@@ -182,21 +566,45 @@ class AttoString( unicode ):
     
     def dewrap(self):
         assert self.fullmatch()
-        s = self.new(self[len(self.BRA()):-len(self.KET())])
+        s = self.new(self[len(self.BRA()):-len(self.KET())],force=1)
         return s
     
     def rewrap(self):
         s = self
-        s = pymisca.ptn.quote(s, self.__class__.DBRA_STRIPPED())
-        s = self.new(s)
+        s = quote(s, self.__class__.DBRA_STRIPPED())
+        s = self.new(s,force=1)
         return s
+    
+    def toContainer(self,*a,**kw):
+        res = _toContainer(self, *a,**kw)
+        if isinstance(res,list):
+            res = AttoStringList(res)
+        elif isinstance(res,dict):
+            res = AttoStringDict(res)
+        else:
+            warnings.warn('trying to cast a non-container type %s'%(type(res)))
+        return res
+    
+#     def fromContainer(self,)
+            
+def attoMeta__toAttoString(self=None, v=None,cls=None):
+    if cls is not None:
+        pass
+    else:
+        cls = self.__class__
+    s = '%s%s'%( cls.__name__, AttoString.fromContainer( v ))
+    _LIMIT = 255
+    if len(s)> _LIMIT:
+        _L = len(s)
+        warnings.warn('Producing AttoString longer than {_LIMIT}:length {_L}'.format(**locals()))
+    s = AttoString.new(s,force=1)
+    return s
 
-def attoMeta__toAttoString(self, v):
-    return '%s%s'%( self.__class__.__name__, AttoString.fromContainer( v ))
 def attoMeta__fromAttoString(cls,v):
     cname = cls.__name__
     assert  v.startswith(cname),"'{1}' must starts with {0}".format(cname,v)
-    return AttoString.new(v[ len(cname): ])
+    return AttoString.new(v[ len(cname): ],force=1)
+
 
 
 class PY_INT(int):
@@ -223,14 +631,131 @@ class PY_BOOL(object):
         self.v = v
 
     def toAttoString(self):
-        return attoMeta__toAttoString(self,[str(self.v)])
+        return attoMeta__toAttoString(self,[str(int(self.v))])
 
     @classmethod
     def fromAttoString(cls,v):
         return float(attoMeta__fromAttoString(cls,v).toContainer()[0])
+    
+class PY_FILE(file):
+    '''
+    '''
+    def __init__(self, *a, **kw):
+        if isinstance(a[0],file):
+            f = a[0]
+            a = [f.name,f.mode]
+#             kw['encoding'] = f.encoding
+            pass
+#         else:
+        super(PY_FILE,self).__init__(*a,**kw)
+            
+    def toAttoString(self):
+        d = _DICT_CLASS()
+        for k in ['name','mode','encoding']:
+            val = getattr(self, k)
+            if val is not None:
+                d[k] = val 
+            
+        d['name'] = os.path.realpath(d['name']).split(os.sep)
+#         d['name'] = 
+        return attoMeta__toAttoString(self, d)
+
+    def toJSON(self):
+        return 'TBC-nothing'
+    
+    @classmethod
+    def fromAttoString(cls,v):
+        d = attoMeta__fromAttoString(cls,v).toContainer()
+        name = os.sep.join(d.pop('name'))
+        return cls(name,**d)
+    
+#         return float(attoMeta__fromAttoString(cls,v).toContainer()[0])
 
 
-PY_TYPES = {bool:PY_BOOL, float:PY_FLOAT, int:PY_INT}
+PY_TYPES.update({bool:PY_BOOL, float:PY_FLOAT, int:PY_INT, file:PY_FILE, })
+
+@pymisca.header.setItem(PY_TYPES)
+class ValidAttoString(AttoString):
+    def __new__(cls,s):
+        #### recursion error
+        # s = super(ValidAttoString, cls).new(s,validate=True)
+        ####
+        s = AttoString.new(s,validate=True)
+        return s
+
+from pymisca.header import func__setAsAttr
+import imp
+import types
+import importlib
+
+class PY_MODULE(types.ModuleType):
+    
+    @classmethod
+    def from_kw(cls,**d):
+        return cls.from_dict(d)
+    
+    @classmethod
+    def from_dict(cls,d):
+#         if '__name__' in d and '__file__' not in d:
+#             importlib.import_module(d['__name__'])
+    
+        if not '__name__' in d and '__file__' in d:
+            d['__name__'] = d['__file__']
+            
+        if d['__file__'].endswith('.py'):
+            mod = imp.load_source(d['__name__'],d['__file__'])
+        elif d['__file__'].endswith('.pyc'):
+            mod = imp.load_compiled(d['__name__'],d['__file__'])
+        else:
+            assert 0,(d['__file__'],)
+        return mod
+    
+    @classmethod
+    def fromAttoString(cls,v):
+        d = attoMeta__fromAttoString(cls,v).toContainer()
+        mod = cls.from_dict(d)
+        return mod
+    
+    def __new__(cls,mod):
+        
+#         @classmethod
+#         def fromAttoString():
+#             pass
+        
+        @func__setAsAttr(mod,)
+        def toJSON(self=mod):
+            return self.__name__
+        
+        @func__setAsAttr(mod,)
+        def toAttoString(self=mod):
+            d = _DICT_CLASS()
+            d['__name__'] = self.__name__
+            d['__package__']  = self.__package__
+            d['__file__'] = _this_mod.AttoPath(self.__file__)
+            return attoMeta__toAttoString(cls=cls,v=AttoString.fromContainer(d))
+        @func__setAsAttr(mod,)
+        def fromAttoString(v):
+            return cls.fromAttoString(v)
+
+        return mod
+PY_TYPES[type(sys)] = PY_MODULE
+PY_TYPES['PY_MODULE'] = PY_MODULE
+
+
+
+# import numpy as np
+# class NUMPY_NDARRAY(np.ndarray):
+#     def toAttoString(self):
+#         return attoMeta__toAttoString(self, list(self))
+
+#     @classmethod
+#     def fromAttoString(cls,v):
+#         return cls( attoMeta__fromAttoString(cls,v).toContainer() )
+#     def toJSON(self):
+#         return '<NUMPY_NDARRAY>'
+    
+# PY_TYPES[np.ndarray] = PY_TYPES['NUMPY_NDARRAY'] = NUMPY_NDARRAY
+# d['NUMPY_NDARRAY']
 # @classmethod
 import re
 def wrap1__fromContainer(cls, v,
@@ -262,10 +787,15 @@ def wrap1__fromContainer(cls, v,
 #    if not isinstance(basestring):            
 #         s = unicode(v)
 #        lst = unicode(v)
-        INVALID = ' /'
-        if next(re.finditer('[%s]'%INVALID,v),None) is not None:
-            raise RuntimeError('"{0}" contains invalid characters {1}'.format(v,list(INVALID)))
-        lst = unicode(v)
+
+        if not isinstance(v,cls):
+            v = cls.new(v,validate=True)
+        lst = v
+
+                
+#         if next(re.finditer('[%s]'%INVALID,v),None) is not None:
+#             raise RuntimeError('"{0}" contains invalid characters {1}'.format(v,list(INVALID)))
+#         lst = unicode(v)
 #        if ' ' in lst or 
 #         lst = None
     elif isinstance(v, list):
@@ -306,11 +836,13 @@ def wrap1__fromContainer(cls, v,
 
     if isinstance(lst, list):
         s = SEP.join(lst)
-        s = cls.new(s,)
+        s = cls.new(s,force=1)
         s = s.rewrap()    
     else:
         assert isinstance(lst,basestring), lst
-        s = cls.new(lst,)
+        assert isinstance(lst,cls), lst
+        s =  lst
+#         s = cls.new(lst,f)
 #     print(type(s),s.rewrap())
     return s
 
@@ -326,7 +858,9 @@ DEFAULT_TYPE = object()
 def getDefaultRegistry():
     import pymisca.atto_util
     d = pymisca.atto_util.TYPE_REGISTRY.copy()
+
     d.update({v.__name__:v for v in PY_TYPES.values()})
+
     return d
 
 def _toContainer( s, 
@@ -366,6 +900,7 @@ def _toContainer( s,
     # if TYPE:
     if TYPE is not DEFAULT_TYPE:
         v = TYPE.fromAttoString(s)
+        
     elif s.fullmatch():
 
             s = s.dewrap()
@@ -412,9 +947,9 @@ def _toContainer( s,
             v = unicode(v)
         # if isinstance(v,basestring):
         #     v 
-
     return v
-AttoString.toContainer = (_toContainer)    
+
+# AttoString.toContainer = (_toContainer)    
 
 
 
@@ -493,6 +1028,8 @@ if __name__ == '__main__':
 	d.pop('_input')
         res.append(d)
     print(repr(res))
+    
+#     ContainerString()
 #    print(json.dumps(res))
 
 
