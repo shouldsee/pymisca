@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/shouldsee/pymisca.svg?branch=master)](https://travis-ci.com/shouldsee/pymisca)
+
 # pymisca
 
 Miscellaneous utilities and visualisation snippets oriented towards functional programming
