@@ -67,6 +67,24 @@ _DICT_CLASS = collections.OrderedDict
 ##### pymisca.shell
 dir__real = real__dir = pysh.real__dir
 
+def rgetattr(obj,attr):
+    _this_func = rgetattr
+    sp = attr.split('.',1)
+    if len(sp)==1:
+        l,r = sp[0],''
+    else:
+        l,r = sp
+        
+    obj = getattr(obj,l)
+    if r:
+        obj = _this_func(obj,r)
+    return obj
+
+
+def obj__dict__call(ax, d_ax,):
+    for k,v in d_ax.items():
+        rgetattr(ax,k)(v)
+    return ax
 
 import requests
 import pymisca.sklearn_extra
