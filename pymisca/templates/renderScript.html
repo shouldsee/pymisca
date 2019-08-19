@@ -1,0 +1,27 @@
+{% load staticfiles %}
+original script File:
+    "{{scriptFile}}"
+<br/>
+Link to directory
+<a href="{% static ODIR_static %}">
+    OUTPUT directory
+</a>
+<br/>
+
+Success: {{success}}
+    
+<br/>
+Link to figure:
+<a href="{% static ODIR_static %}/figure.html">
+    figure.html
+</a>
+
+<br/>
+<a href="{% static ODIR_static %}/{{scriptBase}}.log">
+runLog
+</a>
+:
+    <pre>
+"{{res}}"
+    <pre/>
+    
