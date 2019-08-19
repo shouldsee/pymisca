@@ -88,8 +88,11 @@ def render__images(figs,
                    baseFile=1,
                   ):
     if templateFile is None:
-        templateFile = 'Templates/listImages.html'
-    templateFile = pyext.base__file(templateFile,baseFile = baseFile)
+#         templateFile = 'Templates/listImages.html'
+        templateFile = pyext.module__getPath('pymisca') + '/templates/listImages.html'
+    else:
+        templateFile = pyext.base__file(templateFile,baseFile = baseFile)
+        
     if ofname is None:
         ofname = 'figure.html'
     if ofname.startswith('/'):
@@ -988,10 +991,10 @@ def init_DF(C,rowName= None,colName=None):
         df.columns = colName
     return df
 
-def colGroupMean(dfc,axis=1,level=None):
+def colGroupMean(dfc,axis=1,level=0):
     '''Group by level 0 index and take average over rows
 '''
-    gp = dfc.groupby(axis=axis,level=0,sort=False)
+    gp = dfc.groupby(axis=axis,level=level,sort=False)
     dfc = gp.apply(lambda x:x.mean(axis=axis))
     return dfc
 

@@ -1,6 +1,6 @@
 import pymisca.shell as pysh
 import path
-import sys
+import sys,os,errno
 # def abspath
 def chdir(DIR):
     def getOS(self):
@@ -19,6 +19,7 @@ def chdir(DIR):
     os.getcwd = lambda : str(self._abspath)
     os.getcwdu = lambda : unicode(self._abspath)
     
+
 class FrozenPath(path.Path):
     '''
     Overwrite os.getcwd() so that symlink can be returned
@@ -27,6 +28,22 @@ class FrozenPath(path.Path):
         super(FrozenPath,self).__init__( *a,**kw)
         self.debug = 0
         self.printOnExit = False
+        
+    def makedirs_p(self, mode=0o777):
+        """ Like :meth:`makedirs`, but does not raise an exception if the
+        directory already exists. """
+        if self.isdir():
+            return self
+        assert not self.isfile(),'Directory name points to a file %s ' % self
+#         assert not self.islin(),self
+        try:
+            self.makedirs(mode)
+        except OSError:
+            _, e, _ = sys.exc_info()
+            ##### this is somehow not working out
+            if e.errno != errno.EEXIST:
+                raise e
+        return self        
         
     def getOS(self):
         os = sys.modules.get('os',None)

@@ -19,6 +19,7 @@ def dictFilter(oldd,keys):
 def dictGetList(oldd,keys):
     d =collections.OrderedDict( ((k,oldd[k]) for k in keys) )
     return d
+dict__getList = dictGetList
 
 def jsonFile2dict(fname,force= 0):
     if os.path.exists(fname):

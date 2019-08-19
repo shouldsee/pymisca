@@ -208,8 +208,54 @@ class bamFile__toFastq(AttoJob):
                         res = pymisca.shell.shellexec(CMD)
                         shutil.move(OFNAME+'.partial', OFNAME )
 #                 pass
+##### [TBC] how to merge nodes to create bigger nodes?        
+class bamFile__filter(AttoJob):
+    PARAMS_TRACED = [
+        ("INPUT_FILE",("AttoPath",None)),
+        ("OUTDIR",("AttoPath",None)),
+#         ("SAMTOOLS_FLAG_LIST",("list:unicode",["-F0x4","-F0x100",]))
+        ("SAMTOOLS_FLAG_LIST",("list:unicode",[])),
+        ("SORTED",("int",1)),
+        ('FORCE', ('int', 0)),
+        ('DRY', ('int', 0)),
+        ('NCORE', ('int', 1)),
         
+    ]
     
+    def _run(self,):
+        kw = self._data
+        assert kw['OUTDIR']
+        kw['OUTDIR'] = OUTDIR = kw['OUTDIR'].realpath()
+        assert kw["SAMTOOLS_FLAG_LIST"]
+        INPUT_FILE = kw['INPUT_FILE']
+        FORCE = kw['FORCE']
+        DRY = kw['DRY']
+        NCORE = kw['NCORE']
+        SORTED = kw['SORTED']
+        kw['NODES']= NODES = []
+        node = Shellexec({
+            "OUTDIR":OUTDIR,
+            "CMD_LIST":["samtools","view","-bh",kw["SAMTOOLS_FLAG_LIST"],
+                                  [INPUT_FILE,],
+                                  [">ALIGNMENT.bam",],
+                                  ["&&","echo","DONT-COUNT",">COUNTS.json"],
+                                  ],
+            "OFNAME_LIST":["ALIGNMENT-bam"],
+            "FORCE":FORCE,
+            "DRY":DRY,
+            "NCORE":NCORE,
+            })
+        NODES.append(node)
+        
+        node = job__samtools__qc({
+            "INPUT_FILE":node["LAST_DIR"] / "ALIGNMENT.bam",
+            "OUTDIR":node["LAST_DIR"],
+            "SORTED":SORTED,
+            "NCORE":NCORE,
+            "FORCE":FORCE,
+            "DRY":DRY,
+        })
+        NODES.append(node)    
     
 class bamFile__toBigwig(AttoJob):
     PARAMS_TRACED  = [

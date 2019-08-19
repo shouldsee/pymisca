@@ -1,14 +1,167 @@
+# -*- coding: utf-8 -*-
 import Bio
 
 from BCBio.GFF import GFFExaminer
 import BCBio.GFF as bgff
 
-import pymisca.util as pyutil
-import pymisca.vis_util as pyvis
-plt = pyvis.plt
+import itertools
+# import pymisca.util as pyutil
+
+
+# import pymisca.vis_util as pyvis
+# plt = pyvis.plt
+class plt:
+    pass
+class pyvis:
+    pass
 
 import pymisca.ext as pyext
 pd = pyext.pd
+
+
+import pysam
+def bam__getHeader(FNAME,mode="rb",**kw):
+    with pysam.AlignmentFile(FNAME,mode=mode,**kw) as f:
+        return f.header    
+###### this implmentation is much slower somehow
+# class fastaIter(object):
+#     def __init__(self, *a,**kw):
+# #         super(fastaIter, self).__init__( *a,**kw)
+#         self.a = a
+#         self.kw = kw
+#         self.handle = None
+#     def __enter__(self,*a,**kw):
+#         it = self.handle = open(*self.a,**self.kw)
+        
+#         it = itertools.groupby(it,lambda x:x.startswith('>'))
+#         header = None
+#         for isHeader, _it in it:            
+#             if isHeader:
+#                 _it = list(_it)
+#                 assert len(_it) == 1
+#                 header = _it[0]
+#             else:
+#                 assert header is not None
+# #                 _itt = itertools.tee(_it)[1]
+#                 _it = list(_it)
+#                 yield (header, _it,   itertools.chain( [header] , list(_it) ) )
+        
+#     def __enter__(self,*a,**kw):
+#         it = self.handle = open(*self.a,**self.kw)
+        
+        
+#         def nextHeader(it):
+#             for line in it:
+#                 if line.startswith('>'):
+#                     yield [line]
+#                     break
+#             yield None
+
+#         def nextBuffer(it):
+#             return itertools.takewhile(lambda x:not x.startswith('>'),
+#                                       it)
+        
+#         def _main(it):
+#             lastHeader = 0
+#             _it = []
+# #             while True:
+#             isStart = 1
+#             for i,line in enumerate(it):
+#                 if line.startswith('>'):
+#                     assert not lastHeader
+# #                     print i
+# #                     if i!=0:
+#                     if not isStart:
+#                         yield _it  #### empty
+#                         _it = []
+#                     yield [line]
+#                     lastHeader = 1
+#                     isStart = 0
+#                 else:
+#                     _it = itertools.chain(_it,[line])
+#                     lastHeader = 0
+#             yield _it
+# #                 res = nextHeader(it)
+# #                 if res is None:
+# #                     break
+# #                 else:
+# #                     yield res
+# #                 res = nextBuffer(it)
+# #                 yield res
+                
+#         it = _main(it)
+# #         pyext.nTuple(it)      
+
+#         it = pyext.it__window(it,n=2,step=2)
+    
+#         for x in it:
+#             yield x
+   
+    
+#     def __exit__(self,*a,**kw):
+#         self.handle.close()
+#         pass
+    
+#     def __iter__(self):
+#         return self
+#     def __next__(self):
+#         pass
+    
+    
+class fastaIter(object):
+    def __init__(self, *a,**kw):
+#         super(fastaIter, self).__init__( *a,**kw)
+        self.a = a
+        self.kw = kw
+        self.handle = None
+        assert pyext.file__notEmpty(a[0]),('Cant parse empty file as FASTA:',a[0],)
+#         assert os.path.isfile(a[0]) or os.pat
+    def __enter__(self,*a,**kw):
+        it = self.handle = open(*self.a,**self.kw)
+        
+        it = itertools.groupby(it,lambda x:x.startswith('>'))
+        header = None
+        for isHeader, _it in it:            
+            if isHeader:
+                _it = list(_it)
+                assert len(_it) == 1
+                header = _it[0]
+            else:
+                assert header is not None
+#                 _itt = itertools.tee(_it)[1]
+                _it = list(_it)
+                yield (header, _it,   itertools.chain( [header] , list(_it) ) )
+    
+    def __exit__(self,*a,**kw):
+        self.handle.close()
+        pass
+    
+    def __iter__(self):
+        return self
+    def __next__(self):
+        pass
+    
+def fasta__toDataFrame(FNAME):
+    with fastaIter(FNAME) as f:
+        df = [x[:2] for x in f]
+        df = pyext.pd.DataFrame(df,columns = ['HEADER','SEQ_LINES'])
+        df['ACC'] = df['HEADER'].str.lstrip('>').str.strip()
+        df['SEQ'] = df['SEQ_LINES'].map(lambda lines:''.join([x.strip() for x in lines]))
+
+    return df    
+
+def parse__fastq(FNAME,buffering=-1,**kw):
+    '''
+    Return a iterator of length-4-lists, corresponding to the four lines of each fastq entry
+    '''
+    with open(FNAME,'r',buffering=buffering,**kw) as it:
+        lst = []
+        for i,x in enumerate(it):
+            lst.append(x.rstrip())
+            if not (i+1)% 4:
+                yield lst
+                lst = []
+
 
 def resolve_from_sra(runID,dtype='sra',
                     host = 'ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra'):
@@ -27,7 +180,7 @@ def resolve_from_sra(runID,dtype='sra',
 
 
 def gtf__guess_gid_name(fname,head=10):
-    it = pyext.readData(pyutil.file__header(fname,head),ext='it',)
+    it = pyext.readData(pyext.file__header(fname,head),ext='it',)
     d = pyext.collections.Counter()
     # for line in it
     map(d.update,(x.split() for x in it));
@@ -68,7 +221,7 @@ def gene2transcript(g,force=0):
     for i,f in enumerate(feats):
         if f.type in ['start_codon','stop_codon']:
             d[f.type]  = f
-    return pyutil.util_obj(**d)
+    return pyext.util_obj(**d)
 
 def add_transcript(g,ax=None,ycent=0.25,adjust_xlim=1,
                    force=0):
@@ -242,3 +395,4 @@ def add_transcript(g,ax=None,ycent=0.25,
 #     if g.strand==-1:
 #         tss,tend = tend,tss        
     return (tmin,tmax),patches,ax
+

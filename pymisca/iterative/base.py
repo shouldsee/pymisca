@@ -14,6 +14,7 @@ def getTraj(
     maxIter =200,
     minIter = 10,
     passDict = False,
+    record_speed = 1,
 ):
     '''
     main iteration loop
@@ -25,37 +26,45 @@ def getTraj(
     hist['xs'] = []
     S = S0
     def getSpeed(Snew,S):
-        def _worker((Snew_,S_)):
-            speed = np.square(Snew_ - S_).sum()
-#             speed = len(S_)-np.sqrt(Snew_*S_).sum()
-#             assert 0
-            return speed
-        
-        if isinstance(S, np.ndarray):
-            speed = _worker((Snew,S))
-#             assert 0
+        if not record_speed:
+            return -1
         else:
-            speed = np.sum(map(_worker,zip(Snew,S)))
-#             assert 0
-            
-        return speed
+            def _worker((Snew_,S_)):
+                speed = np.square(Snew_ - S_).sum()
+    #             speed = len(S_)-np.sqrt(Snew_*S_).sum()
+    #             assert 0
+                return speed
+
+            if isinstance(S, np.ndarray):
+                speed = _worker((Snew,S))
+    #             assert 0
+            else:
+                speed = np.sum(map(_worker,zip(Snew,S)))
+    #             assert 0
+
+            return speed
+
+        
         
     for i in range(maxIter):
         if not passDict:
             Snew = stepFunc(S)
+            ll = None
         else:
-            d = {'X':S,'hist':hist}
+            d = {'X':S,'hist':hist,'i':i}
             d = stepFunc(d)
             Snew = d['X']
             hist = d['hist']
+            ll = d.get('lastLoss',None)
 
         speed = getSpeed(Snew,S)
         S = Snew 
 
-        if lossFunc is not None:
-            ll = lossFunc(S)
-        else:
-            ll = None
+        if ll is None:
+            if lossFunc is not None:
+                ll = lossFunc(S)
+#         else:
+#             ll = None
     #         ll = pynp.distance__hellinger(Y, X.dot(S))
     #         ll = loss(S)
         if i>minIter:
@@ -75,7 +84,6 @@ def getTraj(
     #                 if verbose>=1:
                 print ('[STOP]Failed to converge')
     #         lst += [ll]
-    
         hist['loss'].append(ll)
         hist['speed'].append(speed)
         hist['xs'].append(S)

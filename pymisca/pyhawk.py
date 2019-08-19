@@ -25,15 +25,37 @@ import json
 import collections
 def tree(): return collections.defaultdict(tree)
 import re
+import ast,types,inspect
+
+
+
 
 class LambdaWithSource(object):
     def __init__(self,code):
-        if isinstance(code, types.LambdaType):
-            inspect.getsource()
-        code = code.strip()
-        assert code.startswith("lambda"),(code,)
-        self.code = code
-        self.func = eval(code)
+        if callable(code):
+            if 0:
+#             if isinstance(code, types.LambdaType):
+                source = inspect.getsource(code)
+                it = ast.walk(ast.parse('if 1:\n\t%s'%source))
+                it = (x for x in it if isinstance(x, ast.Lambda))
+                node = next(it,None)
+                assert node is not None,source
+                code = compile( ast.Expression(body=node),"<ast>","eval",)
+                self.code = source
+                self.func = types.LambdaType(code.co_consts[0],{})                
+            else:
+                self.func = code
+                self.code = None
+
+
+        elif isinstance(code,basestring):
+            code = code.strip()
+            assert code.startswith("lambda"),(code,)
+            self.code = code
+            self.func = eval(code)
+
+            
+            
     def __repr__(self):
         return '<WithSource>%s'%self.func.__repr__()
     def __call__(self,*a,**kw):
@@ -80,25 +102,29 @@ def main(argTree, stdinFunc = None, stdoutFunc=None, stderrFunc=None):
             assert 0,"named columns is not supported"
             pass
     
-    d = argTree['lambda']
-    argTree['lambdaFuncs'] += [lambda x:x] * (len(d) - len(argTree['lambdaFuncs']) )
-    out = argTree['lambdaFuncs']
-    for k in d:
-        if k.isdigit():
-            v = d[k]
-#             .pop(k)
-            assert len(v)==1,(k,v,)
-            arg, code = v.items()[0]
-            v = 'lambda {arg}:{code}'.format(arg=arg,code=code)
-            out[int(k)] = v
-        else:
-            assert 0,"named columns is not supported"
+    if len(argTree['lambdaFuncs']):
+        assert not len(argTree['lambda'])
+    else:
+        d = argTree['lambda']
+        argTree['lambdaFuncs'] += [lambda x:x] * (len(d) - len(argTree['lambdaFuncs']) )
+        out = argTree['lambdaFuncs']
+        for k in d:
+            if k.isdigit():
+                v = d[k]
+    #             .pop(k)
+                assert len(v)==1,(k,v,)
+                arg, code = v.items()[0]
+                v = 'lambda {arg}:{code}'.format(arg=arg,code=code)
+                out[int(k)] = v
+            else:
+                assert 0,"named columns is not supported"
 
     #############
     d = argTree['lambdaFuncs']
     for k,v in enumerate(d):
         d[k] = LambdaWithSource(v)
 
+#     print "[dbg"
 
 #     sys.stderr.write( json.dumps(argTree,indent=4,default=repr)+'\n')
     stderrFunc( json.dumps(argTree,indent=4,cls=_Encoder)+'\n')
@@ -108,17 +134,17 @@ def main(argTree, stdinFunc = None, stdoutFunc=None, stderrFunc=None):
         line = stdinFunc()
         if line is None:
             break
-#         else:            
-#     for line in sys.stdin:
-#         line = _p.sub('',line)
         line = line.strip()
         sp = line.split(argTree['FS'])
         for k,v in argTree['column']['mapper'].items():
             sp[k] = v.get(sp[k],sp[k])
             
+        res = True
         for f in argTree['lambdaFuncs']:
-            f(sp)
-        stdoutFunc(argTree['OFS'].join(sp)+argTree['ORS']) 
+            ### any False becomes False
+            res &= (f(sp) is not False)
+        if res:
+            stdoutFunc(argTree['OFS'].join(sp)+argTree['ORS']) 
     return 
 
 def parser__getArgTree(parser,args=None):

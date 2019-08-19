@@ -11,6 +11,8 @@ import pymisca.ext as pyext
 Everything here needs to be backwards compatible
 '''
 
+
+##########[DEPRECATE]
 def compute__OUTDIR__old(**args):
     '''
     Compute the directory to output
@@ -61,15 +63,29 @@ def compute__OUTDIR(**args):
     Compute the directory to output
     '''
 #     def func(**args):
-    def func(INPUTDIR, inplace,pathLevel=0,prefix=None,suffix=None,baseFile=None, INPUTDIR_norm= None,
+    def func(INPUTDIR, inplace=None,INPLACE=None, pathLevel=0,prefix=None,suffix=None,
+             baseFile=None, 
+             INPUTDIR_norm= None,
+             SELFALI = None,
              **kw):
         del kw
+        if inplace is not None:
+            assert INPLACE is None
+            INPLACE=inplace
+        else:
+            assert INPLACE is not None
+        
+        if baseFile is None:
+            baseFile = 0
+            
         if INPUTDIR_norm is None:
             INPUTDIR_norm = True
         if prefix is None:
             prefix = ''
         if suffix is None:
             suffix = ''
+        if SELFALI is None:
+            SELFALI = pyext.getBname(pyext.runtime__file(silent=0))        
 
 #         INPUTDIR = args['INPUTDIR']
 # #         pathLevel = args['pathLevel']
@@ -78,7 +94,7 @@ def compute__OUTDIR(**args):
 #         prefix = args.get('prefix','')
 #         suffix = args.get('suffix','')
 
-        if not inplace:
+        if not INPLACE:
             CWD = pyext.base__file(baseFile=baseFile)
             if pathLevel:
                 OUTDIR = pyext.splitPath(INPUTDIR,pathLevel)[1]
@@ -91,7 +107,7 @@ def compute__OUTDIR(**args):
             OUTDIR = ''
 #          OUTDIR = pyext.getBname(pyext.runtime__file(silent=0))
 #             del CWD
-        SELFALI = pyext.getBname(pyext.runtime__file(silent=0))
+
         OUTDIR = os.path.join(SELFALI, OUTDIR)
         OUTDIR = os.path.join(prefix, OUTDIR)
         OUTDIR = os.path.join(OUTDIR, suffix)
@@ -102,11 +118,14 @@ def compute__OUTDIR(**args):
         return OUTDIR
     return funcy.partial(func,**args)
 
-def compute__wrapOUTDIR( TRACE_PARAM_KEYS, **args):
+def compute__wrapOUTDIR( TRACE_PARAM_KEYS, context = None, **args):
+    if context is not None:
+        args.update(context)
     traceParamKeys = TRACE_PARAM_KEYS
     assert 'suffix' not in args,'[]  "suffix" will be overwritten'
 #     args['suffix']
-    suffix = pyext.WrapTreeDict(pyext.dictFilter(args,traceParamKeys)).toWrapString()
+#     suffix = pyext.WrapTreeDict(pyext.dictFilter(args,traceParamKeys)).toWrapString()
+    suffix = pyext.WrapTreeDict(pyext.dictGetList(args,traceParamKeys)).toWrapString()
     func = compute__OUTDIR(suffix=suffix, **args)
     return func
 

@@ -148,11 +148,14 @@ class Worker(object):
         res = job()
         return res
     def fill(self, fmt,**kw):
-        kw.update(**self.scope)
-        kw.update(**vars(self))
-        kw['baseDir'] = kw['BASE']
+        _kw = {}
+#         _kw = self.scope.copy()        
+        _kw.update(**self.scope)
+        _kw.update(**vars(self))
+        _kw['baseDir'] = _kw['BASE']
+        _kw.update(**kw)
 #         res = fmt.format(**self.scope)
-        res = fmt.format(**kw)
+        res = fmt.format(**_kw)
         return res
     
     @staticmethod

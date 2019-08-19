@@ -322,7 +322,12 @@ def file__header(fname,head = 10,silent=1,ofname = None,
         return ofname
     else:
         return res
-   
+
+def file__lineCount(fname):
+    with open(fname,"r") as f:
+        for i, _ in enumerate(f):
+            pass
+    return i + 1
 
 def real__dir(fname=None,dirname=None,mode=0777):
     if dirname is None:

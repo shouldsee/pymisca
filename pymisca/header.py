@@ -95,9 +95,13 @@ class OrderedCounter(Counter, OrderedDict):
     '''
     pass
 
-def xml__tag(tag,):
-    def func(x,tag=tag):
-        s = u"<{tag}>{x}</{tag}>".format(**locals())
+def xml__tag(tag,attrs={}):
+    def func(x,tag=tag,attrs=attrs):
+        res = [tag]
+        for k,v in attrs.items():
+            res.append('%s="%s"'%(k,v))
+        stag = ' '.join(res)
+        s = u"<{stag}>{x}</{tag}>".format(**locals())
         return s
     return func
 

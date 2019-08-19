@@ -8,6 +8,9 @@ from pymisca.io_extra import *
 from pymisca.pandas_extra import *
 from pymisca.numpy_extra import *
 from pymisca.mp_extra import *
+from pymisca.graphviz_extra import *
+from pymisca.xml_extra import *
+from pymisca.jupyter_extra import *
 # from pymisca.atto_jobs import *
 # from pymisca.module_wrapper import type__resolve, t
 
@@ -159,6 +162,31 @@ def list__toHtmlRow(vals):
     return res
 
 
+# def validate__fileTable(df,OUTDIR=None):
+#     if OUTDIR is None:
+#         OUTDIR = "."
+#     OUTDIR = path.Path(OUTDIR).realpath()
+#     with pyext.getPathStack([OUTDIR]):
+#         if not isinstance(df,list):
+#             it = pyext.df__iterdict(df)
+#             it = list(it)
+#         else:
+#             it = df
+
+#         for d in it:
+#             d['FULL_PATH'] = OUTDIR / d['FILE_ACC']
+# #             "{OUTDIR}/{FILE_ACC}".format(OUTDIR=OUTDIR,**d)
+# #             exists = 
+#             if pyext.os.path.exists(d['FULL_PATH']):
+#                 d['FILE_ACC_HTML'] = pyext.tag__ahref(d['FILE_ACC'])
+#                 d['SIZE'] = pyext.size__humanReadable( pyext.file__size(d['FULL_PATH'])) if d['FULL_PATH'].isfile() else "FOLDER"
+#             else:
+#                 d['FILE_ACC_HTML'] = d['FILE_ACC']
+#                 d['FULL_PATH'] = "[DO-NOT-EXIST]"
+#                 d['SIZE'] = -1
+            
+#     return it
+
 def validate__fileTable(df,OUTDIR=None):
     if OUTDIR is None:
         OUTDIR = "."
@@ -166,25 +194,37 @@ def validate__fileTable(df,OUTDIR=None):
     with pyext.getPathStack([OUTDIR]):
         if not isinstance(df,list):
             it = pyext.df__iterdict(df)
+            
             it = list(it)
         else:
             it = df
 
         for d in it:
-            d['FULL_PATH'] = OUTDIR / d['FILE_ACC']
-#             "{OUTDIR}/{FILE_ACC}".format(OUTDIR=OUTDIR,**d)
-#             exists = 
-            if pyext.os.path.exists(d['FULL_PATH']):
-                d['FILE_ACC_HTML'] = pyext.tag__ahref(d['FILE_ACC'])
-                d['SIZE'] = pyext.size__humanReadable( pyext.file__size(d['FULL_PATH'])) if d['FULL_PATH'].isfile() else "FOLDER"
+            res = OUTDIR.glob(d['FILE_ACC'])
+            if len(res) == 1:
+                d['FULL_PATH'] = res[0]
+                d['FILE_ACC_HTML'] = pyext.tag__ahref(d['FULL_PATH'].relpath(OUTDIR))
+                if d['FULL_PATH'].isfile():
+                    _size = pyext.file__size(d['FULL_PATH'])
+                    d['SIZE'] = pyext.size__humanReadable( _size )
+                    if _size < 10E6:
+                        d['LINE_COUNT'] = pyext.file__lineCount(d['FULL_PATH'])
+                    else:
+                        d['LINE_COUNT'] = 'NA'
+                else:
+                    d['SIZE'] = "FOLDER"
+                    d['LINE_COUNT'] = 'NA'
+
             else:
                 d['FILE_ACC_HTML'] = d['FILE_ACC']
                 d['FULL_PATH'] = "[DO-NOT-EXIST]"
                 d['SIZE'] = -1
+                d['LINE_COUNT'] = 'NA'
             
     return it
 
-def dicts__toHtmlTable(dicts,header=1):
+
+def dicts__toHtmlTable(dicts,header=1,attrs=None):
     tups = []
     if header:
 #         tups += [dicts[0].keys()]
@@ -192,16 +232,25 @@ def dicts__toHtmlTable(dicts,header=1):
     tups += [pyext.list__toHtmlRow( x.values()) for x in dicts]
     res = tups
 #     res = map(pyext.list__toHtmlRow, tups)
-    res = pyext.rows__toTable(res)
+    res = pyext.rows__toHtmlTable(res,attrs)
     return res
 
 @pyext.setAttr( _this_mod,"rows__toHtmlTable")
-def rows__toTable(rows):
+def rows__toTable(rows,attrs=None):
+    if attrs is None:
+        attrs = dict(border=1)
+        pass
+    
     res = '''<table border="1">
             {% for _row in rows %}
             {{_row}}
             {% endfor %}
     </table>'''    
+    
+    res = '''{% for _row in rows %}
+            {{_row}}
+            {% endfor %}'''        
+    res = xml__tag("table",attrs)(res)
     return pyext.jf2(res)
 
 def file__getReadable__ModifiedTime(fname, level='min'):

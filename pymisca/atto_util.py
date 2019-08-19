@@ -1,63 +1,71 @@
 import os
 import pymisca.atto_string
 import pymisca.tree
-import pymisca.module_wrapper
+# import pymisca.module_wrapper
 AttoString = pymisca.atto_string.AttoString
 import pymisca.ext as pyext
-class AttoPath(unicode):
-    sep = os.sep
-    @classmethod
-    def _name(cls):
-        return cls.__name__        
+_DICT_CLASS = pyext._DICT_CLASS
+
+
+AttoPath=pymisca.atto_string.AttoPath
+
     
-    def as_list(self):
-        return self.split(os.sep)
-    def toAttoString(self):
-        s = pymisca.atto_string.AttoString.fromContainer(self.as_list())
-        s = type(self).__name__ + s
-        return s
     
-    @classmethod
-    def fromAttoString(cls, v):        
-        assert v.startswith(cls._name())
-        v = v[len(cls._name()):]
-        v = pymisca.atto_string.AttoString.new(v).toContainer()
-        v = os.sep.join(v)
-        v = cls(v)
-        return v
+# class AttoPath(unicode):
+#     sep = os.sep
+#     @classmethod
+#     def _name(cls):
+#         return cls.__name__        
     
-    def __new__(cls,s):
-        self = super(AttoPath,cls).__new__(cls, s)    
-        return self
-    def __repr__(self):
-        s = '{0}({1})'.format(type(self).__name__, 
-                                super(AttoPath,self).__repr__())
+#     def as_list(self):
+#         return self.split(os.sep)
+#     def toAttoString(self):
+#         s = pymisca.atto_string.AttoString.fromContainer(self.as_list())
+#         s = AttoString.new( type(self).__name__ + s ) 
+#         return s
+    
+#     @classmethod
+#     def fromAttoString(cls, v):        
+#         assert v.startswith(cls._name())
+#         v = v[len(cls._name()):]
+#         v = pymisca.atto_string.AttoString.new(v).toContainer()
+#         v = os.sep.join(v)
+#         v = cls(v)
+#         return v
+    
+#     def __new__(cls,s):
+#         self = super(AttoPath,cls).__new__(cls, s)    
+#         return self
+#     def __repr__(self):
+#         s = '{0}({1})'.format(type(self).__name__, 
+#                                 super(AttoPath,self).__repr__())
         
-        return s
+#         return s
 
-    def getPathStack(self,**kw):
-        def missingDirCallback(pathLastElement, parent):
-            DB_JOB = AttoString.fromAttoString(str(pathLastElement)).toContainer()
-            DB_JOB['INPUTDIR'] = unicode(parent)
-            DB_JOB.update({
-                'INPLACE':1
-                })
-            DB_JOB.update(kw)
-            res = pymisca.module_wrapper.worker__stepWithModule(DB_JOB,**kw)
-            newDir = os.path.basename(res['LAST_DIR'])
-            assert  newDir == pathLastElement,(newDir,pathLastElement, parent)
-            return
+#     def getPathStack(self,**kw):
+#         assert 0
+#         def missingDirCallback(pathLastElement, parent):
+#             DB_JOB = AttoString.fromAttoString(str(pathLastElement)).toContainer()
+#             DB_JOB['INPUTDIR'] = unicode(parent)
+#             DB_JOB.update({
+#                 'INPLACE':1
+#                 })
+#             DB_JOB.update(kw)
+# #             res = pymisca.module_wrapper.worker__stepWithModule(DB_JOB,**kw)
+#             newDir = os.path.basename(res['LAST_DIR'])
+#             assert  newDir == pathLastElement,(newDir,pathLastElement, parent)
+#             return
 
-        lst = self.as_list()
-        pymisca.tree.getPathStack(lst,
-                missingDirCallback = missingDirCallback)
+#         lst = self.as_list()
+#         pymisca.tree.getPathStack(lst,
+#                 missingDirCallback = missingDirCallback)
 
-    def resolve(self, lastN=1):
-        alive = True
-        for ele in self.as_list()[::-1]:
-            alive = alive & AttoString.isAttoString(ele)
-            if not alive:
-                break
+#     def resolve(self, lastN=1):
+#         alive = True
+#         for ele in self.as_list()[::-1]:
+#             alive = alive & AttoString.isAttoString(ele)
+#             if not alive:
+#                 break
 
 
         # last = self.DIR
@@ -76,7 +84,7 @@ class AttoPath(unicode):
         #         break
                            
                 
-        return lst[::-1]        
+#         return lst[::-1]        
 #         return self.toAttoString()
 
 import pymisca.header,sys
