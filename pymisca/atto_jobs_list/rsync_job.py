@@ -35,7 +35,10 @@ class rsync_job(AttoJob):
         FILES_LIST = RUN_PARAMS['FILES_LIST']
         INCLUDE_LIST = kw['INCLUDE_LIST']
         EXCLUDE_LIST = kw['EXCLUDE_LIST']
-        kw['OUTDIR'] = OUTDIR = kw['OUTDIR'] or type(kw['OUTDIR'])(DEST)
+#         assert kw['OUTDIR']
+        kw['OUTDIR'] = kw['OUTDIR'] or type(kw['OUTDIR'])(DEST)
+        kw['OUTDIR'] = OUTDIR = kw['OUTDIR'].realpath()
+        
 #         FILES_EXCLUDE_LIST = RUN_PARAMS['FILES_EXCLUDE_LIST']
 #         ERROR = DB_WORKER.get('ERROR','raise')
         FORCE = RUN_PARAMS['FORCE']
@@ -97,3 +100,6 @@ class rsync_job(AttoJob):
 #             res = _exec(CMD)
             res = pyext.shellexec(CMD)
         return res
+    
+# rsync_job = rsync_wrapper
+rsync_wrapper = rsync_job
