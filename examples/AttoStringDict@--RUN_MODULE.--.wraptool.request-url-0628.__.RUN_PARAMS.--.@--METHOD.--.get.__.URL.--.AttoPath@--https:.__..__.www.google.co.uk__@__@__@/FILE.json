@@ -1,0 +1,46 @@
+{
+    "CWD": "/work/users/fg368/projects", 
+    "DATA_DICT": {
+        "INPUTDIR_BASENAME": "examples"
+    }, 
+    "DB_SCRIPT": {
+        "MODULE_NAME": "wraptool.request-url-0628", 
+        "OUTPUT_FILEACC": {}, 
+        "PARAMS_TRACED": {
+            "METHOD": [
+                "unicode", 
+                null
+            ], 
+            "URL": [
+                "AttoPath", 
+                null
+            ]
+        }
+    }, 
+    "FORCE": 0, 
+    "INPUTDIR": "/data/repos/pymisca/examples", 
+    "NCORE": 1, 
+    "OUTDIR": "/data/repos/pymisca/examples/AttoStringDict@--RUN_MODULE.--.wraptool.request-url-0628.__.RUN_PARAMS.--.@--METHOD.--.get.__.URL.--.AttoPath@--https:.__..__.www.google.co.uk__@__@__@", 
+    "PWD": "/work/users/fg368/projects", 
+    "RUNTIME": {
+        "printOnExit": {}, 
+        "_check_output": {
+            "allExist": false
+        }
+    }, 
+    "RUN_MODULE": "wraptool.request-url-0628", 
+    "RUN_PARAMS": {
+        "URL": "https://www.google.co.uk", 
+        "METHOD": "get", 
+        "PARAMS": {}, 
+        "FILES": {}, 
+        "DATA": {}, 
+        "JSON": {}, 
+        "KW": {}, 
+        "RUNTIME_BUFFER": false, 
+        "STREAM": true, 
+        "CHUNK_SIZE": 8192
+    }, 
+    "SUFFIX": "AttoStringDict@--RUN_MODULE.--.wraptool.request-url-0628.__.RUN_PARAMS.--.@--METHOD.--.get.__.URL.--.AttoPath@--https:.__..__.www.google.co.uk__@__@__@", 
+    "VERSION": "20190721"
+}
