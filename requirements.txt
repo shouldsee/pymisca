@@ -49,3 +49,5 @@ dill
 lxml
 requests
 git+https://github.com/shouldsee/lazydict@768a262
+git+https://github.com/shouldsee/delay_and_cache
+networkx
