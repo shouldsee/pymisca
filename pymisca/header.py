@@ -1,4 +1,4 @@
-import os,sys,re
+import os,sys,re,glob
 import warnings
 import itertools,functools
 import pymisca.shell as pysh
@@ -11,6 +11,92 @@ import types
 _this_mod = sys.modules[__name__]
 
 import base64
+
+import json
+import ast
+
+def rgetattr(obj,attr):
+    _this_func = rgetattr
+    sp = attr.split('.',1)
+    if len(sp)==1:
+        l,r = sp[0],''
+    else:
+        l,r = sp
+        
+    obj = getattr(obj,l)
+    if r:
+        obj = _this_func(obj,r)
+    return obj
+
+def rgetattr_dft(obj,attr,dft):
+    _this_func = rgetattr_dft
+    sp = attr.split('.',1)
+    if len(sp)==1:
+        l,r = sp[0],''
+    else:
+        l,r = sp
+        
+    obj = getattr(obj, l, dft)
+    if r:
+        obj = _this_func(obj, r, dft)
+    return obj       
+
+# def frame__relativeFile(frame=None):
+#     frame = frame__default(frame)
+#     return name__lookup('__file__',frame=frame)
+
+def frame__relativeFile(FNAME, frame=None):
+    frame = frame__default(frame)
+    __file__ = name__lookup('__file__',frame=frame,level=1)
+    return os.path.join( os.path.dirname(os.path.realpath(__file__)), FNAME)
+
+
+
+def frame__default(frame=None):
+# def frame__parent(frame=None):
+    if frame is None:
+        frame = inspect.currentframe().f_back.f_back ####parent of caller by default
+    else:
+        pass    
+    return frame
+        
+    
+def ast__eval(expr, level=-1,kwargs = {},frame=None,dbg=0):
+    
+    node0 = ast.parse(expr,mode='eval',)
+    frame = frame__default(frame)
+    
+    for node in ast.walk(node0):
+        if isinstance(node, ast.Name):
+            if node.id in kwargs:
+                pass
+            else:
+                kwargs[node.id] = name__lookup( node.id,
+                                               level=level+1 if level >=0 else -1,
+                                              frame=frame)
+    
+    try:
+        if dbg:
+            print(json.dumps(kwargs.keys(),indent=4,default=repr))
+        res = eval(compile(node0,'<ast>','eval'),kwargs)
+    except Exception as e:
+        assert 0,"Expr:%s.Error:%r"%(expr,e)
+    finally:
+        del frame
+        del kwargs
+        
+    return res
+        
+def assertTrue(expr,msg='DefaultError'):
+    assert expr==True,msg        
+        
+class mList(list):
+    '''
+    A list decorated with methods
+    '''
+    def map(self,f,*a):
+        return map(f, self, *a)
+
 def file__png__toHtmlSrc(FNAME):
     data_uri = base64.b64encode(open( FNAME, 'rb').read()).decode('utf-8')
     src = "data:image/png;base64,{0}".format(data_uri)
@@ -305,6 +391,35 @@ def module__getClasses(mod):
     return clsmembers
 
 
+
+# import inspect
+def name__lookup(name,frame=None,level=1, 
+#                  getter="dict"
+                ):
+    '''
+    if level==0, get the calling frame
+    if level > 0, walk back <level> levels from the calling frame
+    '''
+    if frame is None:
+        frame = inspect.currentframe()
+    errMsg = ("Unable to lookup name {name} within level {level}".format(**locals()))
+    
+    i = 0
+    while i != level:
+        i+=1;
+#     for i in range(level):
+        if name in frame.f_locals:
+            val = frame.f_locals[name]
+            del frame
+            return val
+        
+        frame = frame.f_back
+        assert frame is not None,errMsg
+        
+    del frame        
+    assert 0,errMsg
+    
+    
 def get__frameDict(frame=None,level=0, getter="dict"):
     return get__frame(frame,level=level+1,getter=getter)
 
@@ -554,3 +669,106 @@ table genePredExt
     )
 '''
 columns.genepred = COLUMNS_GENEPREDEXT =  re.findall('.*\s+([a-zA-Z0-9]+);.*',buf)
+
+def str__re__findReplace(ele, ptn, rep, context={}):
+    '''
+    return an input-output tuple if matched
+    '''
+    if rep is not None:
+        assert getattr(ptn,"pattern",ptn).endswith('$')
+        if context:
+            rep = rep.format(context)
+        
+    if next(re.finditer(ptn,ele),None) is not None:
+        if rep is not None:
+            out = re.sub(ptn,rep,ele)
+        else:
+            out = ele
+        return (ele,out)
+#         print (ele,out)
+    else:
+        return None
+    
+@setAttr(str__re__findReplace,'_tester')
+def _func():
+    lst = ['/work/reference-database/salmonella-typhimurium/G00000001/ANNOTATION_FASTA',
+     '/work/reference-database/salmonella-typhimurium/G00000001/QUADRON_OUTPUT',
+     '/work/reference-database/salmonella-typhimurium/G00000001/src',
+     '/work/reference-database/salmonella-typhimurium/G00000001/GENOME.STAR_INDEX',
+     '/work/reference-database/salmonella-typhimurium/G00000001/GENOME.BOWTIE1_INDEX',
+     '/work/reference-database/salmonella-typhimurium/G00000001/ANNOTATION.gtf',
+     '/work/reference-database/salmonella-typhimurium/G00000001/GENOME.fasta',
+     '/work/reference-database/salmonella-typhimurium/G00000001/G00000001-stypm.html',
+     '/work/reference-database/salmonella-typhimurium/G00000001/ANNOTATION.genepred',
+     '/work/reference-database/salmonella-typhimurium/G00000001/GENOME.fasta.fai',
+     '/work/reference-database/salmonella-typhimurium/G00000001/G00000001-stypm.ipynb',
+     '/work/reference-database/salmonella-typhimurium/G00000001/ANNOTATION.gff']
+
+    ptn = '(GENOME)(.fasta)$'
+    rep = r'10\2'
+    rep = rep.format(**locals())
+
+    expect = [None,
+     None,
+     None,
+     None,
+     None,
+     None,
+     ('/work/reference-database/salmonella-typhimurium/G00000001/GENOME.fasta',
+      '/work/reference-database/salmonella-typhimurium/G00000001/10.fasta'),
+     None,
+     None,
+     None,
+     None,
+     None]
+
+
+    res = [str__re__findReplace(ele, ptn, rep) for ele in lst]
+    assert res==expect
+    
+# import glob
+# import os
+def re__globFindReplace(ptn,rep=None,globber=None,context={},pad=0):
+    if globber  is None:
+        globber = os.path.join(os.path.dirname(ptn),'*')
+    lst = glob.glob(globber)
+    out = []
+    for ele in lst: 
+        res = str__re__findReplace(ele, ptn, rep, context) 
+        if pad:
+#             print (res
+            out += [ res ]
+        elif res is not None:
+            out += [ res ]
+    return out    
+re__findReplace = re__globFindReplace
+
+
+def reGlob__str2dict(ptn,globber=None,context={},pad = 0):
+    dirname = os.path.dirname(ptn)
+    if globber is None:
+        globber = os.path.join(dirname,'*')
+    lst = glob.glob(globber)
+    out = []
+    for ele in lst: 
+        res = re.search(ptn,ele)
+        
+#         if not res and not pad:
+#             continue
+#         else:
+        if res:
+            d = res.groupdict()
+            d.update(enumerate(res.groups()))
+            d['dirname'] = dirname
+            out+=[(ele,d)]
+        else:
+            if pad:
+                out +=[None]
+            else:
+                pass
+            
+    return out
+
+
+if __name__ == '__main__':
+    str__re__findReplace._tester()
