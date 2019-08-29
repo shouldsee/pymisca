@@ -765,34 +765,40 @@ def list__paste0(ss,sep=None,na_rep=None,castF=unicode):
     return res
 pasteB = paste0 = list__paste0
 
-def df__paste0(df,keys,
-#                sep='',
-               sep = '',
-#                headerFmt='[{key}]',
-               debug=0,):
-    '''Calling paste0 with df.eval()
-    sep: accept '{key}' as keyword, try sep='[{key}]'
-'''
-#     if 'index' in keys:        
-#     vals = df.get(keys).values
-#     for key, val in zip(keys,vals):
-#         lst += [['[%s]'%key], val]
-    lst = []
-    lstStr = ''
-    sep0 = ''
-    for i, key in enumerate(keys):
-        if i==0:
-            fmt = '{key},'
-        else:
-            fmt = '["%s"], {key},' % sep
-        lstStr += fmt.format(**locals())
-    cmd = 'list(@pyext.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
-    if debug:
-        print (cmd)
-    res = df.eval(cmd)
-    res = pd.Series(res,index=df.index)
-#     res = pyutil.paste0(lst, sep=sep)
-    return res
+#### obsolete ###
+# def df__paste0(df,keys,
+# #                sep='',
+#                sep = '',
+# #                headerFmt='[{key}]',
+#                debug=0,):
+#     '''Calling paste0 with df.eval()
+#     sep: accept '{key}' as keyword, try sep='[{key}]'
+# '''
+# #     if 'index' in keys:        
+# #     vals = df.get(keys).values
+# #     for key, val in zip(keys,vals):
+# #         lst += [['[%s]'%key], val]
+#     lst = []
+#     lstStr = ''
+#     sep0 = ''
+#     for i, key in enumerate(keys):
+#         if i==0:
+#             fmt = '{key},'
+#         else:
+#             fmt = '["%s"], {key},' % sep
+#         lstStr += fmt.format(**locals())
+#     cmd = 'list(@pyext.paste0([{lstStr}],sep="{sep0}"))'.format(**locals())
+#     if debug:
+#         print (cmd)
+#     res = df.eval(cmd)
+#     res = pd.Series(res,index=df.index)
+# #     res = pyutil.paste0(lst, sep=sep)
+#     return res
+
+def df__paste0(df,keys,sep="",**kw):
+    return df__format(df, 
+                      sep.join(["{%s}"%x for x in keys ]),
+                     **kw)
 
 def df__format(df,fmt, formatter = None, **kwargs):
     if formatter is None:
