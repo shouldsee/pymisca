@@ -11,6 +11,7 @@ from pymisca.mp_extra import *
 from pymisca.graphviz_extra import *
 from pymisca.xml_extra import *
 from pymisca.jupyter_extra import *
+# from pymisca.pandas_extra import 
 # from pymisca.atto_jobs import *
 # from pymisca.module_wrapper import type__resolve, t
 
@@ -70,18 +71,18 @@ _DICT_CLASS = collections.OrderedDict
 ##### pymisca.shell
 dir__real = real__dir = pysh.real__dir
 
-def rgetattr(obj,attr):
-    _this_func = rgetattr
-    sp = attr.split('.',1)
-    if len(sp)==1:
-        l,r = sp[0],''
-    else:
-        l,r = sp
+# def rgetattr(obj,attr):
+#     _this_func = rgetattr
+#     sp = attr.split('.',1)
+#     if len(sp)==1:
+#         l,r = sp[0],''
+#     else:
+#         l,r = sp
         
-    obj = getattr(obj,l)
-    if r:
-        obj = _this_func(obj,r)
-    return obj
+#     obj = getattr(obj,l)
+#     if r:
+#         obj = _this_func(obj,r)
+#     return obj
 
 
 def obj__dict__call(ax, d_ax,):
@@ -120,7 +121,10 @@ import path
 #         self._stack.__exit__(*a,**kw)
 #         shutil.rmtree(self.d)
 
-        
+def relFile__asModule(FNAME, MODULE_NAME = None, frame=None):
+    FNAME = frame__relativeFile(FNAME,frame=frame__default(frame))
+    return file__asModule(FNAME,MODULE_NAME)
+
 
 def file__asModule(INPUT_FILE, MODULE_NAME=None):
     if MODULE_NAME is None:
@@ -217,7 +221,7 @@ def validate__fileTable(df,OUTDIR=None):
 
             else:
                 d['FILE_ACC_HTML'] = d['FILE_ACC']
-                d['FULL_PATH'] = "[DO-NOT-EXIST]"
+                d['FULL_PATH'] = "[DOES-NOT-EXIST]"
                 d['SIZE'] = -1
                 d['LINE_COUNT'] = 'NA'
             
@@ -1255,6 +1259,8 @@ def ppJson(d,**kw):
     '''
     s = json.dumps(d,indent=4, sort_keys=True,**kw)
     return s
+def dppJson(d,default=repr,**kw):
+    return ppJson(d,default=default,**kw)
 
 def is_ipython():
     try:
