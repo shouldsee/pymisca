@@ -1259,14 +1259,14 @@ exit ${{PIPESTATUS[0]}};
     else:
         return suc, res
     
-def ppJson(d,**kw):
-    '''
-    Pretty print a dictionary
-    '''
-    s = json.dumps(d,indent=4, sort_keys=True,**kw)
-    return s
-def dppJson(d,default=repr,**kw):
-    return ppJson(d,default=default,**kw)
+# def ppJson(d,**kw):
+#     '''
+#     Pretty print a dictionary
+#     '''
+#     s = json.dumps(d,indent=4, sort_keys=True,**kw)
+#     return s
+# def dppJson(d,default=repr,**kw):
+#     return ppJson(d,default=default,**kw)
 
 def is_ipython():
     try:

@@ -15,6 +15,28 @@ import base64
 import json
 import ast
 
+
+import hashlib
+def file__md5(fname):
+    '''
+    Source: https://stackoverflow.com/a/3431838/8083313
+    '''
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+def ppJson(d,**kw):
+    '''
+    Pretty print a dictionary
+    '''
+    s = json.dumps(d,indent=4, sort_keys=True,**kw)
+    return s
+def dppJson(d,default=repr,**kw):
+    return ppJson(d,default=default,**kw)
+
+
 def rgetattr(obj,attr):
     _this_func = rgetattr
     sp = attr.split('.',1)
