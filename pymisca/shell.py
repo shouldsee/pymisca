@@ -40,13 +40,13 @@ import zipfile  ##file__unzip
 
 def dir__iterFiles(DIRNAME,relpath=0,start=1,):
     _this_func = dir__iterFiles
-    if start:
-        DIRNAME = path.Path(DIRNAME)
+#     if start:
+#         DIRNAME = path.Path(DIRNAME)
     for root, dirs, files in os.walk(DIRNAME):
         if relpath:
-            root = root.relpath(DIRNAME)
+            root = os.path.relpath( root , DIRNAME)
         for f in files:
-            yield root / f
+            yield os.path.join(root , f)
 
                 
                 
