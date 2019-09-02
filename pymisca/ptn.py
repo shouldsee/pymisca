@@ -67,6 +67,8 @@ def template__format(template, context=None):
 #     functions.update( simpleeval.DEFAULT_FUNCTIONS) 
 
     if context is None:
+        import __main__
+#         context = vars(__main__)
         context = pymisca.header.get__frameDict(level=1)
         
     ob = IPython.utils.text.DollarFormatter()
@@ -74,6 +76,61 @@ def template__format(template, context=None):
     del context
     return res
 
+from IPython.utils import py3compat
+from pymisca.header import name__lookup,ast__eval,frame__default
+import inspect
+# _self = IPython.utils.text.DollarFormatter()
+def template__format(format_string,
+                     kwargs= None,
+                     context=None,
+                     frame = None,
+                     level=-1,
+                     self = IPython.utils.text.DollarFormatter(),
+#                      self=_self
+#             args, kwargs,
+#             evaler
+           ):
+    frame = frame__default(frame)
+    if context is not None:
+        #### legacy renaming
+        assert kwargs is None
+        kwargs = context 
+        
+    if kwargs is None:
+        kwargs = {}
+#     self = IPython.utils.text.DollarFormatter()
+#     frame = inspect.currentframe().f_back
+    result = []
+    for literal_text, field_name, format_spec, conversion in \
+            self.parse(format_string):
+
+        # output the literal text
+        if literal_text:
+            result.append(literal_text)
+
+        # if there's a field, output it
+        if field_name is not None:
+            # this is some markup, find the object and do
+            # the formatting
+
+            if format_spec:
+                # override format spec, to allow slicing:
+                field_name = ':'.join([field_name, format_spec])
+
+            # eval the contents of the field for the object
+            # to be formatted
+#                 obj = eval(field_name, kwargs)
+#             obj = evaler(field_name)
+            obj = ast__eval(field_name, kwargs=kwargs, level=level,frame=frame)
+    
+#             obj = kwargs.get(field_name, name__lookup(field_name,level=level))
+            # do any conversion on the resulting object
+            obj = self.convert_field(obj, conversion)
+
+            # format the object and append to the result
+            result.append(self.format_field(obj, ''))
+
+    return u''.join(py3compat.cast_unicode(s) for s in result)
 f = fformat = template__format
 
 def jf2(template, context=None,undefined=jinja2.StrictUndefined):

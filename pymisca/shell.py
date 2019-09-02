@@ -24,6 +24,18 @@ from shutil import copystat
 class Error(EnvironmentError):
     pass
 
+# import os
+import stat
+def file__chmod_px(fname):
+    st = os.stat(fname)
+    os.chmod(fname, st.st_mode | stat.S_IEXEC)
+    
+def file__safeInode(x):
+    if not os.path.exists(x):
+        return -1
+    else:
+        return os.stat(x).st_ino
+    
 def dir__getSize(start_path = '.'):
     '''
     Source:https://stackoverflow.com/a/1392549/8083313
@@ -91,7 +103,7 @@ def dir__copy(src, dst, symlinks=False, ignore=None,
         ignored_names = set()
         
     if not os.path.isdir(dst):
-        assert not os.path.isfile(dst)
+        assert not os.path.isfile(dst),(dst,src)
         os.makedirs(dst)
         
     errors = []
@@ -339,6 +351,7 @@ def real__dir(fname=None,dirname=None,mode=0777):
     if not os.path.exists(dirname) and dirname!='':
         os.makedirs(dirname,mode=mode)
     return dirname
+dir__makeIfNeed = real__dir
 
 def symlink(fname,ofname = None,
             relative = 0,
@@ -418,7 +431,9 @@ def shellexec(cmd,debug=0,silent=0,
             if encoding is not None:
                 res=  res.decode(encoding)
             
-            res = res.strip()
+            ## [PATCH]0819
+#             res = res.strip()
+            res = res.rstrip()
             suc = True
 
         except subprocess.CalledProcessError as e:
@@ -470,8 +485,8 @@ def pipe__getSafeResult(p,check=True,**kw):
 def shellpopen(cmd,
                  stdin=subprocess.PIPE,
                  stdout=subprocess.PIPE,
-               stderr = subprocess.PIPE,
-               debug=0,silent=0,executable=None,
+                stderr = subprocess.PIPE,
+                debug=0,silent=0,executable=None,
                  shell = 1,
                  bufsize= 1,
                  **kwargs):
