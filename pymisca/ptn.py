@@ -130,7 +130,8 @@ def path__canonlise(s):
     return s
     
 
-def path__norm(s):
+    
+def path__norm(s,DIRSEP='.__.'):
     '''
     Adapted from python-slugify
 
@@ -149,9 +150,9 @@ def path__norm(s):
     s = path__canonlise(s).lower()
     s = unicode(s)
     s = re.sub('[_]','-',s)
-    s = re.sub('[/]','__',s)
+    s = re.sub('[/]',DIRSEP,s)
     s = slugify.slugify(s).strip('-')
-    return s    
+    return s
 
 BRAKET = [r'\[',r'\]']
 # BRAKET = [r'\{',r'\}']
