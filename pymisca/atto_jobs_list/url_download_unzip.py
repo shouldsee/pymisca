@@ -14,10 +14,14 @@ class url_download_unzip(AttoJob):
         URL = kw['URL']
         kw['OUTDIR'] = OUTDIR = kw['OUTDIR'].realpath()
         FORCE = kw['FORCE']
-        if not FORCE and shell.file__notEmpty(OUTDIR+'.zip'):
+        SIGNAL_FILE = OUTDIR / self.__class__.__name__+'.done'
+        if not FORCE and shell.file__notEmpty(SIGNAL_FILE):
             pass
         else:
             node = url_request({"URL":URL,
                                  "PARENT":self,
-                                  "OFNAME":OUTDIR+'.zip'})
+                                  "OFNAME":OUTDIR+'.zip',
+                                   "FORCE":FORCE,
+                               })
             res = file__unzip(node['OFNAME'], OUTDIR)
+            with open(SIGNAL_FILE,"w") as f: f.write("DONE");
