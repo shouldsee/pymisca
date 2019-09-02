@@ -24,6 +24,17 @@ from shutil import copystat
 class Error(EnvironmentError):
     pass
 
+import zipfile
+def file__unzip(FNAME,DIRNAME=None):
+    if DIRNAME is None:
+        DIRNAME = FNAME + '.unzip'
+    
+    with zipfile.ZipFile( FNAME, 'r') as zip_ref:
+        zip_ref.extractall(DIRNAME+'.partial')    
+    shutil.move(DIRNAME+'.partial',DIRNAME)
+    return DIRNAME
+    
+
 def dir__getSize(start_path = '.'):
     '''
     Source:https://stackoverflow.com/a/1392549/8083313
