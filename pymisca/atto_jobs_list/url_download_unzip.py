@@ -18,6 +18,6 @@ class url_download_unzip(AttoJob):
             pass
         else:
             node = url_request({"URL":URL,
-                                "PARENT":self,
+                                 "PARENT":self,
                                   "OFNAME":OUTDIR+'.zip'})
-            res = file__unzip(node['OFNAME'],OUTDIR)
+            res = file__unzip(node['OFNAME'], OUTDIR)

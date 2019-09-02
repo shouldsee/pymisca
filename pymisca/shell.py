@@ -30,7 +30,7 @@ def file__unzip(FNAME,DIRNAME=None):
         DIRNAME = FNAME + '.unzip'
     
     with zipfile.ZipFile( FNAME, 'r') as zip_ref:
-        zip_ref.extractall(DIRNAME+'.partial')    
+        zip_ref.extractall(unicode(DIRNAME)+'.partial')    
     shutil.move(DIRNAME+'.partial',DIRNAME)
     return DIRNAME
     
