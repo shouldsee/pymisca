@@ -28,7 +28,7 @@ class rsync_job(AttoJob):
         RUN_PARAMS =kw = self._data
 #         RUN_PARAMS= DB_WORKER['RUN_PARAMS']
         OPT_MAIN = RUN_PARAMS['OPT_MAIN']
-        OPTS_LIST = RUN_PARAMS['OPTS_LIST']
+        kw['OPTS_LIST'] = OPTS_LIST = (RUN_PARAMS['OPTS_LIST'])
         SOURCE = kw['SOURCE']
         DEST = RUN_PARAMS['DEST']
         PASSWORD_FILE  = RUN_PARAMS['PASSWORD_FILE']
@@ -38,6 +38,8 @@ class rsync_job(AttoJob):
 #         assert kw['OUTDIR']
         kw['OUTDIR'] = kw['OUTDIR'] or type(kw['OUTDIR'])(DEST)
         kw['OUTDIR'] = OUTDIR = kw['OUTDIR'].realpath()
+        pyext.real__dir(dirname=OUTDIR)
+        self.shell.setJsonFile(OUTDIR / "%s.CMD.json"%self.__class__.__name__)
         
 #         FILES_EXCLUDE_LIST = RUN_PARAMS['FILES_EXCLUDE_LIST']
 #         ERROR = DB_WORKER.get('ERROR','raise')
@@ -55,27 +57,29 @@ class rsync_job(AttoJob):
 #         else:
          
 
-        if not SOURCE.is_remote():
+#         if not SOURCE.is_remote():
+        if "@" not in SOURCE:
             with pyext.getAttoDirectory([SOURCE],force=0) as stack:
-                out = []
-                for F in FILES_LIST:
-                    res = stack.d.glob(F)
-                    assert len(res),(F,stack.d )
-                    out += res
-                FILES_LIST = [x.relpath(SOURCE) for x in out]
-#                     assert F.exists(),(F,)
+                if FILES_LIST:
+                    out = []
+                    for F in FILES_LIST:
+                        res = stack.d.glob(F)
+                        assert len(res),(F,stack.d )
+                        out += res
+                    FILES_LIST = [x.relpath(SOURCE) for x in out]
+    #                     assert F.exists(),(F,)
+                    pyext.printlines(FILES_LIST, OUTDIR / 'FILES.txt')
+                    OPTS_LIST += ['--files-from='+(OUTDIR/'FILES.txt')]
+
             SOURCE = stack.d.realpath()
         else:
-            print('[WARN]skipping remote file list check')
+            print('[WARN]skipping remote file list check. [FILES_LIST] will not work')
           
         if not SOURCE.endswith('/'):
             SOURCE = type(SOURCE)(SOURCE+'/')
 
         #                 F.isfile() or F.islink(), (F,)
         with pyext.getAttoDirectory([OUTDIR],force=1) as stack:
-            if FILES_LIST:
-                pyext.printlines(FILES_LIST,'FILES.txt')
-                OPTS_LIST += ['--files-from=FILES.txt']
             if INCLUDE_LIST:
                 pyext.printlines( INCLUDE_LIST,'INCLUDE.txt')
                 OPTS_LIST += ['--include-from=INCLUDE.txt']
@@ -86,19 +90,22 @@ class rsync_job(AttoJob):
 
         if '--log-file' not in OPTS_LIST:
             OPTS_LIST += ['--log-file','LOG_RSYNC']
-        CMD = pyext.f("rsync {OPT_MAIN} {' '.join(OPTS_LIST)} {SOURCE} {DEST}")
+        CMD = pyext.f("rsync {OPT_MAIN} {' '.join(OPTS_LIST)} {SOURCE} {DEST} > LOG")
 
         if PASSWORD_FILE:
             assert pyext.file__notEmpty(PASSWORD_FILE),(PASSWORD_FILE,)
-
-            CMD = pyext.f('sshpass -f {PASSWORD_FILE} {CMD} >LOG') 
+            CMD = pyext.f('sshpass -f {PASSWORD_FILE} {CMD}') 
 
 #         DB_WORKER['RUNTIME']['TIME_DICT'] = TIME_DICT = pyext._DICT_CLASS()
 #         _exec = pyext.func__timer( TIME_DICT, key=DB_SCRIPT['MODULE_NAME'])(pyext.shellexec,)
 #         _exec = pyext.functools.partial(_exec,error=ERROR)
         with pyext.getAttoDirectory([OUTDIR],force=1):
 #             res = _exec(CMD)
-            res = pyext.shellexec(CMD)
+            res = self.shell.shellexec(CMD)
+                
+#             self.shell.loadCmd__fromJson()
+            self.shell.dumpCmd__asJson()
+    
         return res
     
 # rsync_job = rsync_wrapper

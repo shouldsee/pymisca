@@ -159,7 +159,7 @@ class genepred_to_other(AttoJob):
 
 
         with _getPathStack([DB_WORKER['OUTDIR']],force=1):
-            OFNAME = "LOG"
+            OFNAME = "LOG.%s"%(OPTION_OUTPUT_FORMAT,)
             if not FORCE and pyext.file__notEmpty(OFNAME):
                 pass
             else:
@@ -183,7 +183,7 @@ class genepred_to_other(AttoJob):
 
                 it = outputFunc(**locals())
 
-                pyext.printlines(["DONE"],"LOG")
+                pyext.printlines(["DONE"],OFNAME)
 
 def worker__splitExons(d):
         chrom = d['chrom']

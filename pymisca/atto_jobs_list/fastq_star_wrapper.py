@@ -27,6 +27,8 @@ from pymisca.atto_job import AttoJob
 _getPathStack = pymisca.tree.getAttoDirectory
 from pymisca.atto_jobs import bamFile__toFastq
 
+import json
+# from pymisca.header import ppJson,dppJson
 # @pymisca.header.setAttr("MAIN")
 # class fastq__alignWithStar(AttoJob):
 # class fastq__alignWithStar(AttoJob):
@@ -41,7 +43,9 @@ class fastq_star_wrapper(AttoJob):
        ('DRY',('int',0)),
        ('NCORE',('int',1)),
     ]
+
     def _run(self):
+        shell  =self.shell
         kw = self._data
         kw['INPUTDIR'] = INPUTDIR = kw['INPUTDIR'].realpath()
         assert kw['OUTDIR']
@@ -53,6 +57,9 @@ class fastq_star_wrapper(AttoJob):
         FORCE = kw['FORCE']
         DRY = kw['DRY']
         NCORE = kw['NCORE']
+        
+        ####
+        
         
         _LST = ['STAR']
         _LST += OPTS
@@ -145,7 +152,10 @@ class fastq_star_wrapper(AttoJob):
         kw['RUN_PARAMS'] = kw.copy() #### [legacy-keyword] 
         with _getPathStack([ OUTDIR ], force=1) as stack:
             OFNAME = 'ALIGNMENT-sorted.bam'
+            
+            self.shell.setJsonFile(OUTDIR / "%s.CMD.json"%self.__class__.__name__)
             if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                self.shell.loadCmd__fromJson()
 #                 return 
                 res = "SKIP"
                 pass
@@ -158,10 +168,11 @@ class fastq_star_wrapper(AttoJob):
                             if (stack1.d / DIR_TEMP).isdir():
                                 shutil.rmtree(DIR_TEMP)
                             _LST = pymisca.header.list__call(_LST)
-#                             assert 0,pyext.ppJson
-#                             _LST = [x() if callable(x) else x for x in _LST]
-                            res = pymisca.shell.shellexec(' '.join(pymisca.header.stringList__flatten(_LST)) )
-                            
+
+                            CMD = ' '.join(pymisca.header.stringList__flatten(_LST)) 
+#                             res = pymisca.shell.shellexec(CMD)
+                            res = self.shell.shellexec(CMD)
+    
                         renamer= [
                             ('STAR_OUT/Aligned.sortedByCoord.out.bam','ALIGNMENT-sorted.bam'),
 #                             ('STAR_OUT/Aligned.sortedByCoord.out.bam','ALIGNMENT.bam',),
@@ -172,17 +183,25 @@ class fastq_star_wrapper(AttoJob):
                         if hasattr(renamer,'items'):
                             renamer = renamer.items()
                         for k,v in renamer:
-                            pymisca.shell.file__link( k, v, force=1)     
-            ########
-            res = pymisca.atto_jobs.job__samtools__qc(
-                {"INPUT_FILE":  "ALIGNMENT-sorted.bam",
-                 "OUTDIR": OUTDIR,
-                 "PARENT": self,
-                 "FORCE":FORCE,
-                 "DRY":DRY,
-                 "SORTED":1,
-                 "NCORE":NCORE,
-                }
-            )
-            kw['CHILDREN'] = [res]
+                            self.shell.file__link( k, v, force=1)   
+                            
+                            
+            
+#                         with open("CMD.json","w") as f:
+#                             json.dump( self.shell.logListLocal, f, indent=4)
+#                         pyext.printlines([pyext.ppJson(self._logListLocal)],"LOG.json")
+
+                        ########
+                        res = pymisca.atto_jobs.job__samtools__qc(
+                            {"INPUT_FILE":  "ALIGNMENT-sorted.bam",
+                             "OUTDIR": OUTDIR,
+                             "PARENT": self,
+                             "FORCE":FORCE,
+                             "DRY":DRY,
+                             "SORTED":1,
+                             "NCORE":NCORE,
+                            }
+                        )
+                        kw['CHILDREN'] = [res] ###del
+                        self.shell.dumpCmd__asJson()
 

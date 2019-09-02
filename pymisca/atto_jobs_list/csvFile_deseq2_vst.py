@@ -15,12 +15,15 @@ suppressPackageStartupMessages({
 
 })
 
+df <- as.matrix(df)
+
+df <- ({{kw['R_TRANSFORM_FUNC']}})(df)
 
 #LIB_SIZES = data.frame(row.names = colnames(df))
 
 #### add vst output
 res <- DESeq2::vst( 
-  as.matrix(df)
+  df
  ,fitType = "parametric")
 write.csv(res,"{{OFNAME}}.partial")
 #head(res);
@@ -30,12 +33,15 @@ EOF
 from pymisca.atto_job import AttoJob
 import shutil
 import pymisca.ext as pyext
+from pymisca.shell import real__dir
+
 class csvFile_deseq2_vst(AttoJob):
     PARAMS_TRACED = [
         ("INPUT_FILE",("AttoPath","")),
         ("OFNAME",("AttoPath","")),
         ("FORCE",("int",0)),
         ("DEBUG",("int",0)),
+        ("R_TRANSFORM_FUNC",("unicode","function(x){x}")),
                     ]
     CMD_TEMPLATE = CMD_TEMPLATE
     def _run(self):
@@ -52,9 +58,9 @@ class csvFile_deseq2_vst(AttoJob):
         if not FORCE and pyext.file__notEmpty(OFNAME):
             pass
         else:
+            real__dir(fname=OFNAME)
             if DEBUG:
                 pyext.printlines([CMD], OFNAME+'.debug.r')
-
             res = pyext.shellexec(CMD,silent=1)
             shutil.move(OFNAME + '.partial', OFNAME)
 if __name__ == '__main__':

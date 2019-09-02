@@ -143,7 +143,9 @@ class riboseqr_plot_transcript(AttoJob):
                 d_axis[key] *= 96. ### 1 inch is 96 pixel s
         FORCE = kw['FORCE']
         
+        self.shell.setJsonFile("%s.CMD.json"%OFNAME)
         if not FORCE and pyext.file__notEmpty(OFNAME):
+            self.shell.loadCmd__fromJson()
             return "SKIPPED"
 #         if 0:
 #             pass
@@ -155,7 +157,7 @@ class riboseqr_plot_transcript(AttoJob):
                     CMD = ["samtools","view","-bh",BAM_FILE,TRANSCRIPT_ID,">",OFNAME]
                     CMD = pyext.stringList__flatten(CMD)
                     CMD = ' '.join(CMD)
-                    pyext.shellexec(CMD,silent=silent)
+                    self.shell.shellexec(CMD,silent=silent)
                     return OFNAME
                 
                 for key in ["BAM_RIBO","BAM_RNA"]:
@@ -180,7 +182,8 @@ class riboseqr_plot_transcript(AttoJob):
 
                 CMD = pyext.jf2( self.TEMPLATE.replace('\t',''))
                 pyext.printlines([CMD],"CMD.r")
-                res = pyext.shellexec(CMD,silent=1)      
+                res = self.shell.shellexec(CMD,silent=1)      
             kw['DIR_TEMP'] = stack.d 
+            self.shell.dumpCmd__asJson()
             return "RUNNED"
 #         * len(BAM_FILES)
