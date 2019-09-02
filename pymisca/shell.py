@@ -24,7 +24,21 @@ from shutil import copystat
 class Error(EnvironmentError):
     pass
 
-import zipfile
+import zipfile  ##file__unzip
+
+def dir__iterFiles(DIRNAME,start=1):
+    _this_func = dir__iterFiles
+    if start:
+        DIRNAME = path.Path(DIRNAME)
+    for root, dirs, files in os.walk(DIRNAME):
+#         if root
+        for f in files:
+            yield DIRNAME / f
+        for d in dirs:
+            for f in _this_func(DIRNAME / d,0):
+                yield f
+                
+                
 def file__unzip(FNAME,DIRNAME=None):
     if DIRNAME is None:
         DIRNAME = FNAME + '.unzip'
