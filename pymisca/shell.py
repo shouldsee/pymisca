@@ -36,6 +36,31 @@ def file__safeInode(x):
     else:
         return os.stat(x).st_ino
     
+import zipfile  ##file__unzip
+
+def dir__iterFiles(DIRNAME,start=1):
+    _this_func = dir__iterFiles
+    if start:
+        DIRNAME = path.Path(DIRNAME)
+    for root, dirs, files in os.walk(DIRNAME):
+#         if root
+        for f in files:
+            yield DIRNAME / f
+        for d in dirs:
+            for f in _this_func(DIRNAME / d,0):
+                yield f
+                
+                
+def file__unzip(FNAME,DIRNAME=None):
+    if DIRNAME is None:
+        DIRNAME = FNAME + '.unzip'
+    
+    with zipfile.ZipFile( FNAME, 'r') as zip_ref:
+        zip_ref.extractall(unicode(DIRNAME)+'.partial')    
+    shutil.move(DIRNAME+'.partial',DIRNAME)
+    return DIRNAME
+    
+
 def dir__getSize(start_path = '.'):
     '''
     Source:https://stackoverflow.com/a/1392549/8083313
