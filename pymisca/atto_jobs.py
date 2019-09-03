@@ -24,8 +24,115 @@ import filelock
 from pymisca.atto_string import AttoJobResult
 _getPathStack = pymisca.tree.getAttoDirectory
 
-class AttoJob(pymisca.atto_string.AttoCaster):
+import collections
+#### wrap shell
+from pymisca import shell as _shell
+
+import inspect
+def cls__fullname(o):
+  # o.__module__ + "." + o.__class__.__qualname__ is an example in
+  # this context of H.L. Mencken's "neat, plausible, and wrong."
+  # Python makes no guarantees as to whether the __module__ special
+  # attribute is defined, so we take a more circumspect approach.
+  # Alas, the module name is explicitly excluded from __qualname__
+  # in Python 3.
+  if not inspect.isclass(o):
+    o = o.__class__
+  module = o.__module__
+  if module is None or module == str.__module__:
+    return o.__name__  # Avoid reporting __builtin__
+  else:
+    return module + '.' + o.__name__
+
+
+class ShellLogger(object):
+    _parent = type('_NULL_PARENT',(object,),{})
+    _jsonFile = None
+    def __init__(self, atto_job, parent_shell=None):
+        self._atto_job = atto_job
+        self.logListLocal = []
+        if parent_shell is not None:
+            logLists = parent_shell.logLists[:]
+        else:
+            logLists = []
+        self.logLists = logLists + [ self.logListLocal ] 
+        
+    def file__link(
+            self,*a,**kw):
+        return _shell.file__link(*a,**kw)
+    
+    def file__notEmpty(self,*a,**kw):
+        return _shell.file__notEmpty(*a,**kw)
+    
+    def shellexec(
+            self,
+            CMD,
+            silent=1,
+            **kw):
+        
+        logLists = self.logLists
+        cls_name = cls__fullname(self._atto_job)
+#         .__class__.__name__
+        
+        tup = (cls_name,
+               os.path.realpath(os.getcwd()),
+               CMD)
+        for logList in logLists:
+            logList.append(tup)
+        return _shell.shellexec(CMD,silent=silent,**kw)    
+    
+    def setJsonFile(self,jsonFile):
+        self._jsonFile = jsonFile
+        
+    def loadCmd__fromJson(self, OUTPUT_FILE=None):
+        OUTPUT_FILE = self._jsonFile if OUTPUT_FILE is None else OUTPUT_FILE
+        assert OUTPUT_FILE 
+        
+        if self.file__notEmpty( OUTPUT_FILE ):
+            with open(OUTPUT_FILE,"r") as f:
+                res = json.load(f, object_pairs_hook=collections.OrderedDict)
+        else:
+            res = []
+        [ x.extend(res) for x in self.logLists ]
+#         self.logListLocal[:] = res
+        return res
+        
+    
+    def dumpCmd__asBash(self, OUTPUT_FILE):
+        with open(OUTPUT_FILE, "w") as f:
+            for i,(cls_name, cwd, cmd) in enumerate(self.logListLocal):
+                lst = [
+                    u'#'*30,'\n',
+                    u'### [step:%05d]\n'%i,
+                    u'### [shell._atto_job.class_name]:%s\n' % cls_name,
+                    u'### [shell.wkdir]:\n',
+                    u'mkdir -p %s\n' % cwd, ### temporary hack
+                    u'cd %s\n' % cwd,
+                    u'### [shell.cmd]:\n',
+                    u'%s\n'%cmd,
+                    u'\n',
+                ]
+                map(f.write,lst)
+                
+    def dumpCmd__asJson(self, OUTPUT_FILE=None):
+        OUTPUT_FILE = self._jsonFile if OUTPUT_FILE is None else OUTPUT_FILE
+        assert OUTPUT_FILE 
+        
+        tups = self.logListLocal
+        with open(OUTPUT_FILE, "w") as f:
+            json.dump( tups, f, indent=4 )
+        self.dumpCmd__asBash( OUTPUT_FILE+".sh")
+                
+
+class AttoJob(pymisca.atto_string.AttoCaster, ):
+    _parent = type('_NULL_PARENT',(object,),{"shell":None})
+    
+#     _shellexec =  attoJob__dec__shellexec(pymisca.shell.shellexec)
+#     _parent = 
 #     PARAMS_TRACED = 
+
+
+
     @classmethod
     def _lock( cls, BASENAME=None):
         if BASENAME is None:
@@ -37,6 +144,10 @@ class AttoJob(pymisca.atto_string.AttoCaster):
         kw = self._DICT_CLASS(kw)
         kw = self._cast(kw)
         self._data =  kw
+        
+        self._parent = kw.get('PARENT',self.__class__._parent)
+        self.shell = ShellLogger( self, self._parent.shell)
+        
         with pymisca.date_extra.ScopeTimer(
             data=self._data,
             key='TIME_DICT',) as timer:
@@ -46,11 +157,14 @@ class AttoJob(pymisca.atto_string.AttoCaster):
 
         if "OUTDIR" in self._data:
             self._data["LAST_DIR"] = self._data.pop("OUTDIR")
-            
+
+
+
 class ModuleJob(AttoJob):
     PARAMS_TRACED = [
         ('MODULE_FILE',('AttoPath','')),
         ('MODULE_ATTR',('AttoPath','')),
+        ('OUTPUT_BASH_SCRIPT',('AttoPath','')),
         ('DATA',('dict:object:object:object:object:object',{}))
     ]
     def _run(self,):
@@ -73,8 +187,12 @@ class ModuleJob(AttoJob):
             "NAME":MODULE_NAME,
             "INPUT_FILE":MODULE_FILE})['MODULE']
         cls = getattr(mod, MODULE_ATTR)
-        kw['DATA_RESULT'] = res = cls(kw['DATA'])
-
+        
+        kw['DATA_RESULT'] = res = cls(dict(PARENT=self, **kw['DATA']))
+        if kw['OUTPUT_BASH_SCRIPT']:
+            self.shell.dumpCmd__asBash(kw['OUTPUT_BASH_SCRIPT'].realpath())
+#             self.shell.dumpCmd__asJson()
+#             setJsonFile()
 
 @pymisca.header.setAttr(_this_mod, "dicts__toSeries")
 class dicts__toDict(AttoJob):
@@ -240,7 +358,7 @@ class bamFile__filter(AttoJob):
                                   [">ALIGNMENT.bam",],
                                   ["&&","echo","DONT-COUNT",">COUNTS.json"],
                                   ],
-            "OFNAME_LIST":["ALIGNMENT-bam"],
+            "OFNAME_LIST":["ALIGNMENT.bam"],
             "FORCE":FORCE,
             "DRY":DRY,
             "NCORE":NCORE,
@@ -426,6 +544,7 @@ class Shellexec(AttoJob):
                         assert len(CMD_LIST),(CMD_LIST,)
                         CMD = ' '.join(CMD_LIST)
                         pymisca.shell.shellexec(CMD)
+                        
                     return "RUNNED"
 ###############                
 ##### do not over-subclassing
@@ -464,16 +583,20 @@ class job__samtools__qc(AttoJob):
 #         self._data["LAST_DIR"] = self._data.pop("OUTDIR")
         
     def _run(self,):
+        shell = self.shell
+        shellexec = shell.shellexec
+        
         kw = self._data
         kw['INPUT_FILE']  = INPUT_FILE = kw["INPUT_FILE"].realpath()
-        assert pymisca.shell.file__notEmpty(INPUT_FILE),(INPUT_FILE,)
+        assert shell.file__notEmpty(INPUT_FILE),(INPUT_FILE,)
         FORCE = kw['FORCE']
-        
+#         shell.setCacheJson(kw["OUTDIR"]/INPUT_FILE.basename())
         ### populate result
 #         self._result = self._data.copy()
 #         self["TIME_DICT"] = pyext._DICT_CLASS()
 #         shellexec = pyext.shellexec
-        shellexec = pymisca.shell.shellexec
+#         shellexec = pymisca.shell.shellexec
+        
     
         with pymisca.tree.getAttoDirectory([kw["OUTDIR"]],force=1):
             with self._lock() as lock:
@@ -484,37 +607,37 @@ class job__samtools__qc(AttoJob):
                     if not kw['SORTED']:
                         BASENAME = INPUT_FILE
                         OFNAME = 'ALIGNMENT.bam'
-                        if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                        if not FORCE and shell.file__notEmpty(OFNAME):
                             pass
                         else:
-                            pymisca.shell.file__link( BASENAME,OFNAME,force=1)
+                            shell.file__link( BASENAME,OFNAME,force=1)
 
                         BASENAME = "ALIGNMENT.bam"
                         OFNAME = 'ALIGNMENT-sorted.bam'
-                        if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                        if not FORCE and shell.file__notEmpty(OFNAME):
                             pass
                         else:
-                            pymisca.shell.shellexec("samtools sort -o {OFNAME}.temp -T .temp/$$ {BASENAME} \
+                            shell.shellexec("samtools sort -o {OFNAME}.temp -T .temp/$$ {BASENAME} \
                             && mv {OFNAME}.temp {OFNAME}".format(**locals()) )
                     else:
                         BASENAME = INPUT_FILE
                         OFNAME = 'ALIGNMENT-sorted.bam'
-                        if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                        if not FORCE and shell.file__notEmpty(OFNAME):
                             pass
                         else:
-                            pymisca.shell.file__link( BASENAME,OFNAME,force=1)
+                            shell.file__link( BASENAME,OFNAME,force=1)
 
                     BASENAME = "ALIGNMENT-sorted.bam"
                     OFNAME = 'ALIGNMENT-sorted.bam.bai'
-                    if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                    if not FORCE and shell.file__notEmpty(OFNAME):
                         pass
                     else:
-                        pymisca.shell.shellexec(("samtools index {BASENAME} {OFNAME}.temp \
+                        shell.shellexec(("samtools index {BASENAME} {OFNAME}.temp \
                         && mv {OFNAME}.temp {OFNAME}").format(**locals()))
 
                     OFNAME = "COUNTS.json"
                     DATA_DICT = self._data
-                    if not FORCE and pymisca.shell.file__notEmpty(OFNAME):
+                    if not FORCE and shell.file__notEmpty(OFNAME):
                         pass
                     else:
 
@@ -529,7 +652,12 @@ class job__samtools__qc(AttoJob):
 #                         DATA_DICT['texts']['quickcheck'] = shellexec('samtools quickcheck ALIGNMENT-sorted.bam 2>&1')
                         with open(OFNAME,'w') as f:
                             json.dump(DATA_DICT['counts'], f,indent=4)
-
+            
+                    self.shell.setJsonFile("%s.CMD.json"%self.__class__.__name__)
+                    if self.shell.logListLocal:
+                        self.shell.dumpCmd__asJson()
+                    else:
+                        self.shell.loadCmd__fromJson()
 
         self._data=  self._cast( self._data )
         return 
