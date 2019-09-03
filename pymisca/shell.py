@@ -38,17 +38,16 @@ def file__safeInode(x):
     
 import zipfile  ##file__unzip
 
-def dir__iterFiles(DIRNAME,start=1):
+def dir__iterFiles(DIRNAME,relpath=0,start=1,):
     _this_func = dir__iterFiles
-    if start:
-        DIRNAME = path.Path(DIRNAME)
+#     if start:
+#         DIRNAME = path.Path(DIRNAME)
     for root, dirs, files in os.walk(DIRNAME):
-#         if root
+        if relpath:
+            root = os.path.relpath( root , DIRNAME)
         for f in files:
-            yield DIRNAME / f
-        for d in dirs:
-            for f in _this_func(DIRNAME / d,0):
-                yield f
+            yield os.path.join(root , f)
+
                 
                 
 def file__unzip(FNAME,DIRNAME=None):
