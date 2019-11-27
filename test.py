@@ -4,3 +4,6 @@ print(res)
 
 res = pyext.shellexec('python2 examples/run-pipeline-0608.py')
 print(res)
+
+### test dependency
+import lazydict
