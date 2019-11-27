@@ -123,9 +123,13 @@ class ShellLogger(object):
             json.dump( tups, f, indent=4 )
         self.dumpCmd__asBash( OUTPUT_FILE+".sh")
                 
-
+            
+class _NULL_PARENT(object):
+    shell=None
+    pass
 class AttoJob(pymisca.atto_string.AttoCaster, ):
-    _parent = type('_NULL_PARENT',(object,),{"shell":None})
+    _parent = _NULL_PARENT;
+#     _parent = type('_NULL_PARENT',(object,),{"shell":None})
     
 #     _shellexec =  attoJob__dec__shellexec(pymisca.shell.shellexec)
 #     _parent = 

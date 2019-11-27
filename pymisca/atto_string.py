@@ -109,8 +109,26 @@ def string__iter__elementWithLevel(s,SEP,BRA,KET,level,debug=0):
             break
             
 PY_TYPES = {}
+
 def _register(func):
     return func
+
+
+import datetime
+class  datetime_util(object):
+#     @classmethod
+    def __new__(cls,ob):
+        if not isinstance(ob,datetime.datetime):
+            if isinstance(ob,float):
+                ob = datetime.datetime.fromtimestamp(ob)
+                return ob
+            else:
+                assert 0
+        else:
+            pass
+        return ob
+    
+PY_TYPES["datetime_util"]=datetime_util
 
 @_register
 class AttoShortDirectory(unicode):
@@ -859,7 +877,8 @@ def getDefaultRegistry():
     import pymisca.atto_util
     d = pymisca.atto_util.TYPE_REGISTRY.copy()
 
-    d.update({v.__name__:v for v in PY_TYPES.values()})
+#     d.update({v.__name__: v for v in PY_TYPES.values()})
+    d.update(PY_TYPES)
 
     return d
 

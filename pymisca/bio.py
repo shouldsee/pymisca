@@ -18,9 +18,8 @@ class pyvis:
 import pymisca.ext as pyext
 pd = pyext.pd
 
-
-import pysam
 def bam__getHeader(FNAME,mode="rb",**kw):
+    import pysam
     with pysam.AlignmentFile(FNAME,mode=mode,**kw) as f:
         return f.header    
 ###### this implmentation is much slower somehow

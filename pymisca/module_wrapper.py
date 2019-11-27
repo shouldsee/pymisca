@@ -30,7 +30,7 @@ def type__resolve(typeName):
     if not isinstance(typeName, basestring):
         return typeName    
     
-    res = getattr(__builtin__, typeName,None)
+    res = getattr( __builtin__, typeName, None)
     if res is not None:
         return _this_func(res)
         
@@ -222,6 +222,8 @@ def dict__rule__cast(DICT_RUN,DICT_RULE):
         vdef = v[1]
 
         if vdef is not None:
+            if callable(vdef):
+                vdef = vdef();
             vdef = tree__castType(vdef, typs)
 
     #                 if k in DB_WORKER['RUN_PARAMS']:
