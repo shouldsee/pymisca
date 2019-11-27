@@ -16,8 +16,10 @@ import os,glob,sys
 DIR= os.path.dirname(__file__)
 if DIR:
 	os.chdir(DIR)
-
 FILE =  'requirements.txt'
+def get_dep_links():
+    lst = [x.strip() for x in open(FILE,'r') if "://" in x]
+    return lst
 #FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
 required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
 required = [ x.strip() for x in required if x.find(' @ ')==-1 and x ] 
@@ -37,6 +39,7 @@ setup(
               'pymisca.lazydicts',
               'pymisca.atto_jobs_list',
              ],
+	dependency_links = get_dep_links(),
 #   entry_points = {
 #           'console_scripts': [
 #               'command-name = pymisca.directory_hashmirror_0520:main',                  
