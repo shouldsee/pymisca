@@ -1,7 +1,7 @@
 #### pymisca deps
 
 
-numpy
+numpy==1.16.5
 scipy
 matplotlib==2.2.3
 bcbio-gff
@@ -21,7 +21,7 @@ ipython==5.8.0
 mixem
 
 #fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
-https://github.com/shouldsee/fishers_exact_test/tarball/d3c69ea
+https://github.com/shouldsee/fishers_exact_test/tarball/89c8701
 regex
 simpleeval
 watchdog
