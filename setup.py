@@ -24,8 +24,10 @@ def parse_requirements():
 	x = x.strip()
 	if x.startswith("#"):
 	    pass
-        elif "://" in x:
-	    dep.append(x)
+        elif "@" in x:
+	    sp = x.split("@",1)
+	    req.append(sp[0])
+	    dep.append(sp[1])
 	elif " " in x:
 	    pass
         else:
