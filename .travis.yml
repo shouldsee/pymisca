@@ -3,9 +3,12 @@ python:
   - "2.7"
 cache: pip
 install:
-  - pip install -r requirements.txt
-  - python2 setup.py install
-script: ["echo 'DONE'",]
+  - pip install . 
+#  - python2 setup.py install
+script: [
+"python2 test.py",
+"echo 'DONE'",
+]
 #  
 #  - python2 test.py
 

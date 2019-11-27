@@ -18,6 +18,7 @@ class pyvis:
 import pymisca.ext as pyext
 pd = pyext.pd
 
+
 def bam__getHeader(FNAME,mode="rb",**kw):
     import pysam
     with pysam.AlignmentFile(FNAME,mode=mode,**kw) as f:
