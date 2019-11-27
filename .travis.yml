@@ -5,7 +5,10 @@ cache: pip
 install:
   - pip install . 
 #  - python2 setup.py install
-script: ["echo 'DONE'",]
+script: [
+"python2 test.py",
+"echo 'DONE'",
+]
 #  
 #  - python2 test.py
 
