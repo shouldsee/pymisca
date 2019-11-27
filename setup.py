@@ -17,17 +17,33 @@ DIR= os.path.dirname(__file__)
 if DIR:
 	os.chdir(DIR)
 FILE =  'requirements.txt'
-def get_dep_links():
-    lst = [x.strip() for x in open(FILE,'r') if "://" in x]
-    return lst
-#FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
-required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
-required = [ x.strip() for x in required if x.find(' @ ')==-1 and x ] 
-required = [ x.strip() for x in required if x.find('git+')==-1 and x ] 
-#required = [ x.strip() for x in required if x ] 
+def parse_requirements():
+    req = []
+    dep = []
+    for x in open(FILE,'r'):
+	x = x.strip()
+	if x.startswith("#"):
+	    pass
+        elif "://" in x:
+	    dep_link.append(x)
+	elif " " in x:
+	    pass
+        else:
+	    req.append(x)
+    return req,dep
+
+required, dependency_links = parse_requirements()
+
+#def get_dep_links():
+#    lst = [x.strip() for x in open(FILE,'r') if "://" in x]
+#    return lst
+##FILE = os.path.join(os.path.dirname(__file__), 'requirements.txt')
+#required = [ x.strip() for x in open( FILE,'r')  if not x.strip().startswith('#') ] 
+#required = [ x.strip() for x in required if x.find(' @ ')==-1 and x ] 
+#required = [ x.strip() for x in required if x.find('git+')==-1 and x ] 
 
 #required = ['git+https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip']
-print (required)
+#print (required)
 setup(
 	name='pymisca',
 	version='0.1',
@@ -39,7 +55,6 @@ setup(
               'pymisca.lazydicts',
               'pymisca.atto_jobs_list',
              ],
-	dependency_links = get_dep_links(),
 #   entry_points = {
 #           'console_scripts': [
 #               'command-name = pymisca.directory_hashmirror_0520:main',                  
@@ -62,6 +77,7 @@ setup(
 	long_description=open('README.md').read(),
 #	install_requires,
 	install_requires = required,
+	dependency_links = dependency_links,
 #		['numpy',
 #		'scipy',
 #		'matplotlib',]
