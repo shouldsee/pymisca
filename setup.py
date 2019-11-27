@@ -25,7 +25,7 @@ def parse_requirements():
 	if x.startswith("#"):
 	    pass
         elif "://" in x:
-	    dep_link.append(x)
+	    dep.append(x)
 	elif " " in x:
 	    pass
         else:
