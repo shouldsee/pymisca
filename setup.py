@@ -25,9 +25,10 @@ def parse_requirements():
 	if x.startswith("#"):
 	    pass
         elif "@" in x:
-	    sp = x.split("@",1)
-	    req.append(sp[0])
-	    dep.append(sp[1])
+# 	    sp = x.split("@",1)
+# 	    req.append(sp[0])
+# 	    dep.append(sp[1])
+	    req.append(x)
 	elif " " in x:
 	    pass
         else:
