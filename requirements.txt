@@ -27,7 +27,7 @@ ipython==5.8.0
 mixem
 
 #fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
-git+git://github.com/shouldsee/fishers_exact_test@d3c69ea
+git+https://github.com/shouldsee/fishers_exact_test/tarball/d3c69ea
 regex
 simpleeval
 watchdog
@@ -42,6 +42,6 @@ tzlocal
 dill
 lxml
 requests
-git+https://github.com/shouldsee/lazydict@768a262
-git+https://github.com/shouldsee/delay_and_cache
+git+https://github.com/shouldsee/lazydict/tarball/768a262
+git+https://github.com/shouldsee/delay_and_cache/tarball/master
 networkx
