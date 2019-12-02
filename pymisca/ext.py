@@ -765,7 +765,7 @@ def list__paste0(ss,sep=None,na_rep=None,castF=unicode):
         return castF(s)
 
     res = [castF(sep).join(_castF(s) for s in next(it) ) for i in range(L)]
-    res = pd.Series(res)
+#     res = pd.Series(res)
     return res
 pasteB = paste0 = list__paste0
 

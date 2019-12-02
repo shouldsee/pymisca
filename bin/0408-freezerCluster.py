@@ -18,6 +18,8 @@ import pymisca.jobs as pyjob
 import pymisca.callbacks as pycbk
 import pymisca.numpy_extra as pynp
 import slugify
+import pymisca.blocks
+
 
 import pymisca.util as pyutil ### render__images and get__cluCount
 
@@ -32,7 +34,16 @@ import synotil.PanelPlot as spanel
 # np.random.seed(0)
 
 import argparse
-parser = argparse.ArgumentParser()
+class RawTextArgumentDefaultsHelpFormatter(
+        argparse.ArgumentDefaultsHelpFormatter,
+        argparse.RawTextHelpFormatter
+    ):
+        pass
+parser= argparse.ArgumentParser(description=__doc__,
+                                formatter_class=RawTextArgumentDefaultsHelpFormatter,
+#                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter
+#                                formatter_class=argparse.RawDescriptionHelpFormatter
+                               )
 # parser.add_argument('--version', default = '0421', type=unicode)
 parser.add_argument('--version', default = '0423', type=unicode)
 
@@ -78,6 +89,8 @@ def main(**kwargs):
         dataName = 'test'
         baseDist = kwargs['baseDist']
         seed = kwargs['seed']
+        stepSize = kwargs['stepSize']
+        end = kwargs['end']
         
         
     def check_data(data,pathLevel,baseFile,**kwargs):
@@ -86,7 +99,8 @@ def main(**kwargs):
         assert data is not None
         if isinstance(data,basestring):
             res = pyext.splitPath(unicode(data),pathLevel)[1]
-            space.dataName = slugify.slugify(unicode(res))
+            space.dataName = pyext.path__norm(res)
+#             space.dataName = slugify.slugify(unicode(res))
     #         alias += pyext.getBname(clu)
             data = pyext.readBaseFile(data,baseFile=baseFile)
         
@@ -105,7 +119,7 @@ def main(**kwargs):
     kwargs['data'] = check_data(**kwargs)
 #     pyext.printlines(kwargs.items())
     
-    ODIR = '{space.dataName}/baseDist-{space.baseDist}_seed-{space.seed}/'.format(**locals())
+    ODIR = '{space.dataName}/baseDist-{space.baseDist}_seed-{space.seed}_end-{space.end}_stepSize-{space.stepSize}/'.format(**locals())
     
 
     def jobInDIR(
@@ -275,7 +289,8 @@ def main(**kwargs):
         dfc = dfc.qc_Avg();
         dfc.summary = pd.concat([dfc.summary,clu],axis=1)
     #         stats = dfc.summary
-        cluc = dfc.summary.query('clu > -1 & %s' % query)
+#         cluc = dfc.summary.query('clu > -1 & %s' % query)
+        cluc = dfc.summary.query(' %s' % query)
     #         cluc = clu.query('clu>-1 & score > @CUTOFF_SCORE')
         cluc.to_csv('cluc.csv')
 
@@ -345,6 +360,7 @@ def main(**kwargs):
             if 1:
                 pyutil.render__images(figs)
 
+        pymisca.blocks.printCWD()()
         return mdl0
     
     

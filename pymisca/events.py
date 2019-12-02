@@ -17,11 +17,14 @@ class LinkEvent(object):
         if _f(src)==_f(dest):
             pass
         else:
-            if file__notEmpty(dest):
-                if not force:
-                    return
-                else:
-                    os.remove(dest)
-            dir__makeIfNeed(fname=dest)
-            print dest
-            os.link(src,dest)
+            if file__notEmpty(src):
+                if file__notEmpty(dest):
+                    if not force:
+                        return
+                    else:
+                        os.remove(dest)
+                dir__makeIfNeed(fname=dest)
+                print(dest,)
+                os.link(src,dest)
+            else:
+                print('[EMPTY.src]',src,)

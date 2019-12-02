@@ -24,11 +24,12 @@ def date__formatIso(obj=None):
 import pymisca.shell
 import json
 class scope__timer(object):    
-    def __init__(self,data = None, key = None, OFNAME = None):
+    def __init__(self,data = None, key = None, OFNAME = None, show=0):
         if data is None:
             data = collections.OrderedDict()
         self.data = data
         self.key = key
+        self.show = show
         self.OFNAME = os.path.abspath(OFNAME) if OFNAME else OFNAME
 #         if OUTNAME is not None
 #         self.f=open(OUTNAME,"w")
@@ -60,6 +61,8 @@ class scope__timer(object):
                 
             with open(self.OFNAME, "w") as f:
                 json.dump(data, f, indent=4)
+        if self.show:
+            print(json.dumps(d,indent=4))
 #                 f.close()
 
 ScopeTimer = scope__timer

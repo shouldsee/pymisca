@@ -45,8 +45,10 @@ def cls__fullname(o):
     return module + '.' + o.__name__
 
 
+_NULL_PARENT = type('_NULL_PARENT',(object,),{"shell":None})
 class ShellLogger(object):
-    _parent = type('_NULL_PARENT',(object,),{})
+    _parent = _NULL_PARENT
+#     _parent = type('_NULL_PARENT',(object,),{})
     _jsonFile = None
     def __init__(self, atto_job, parent_shell=None):
         self._atto_job = atto_job
@@ -123,9 +125,12 @@ class ShellLogger(object):
             json.dump( tups, f, indent=4 )
         self.dumpCmd__asBash( OUTPUT_FILE+".sh")
                 
-
+# _NULL_PARENT = type('_NULL_PARENT',(object,),{"shell":None})
 class AttoJob(pymisca.atto_string.AttoCaster, ):
-    _parent = type('_NULL_PARENT',(object,),{"shell":None})
+    _parent = _NULL_PARENT
+#     _parent = _null_parent
+
+#     _parent = None
     
 #     _shellexec =  attoJob__dec__shellexec(pymisca.shell.shellexec)
 #     _parent = 
