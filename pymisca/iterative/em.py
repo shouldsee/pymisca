@@ -106,7 +106,7 @@ def em(data, distributions,
         _m_step(resp)
         
     wresp  = weight_resp(resp)
-    
+    eps = 1.E-5
     while True:
         
         # E-step #######
@@ -123,8 +123,10 @@ def em(data, distributions,
 ######
 #         weight = np.nan_to_num(weight)
         idx_active = weight != 0.
-        
-        log_proba = logProba = np.log(weight[None,: ]) + log_density
+        weight = weight + eps
+        assert all(weight>0),weight
+#         assert 0
+        log_proba = logProba = np.log(weight[None,: ] ) + log_density
         logResp = logProba - logsumexp(logProba,axis=1)        
         resp  = np.exp(logResp)
 #         log_proba = logProba= 
@@ -152,9 +154,12 @@ def em(data, distributions,
 
         log_likelihood[:,idx_active] = (( wresp[:,idx_active] * log_density[:,idx_active]))
 
+        assert not np.any(np.isnan( log_likelihood))
+        assert not np.any(np.isnan(wresp))
         
         if not fix_weights:
             weight = np.mean(wresp, axis=0)
+            weight = weight + eps
 #             if weight_callback is not None:
 #                 weight = weight_callback(weight)
 #             weight = weight * 0. + 1.

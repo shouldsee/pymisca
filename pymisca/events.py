@@ -14,6 +14,7 @@ class LinkEvent(object):
         self.force=force
         
         _f = file__safeInode
+        assert os.path.isfile( src )
         if _f(src)==_f(dest):
             pass
         else:

@@ -112,6 +112,23 @@ PY_TYPES = {}
 def _register(func):
     return func
 
+
+import datetime
+class  datetime_util(object):
+#     @classmethod
+    def __new__(cls,ob):
+        if not isinstance(ob,datetime.datetime):
+            if isinstance(ob,float):
+                ob = datetime.datetime.fromtimestamp(ob)
+                return ob
+            else:
+                assert 0
+        else:
+            pass
+        return ob
+    
+PY_TYPES["datetime_util"]=datetime_util
+
 @_register
 class AttoShortDirectory(unicode):
     
@@ -284,7 +301,6 @@ class AttoHostDirectory(AttoPath):
         return res
 PY_TYPES['AttoHostDirectory'] = AttoHostDirectory
 import pandas as pd
-# PY_TYPES['pd.DataFrame'] = pd.DataFrame
 PY_TYPES['pandas.DataFrame'] = pd.DataFrame
 
 import pymisca.date_extra

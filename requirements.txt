@@ -1,13 +1,7 @@
 #### pymisca deps
-#tensorflow==1.10.1
-#tensorflow-probability==0.3.0
-#git+git://github.com/shouldsee/pymisca.git@2b532eae424cf1992771f6e8179b4b115377bb8b
-#pip uninstall pymisca -y; pip install git+git://github.com/shouldsee/pymisca.git  --user
 
-#git+git://github.com/shouldsee/mixem.git@9ad994805009545f5befb65b8de9c877bb4f3137
-#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
 
-numpy
+numpy==1.16.5
 scipy
 matplotlib==2.2.3
 bcbio-gff
@@ -22,12 +16,11 @@ slugify
 matplotlib_venn
 line_profiler
 ipython==5.8.0
-#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
-#mixem @ https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip
-mixem
+
+
 
 #fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
-git+git://github.com/shouldsee/fishers_exact_test@d3c69ea
+
 regex
 simpleeval
 watchdog
@@ -42,6 +35,21 @@ tzlocal
 dill
 lxml
 requests
-git+https://github.com/shouldsee/lazydict@768a262
-git+https://github.com/shouldsee/delay_and_cache
+attrdict
+lazydict@https://github.com/shouldsee/lazydict/tarball/768a262
+delay_and_cache@https://github.com/shouldsee/delay_and_cache/tarball/master
+
+fishers_exact_test@https://github.com/shouldsee/fishers_exact_test/tarball/89c8701
+#mixem @ https://github.com/shouldsee/mixem/archive/9ad994805009545f5befb65b8de9c877bb4f3137.zip
+mixem
 networkx
+biopython
+
+
+#### deprecated
+#tensorflow==1.10.1
+#tensorflow-probability==0.3.0
+#git+git://github.com/shouldsee/pymisca.git@2b532eae424cf1992771f6e8179b4b115377bb8b
+#pip uninstall pymisca -y; pip install git+git://github.com/shouldsee/pymisca.git  --user
+#git+git://github.com/shouldsee/mixem.git@9ad994805009545f5befb65b8de9c877bb4f3137
+#git+git://github.com/shouldsee/synotil.git@46e63cd4c3e3833c2547534b3a5441f4db6e3ffe
