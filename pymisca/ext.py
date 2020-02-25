@@ -1896,3 +1896,28 @@ def arr2d__pctransform(xs,ys,silent=1,ax=None,index=None):
     columns = ['PC{i}'.format(i=i) for i in range(X.shape[1])]
     coords = pd.DataFrame(coords,index,columns)
     return coords, mdl
+
+#### ported from util.py
+def saveFigDict(figs,DIR=None,exts=['svg'],silent=1,
+                transparent=False,
+               **kwargs):
+    if DIR is None:
+        DIR = os.environ.get('HOME',None)
+        assert DIR is not None, 'cannot get environment variable:$HOME'
+        DIR = '%s/cache/plots' % (DIR)
+    DIR = path.Path(DIR).makedirs_p()
+    ofnames = []
+    for bname,fig in figs.items():
+        noEXT = DIR / bname
+        for ext in exts:
+            ofname = '%s.%s'%(noEXT,ext)           
+            fig.savefig(ofname,
+                        bbox_inches='tight',
+                        transparent= transparent,
+                        facecolor=fig.get_facecolor(),
+                        **kwargs
+                       )
+            ofnames += [ofname]
+    fignames = ofnames
+    l = locals()
+    return {x: l.get(x) for x in ['DIR','fignames']}
