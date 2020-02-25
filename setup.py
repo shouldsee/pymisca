@@ -61,7 +61,11 @@ setup(
   author='Feng Geng',
   author_email='shouldsee.gem@gmail.com',
   long_description=open('README.md').read(),
-  install_requires = required,
+  install_requires=[
+    x.strip() for x in open("requirements.txt","r")
+          if x.strip() and not x.strip().startswith("#")
+  ],
+#  install_requires = required,
   dependency_links = dependency_links,
 #   ['numpy',
 #   'scipy',
