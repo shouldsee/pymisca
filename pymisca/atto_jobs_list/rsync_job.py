@@ -101,10 +101,17 @@ class rsync_job(AttoJob):
 #         _exec = pyext.functools.partial(_exec,error=ERROR)
         with pyext.getAttoDirectory([OUTDIR],force=1):
 #             res = _exec(CMD)
-            res = self.shell.shellexec(CMD)
-                
-#             self.shell.loadCmd__fromJson()
-            self.shell.dumpCmd__asJson()
+            try:
+                res = self.shell.shellexec(CMD)
+            except Exception as e:
+                raise e
+            finally:
+                lines = list(pyext.itertools.islice(pyext.file__iterlineReversed('LOG'),20))[::-1]
+                lines = ['#### [rsync_job]LOG'] + lines +['####' ] 
+                pyext.sys.stderr.write('\n'.join(lines)+'\n')
+#                 with open('LOG','r')
+    #             self.shell.loadCmd__fromJson()
+                self.shell.dumpCmd__asJson()
     
         return res
     

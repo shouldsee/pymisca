@@ -45,8 +45,10 @@ def cls__fullname(o):
     return module + '.' + o.__name__
 
 
+_NULL_PARENT = type('_NULL_PARENT',(object,),{"shell":None})
 class ShellLogger(object):
-    _parent = type('_NULL_PARENT',(object,),{})
+    _parent = _NULL_PARENT
+#     _parent = type('_NULL_PARENT',(object,),{})
     _jsonFile = None
     def __init__(self, atto_job, parent_shell=None):
         self._atto_job = atto_job

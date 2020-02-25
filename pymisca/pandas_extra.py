@@ -4,10 +4,56 @@ import pandas as pd
 from pandas import *
 __all__ = ['reset_columns',
           'printIndex',
-          'melt']
-from pymisca.header import setAttr
+          'melt',
+           'df__iterTupleList',
+           'df__fromTupleList',
+          ]
+from pymisca.header import setAttr,setItem
 
 
+
+import itertools
+import pandas as pd
+#@setItem(__all__,-1)
+import numpy
+import itertools
+@setAttr(pd.DataFrame, "iterTupleList")
+def df__iterTupleList(df, columns = 1,index=0, name = None):
+    assert index==0,"not implemented"
+    assert name is None,"not impl"
+    
+    df = df.replace({pd.np.nan: None})
+    it = df.itertuples(index=index, name=name)
+    
+    if columns:
+        _dt = list([(unicode(x),y.str) for x,y in df.dtypes.items()])
+        it = itertools.chain([_dt],it)
+    return it
+
+def df__fromTupleList(arr,header=1):
+    if header:
+        _dtype,arr = arr[0],arr[1:]
+    else:
+        _dtype = list([('f%d'%(i),'O') for i in range(len(arr[0]))])    
+        
+    if _dtype is not None:
+        if not isinstance(_dtype,numpy.dtype):
+            _dtype = numpy.dtype((numpy.record,  list(_dtype) ))
+        
+    res = pd.np.rec.array(arr,
+                  _dtype,
+                  )
+    res = pd.DataFrame(res)
+    return res
+
+if __name__ == '__main__':
+    df = pandas.DataFrame([[0,'1'],[2,3]])
+    it = df__iterTupleList(df)
+    it = list(it)
+    print (it)
+    df__fromTupleList(it)
+    print (df__fromTupleList(it[1:],columns=0)['f0'])
+    
 # def setAttr(other, name=None):
 #     class temp():
 #         _name = name

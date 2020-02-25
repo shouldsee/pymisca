@@ -109,7 +109,6 @@ def string__iter__elementWithLevel(s,SEP,BRA,KET,level,debug=0):
             break
             
 PY_TYPES = {}
-
 def _register(func):
     return func
 
@@ -301,6 +300,8 @@ class AttoHostDirectory(AttoPath):
         res = cls.from_dict(res)
         return res
 PY_TYPES['AttoHostDirectory'] = AttoHostDirectory
+import pandas as pd
+PY_TYPES['pandas.DataFrame'] = pd.DataFrame
 
 import pymisca.date_extra
 import filelock
@@ -873,13 +874,20 @@ DEFAULT_TYPE = object()
 
 # import pymisca.atto_util
 # print(pymisca.atto_util)
+
+import pandas
+import numpy
+
 def getDefaultRegistry():
     import pymisca.atto_util
     d = pymisca.atto_util.TYPE_REGISTRY.copy()
+#     assert 0
 
-#     d.update({v.__name__: v for v in PY_TYPES.values()})
-    d.update(PY_TYPES)
 
+    d.update({v.__name__:v for v in PY_TYPES.values()})
+    d['pandas.DataFrame'] = pandas.DataFrame
+    d['numpy.recarray'] = numpy.rec.array
+#     assert 0,sorted(d)
     return d
 
 def _toContainer( s, 

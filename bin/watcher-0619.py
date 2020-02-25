@@ -127,6 +127,7 @@ class MyEventHandler(watchdog.events.RegexMatchingEventHandler):
 
         def db__step(indDF):
             _indDF = indDF.query('FILEACC.str.contains("\.(tsv|csv)$")')
+            _indDF = _indDF.query('~FILEACC.str.contains("TEMPLATE",case=0)')
             _indDF = _indDF.query('SIZE>0')
             
                 
@@ -155,7 +156,7 @@ class MyEventHandler(watchdog.events.RegexMatchingEventHandler):
                               'STATUS'] = '[index:DUPLICATED]'
 
                 FLAG = (MASTER_DF[INDEX_COLS].isnull()).any(axis=1) \
-                        | MASTER_DF[INDEX_COLS[0]].str.strip().str.len()==0
+                        | MASTER_DF[INDEX_COLS[0]].astype(str).str.strip().str.len()==0
                 MASTER_DF.loc[FLAG,
                               'STATUS'] = '[index:INVALID]'
 
@@ -186,6 +187,7 @@ class MyEventHandler(watchdog.events.RegexMatchingEventHandler):
                                                                     FILE_COL=FILE_COL)
 #                     MASTER_DF.loc[FLAG,'STATUS'] = 
 #                 callback = None
+
                 if self.callback is not None:
                     MASTER_DF = self.callback(MASTER_DF)
                 ### sort before dump ####
@@ -213,12 +215,12 @@ class MyEventHandler(watchdog.events.RegexMatchingEventHandler):
             
                 FILES_FLAT = ' '.join(FILES)                
                 _now = pyext.datenow()
-                _USER = pyext.os.environ.get('USER', DEFAULT_UID)
+                _USER = pyext.os.environ.get('UID', DEFAULT_UID)
                 print(pyext.shellexec('pwd'),)
                 pyext.shellexec(
                     pyext.template__format('''
-git config --global user.name "{_USER}" && \
-git config --global user.email "{_USER}@example.com" && \
+git config user.name "{_USER}" && \
+git config user.email "{_USER}@example.com" && \
 git add {FILES_FLAT} \
     && git commit -F {FILES[0]} \
     && cp -p _MASTER.csv _BACKUP/VERSION-{DB["VERSION"]}.csv \
@@ -256,7 +258,8 @@ git add {FILES_FLAT} \
         self.logger.warn(msg)
         return
     
-def main(INPUTDIR,minIntervalSeconds,callbackModule):    
+def main(INPUTDIR,minIntervalSeconds,callbackModule,**kw):    
+    del kw
     assert INPUTDIR is not None
     callback = callbackModule
     if callback is not None:
@@ -308,4 +311,7 @@ def main(INPUTDIR,minIntervalSeconds,callbackModule):
     
 if __name__ == '__main__':
     args = parser.parse_args()
+    dargs = vars(args)
+    dargs['UID'] = os.environ.get('UID',None)
+    print (pyext.ppJson(dargs))
     main(**vars(args))

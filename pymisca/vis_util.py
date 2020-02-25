@@ -1117,6 +1117,32 @@ try:
     import matplotlib_venn as mvenn
 except:
     print ('[IMPORT] cannot import "matplotlib_venn"')
+
+def qc_Avg(C, silent=1,axis=1,
+           xlab='$E(X)$',
+           ylab='$Std(X)$',
+#            nMax = 150, ### depracated size check
+           **kwargs):
+    
+#     if axs is None:
+#         if not silent:
+#             fig,axs= plt.subplots(1,3,figsize=[14,3])
+    C = np.array(C)
+#     assert C.shape[axis]<nMax
+    MEAN = C.mean(axis=axis,)
+    STD = C.std(axis=axis,)
+#     X = MEAN[None,:]
+    X = MEAN
+    MIN,MAX = X.min(),np.percentile(X,99)
+    BINS = np.linspace(MIN,MAX,100)
+    CV = STD/MEAN
+    if not silent:
+        xs,ys = MEAN,STD
+        axs = qc_2var(xs,ys,xlab=xlab,ylab=ylab,
+                            **kwargs)
+    else:
+        axs = []
+    return (MEAN,STD,CV),axs    
     
 def qc_index(ind1=None,ind2=None,
              subsets = None,
