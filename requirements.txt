@@ -23,7 +23,7 @@ ipython==5.8.0
 #fisher @ https://github.com/shouldsee/fishers_exact_test/archive/d3c69ea.zip
 
 regex
-simpleeval
+simpleeval==0.9.8
 watchdog
 commentjson
 filelock
