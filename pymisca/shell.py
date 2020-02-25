@@ -2,9 +2,11 @@ import os,sys
 import re
 import subprocess
 import shutil
-import StringIO
 import warnings
-
+try:
+    from StringIO import StringIO ## for Python 2
+except ImportError:
+    from io import StringIO ## for Python 3
 
 import pymisca.io_extra
 ##### Shell util
@@ -147,20 +149,21 @@ def dir__copy(src, dst, symlinks=False, ignore=None,
                 copyFunc(srcname, dstname)
         # catch the Error from the recursive copytree so that we can
         # continue with other files
-        except Error, err:
+        except Error as err:
             errors.extend(err.args[0])
-        except EnvironmentError, why:
+        except EnvironmentError as why:
             errors.append((srcname, dstname, str(why)))
     try:
         copystat(src, dst)
-    except OSError, why:
+    except OSError as why:
         if WindowsError is not None and isinstance(why, WindowsError):
             # Copying file access times may fail on Windows
             pass
         else:
             errors.append((src, dst, str(why)))
     if errors:
-        raise Error, errors
+        raise Error(errors)
+#         raise Error, errors
         
 def file__getDateTime(fname,attr):
     st = os.stat(fname)
@@ -298,7 +301,7 @@ def nTuple(lst,n,silent=1):
     if not silent:
         L = len(lst)
         if L % n != 0:
-            print '[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n)
+            print('[WARN] nTuple(): list length %d not of multiples of %d, discarding extra elements'%(L,n))
     return zip(*[lst[i::n] for i in range(n)])
 
 
@@ -365,7 +368,7 @@ def file__lineCount(fname):
             pass
     return i + 1
 
-def real__dir(fname=None,dirname=None,mode=0777):
+def real__dir(fname=None,dirname=None,mode=777):
     if dirname is None:
         assert fname is not None
         dirname = os.path.dirname(fname)
@@ -409,7 +412,7 @@ def envSource(sfile,silent=0,dry=0,
     for line in res.split('\x00'):
         (key, _, value) = line.strip().partition("=")
         if not silent:
-            print key,'=',value
+            print(key,'=',value)
         if not dry:
             outDict[key] = value
     return outDict
