@@ -1,4 +1,18 @@
 #!/usr/bin/env python2
+'''
+Usage:
+This runs freezerCluster algorithm on a matrix in csv format. 
+
+Params:
+Use --start and --end to control the granularity range of the clustering. 
+A lower granularity would results in less clusters being produced and vice versa.
+Use --XCUT and --YCUT to select a grouping criteria from the resultant diagnostic plot.
+
+Comment:
+The actual EM-algorithm is implemented in :func:`pymisca.jobs.EMMixture__anneal`
+
+Author: Feng Geng (fg368@protonmail.com)
+'''
 import pymisca.header as pyheader
 pyheader.base__check()
 
@@ -19,19 +33,9 @@ import pymisca.callbacks as pycbk
 import pymisca.numpy_extra as pynp
 import slugify
 import pymisca.blocks
-
-
 import pymisca.util as pyutil ### render__images and get__cluCount
-
 import synotil.CountMatrix as scount
 import synotil.PanelPlot as spanel
-
-# import pymisca.models as pymod
-# import pymisca.iterative.em
-
-# import pymisca.iterative.resp__entropise
-# import pymisca.iterative.weight__entropise
-# np.random.seed(0)
 
 import argparse
 class RawTextArgumentDefaultsHelpFormatter(
@@ -83,31 +87,20 @@ parser.add_argument('--update_proba', default = 1.0, type=float)
 
     
 def main(**kwargs):        
-#     print (type(quick))
-
     class space:
         dataName = 'test'
         baseDist = kwargs['baseDist']
         seed = kwargs['seed']
         stepSize = kwargs['stepSize']
         end = kwargs['end']
-        
-        
     def check_data(data,pathLevel,baseFile,**kwargs):
-#         data= kwargs['data']
-        
         assert data is not None
         if isinstance(data,basestring):
             res = pyext.splitPath(unicode(data),pathLevel)[1]
             space.dataName = pyext.path__norm(res)
-#             space.dataName = slugify.slugify(unicode(res))
-    #         alias += pyext.getBname(clu)
-            data = pyext.readBaseFile(data,baseFile=baseFile)
-        
+            data = pyext.readBaseFile(data,baseFile=baseFile)        
         if not isinstance(data,pd.DataFrame):
             data = data.tolist()
-            
-#         assert 1
         if not isinstance(data,scount.countMatrix):
             data = scount.countMatrix(data,)
         data.height=10        
@@ -115,13 +108,9 @@ def main(**kwargs):
     
     if kwargs['debug']:
         print(pyext.ppJson(kwargs))
-
-    kwargs['data'] = check_data(**kwargs)
-#     pyext.printlines(kwargs.items())
-    
+    kwargs['data'] = check_data(**kwargs)   
     ODIR = '{space.dataName}/baseDist-{space.baseDist}_seed-{space.seed}_end-{space.end}_stepSize-{space.stepSize}/'.format(**locals())
-    
-
+   
     def jobInDIR(
         data= None,
         baseDist = None,
@@ -151,15 +140,9 @@ def main(**kwargs):
         update_proba = None,
     ):
         dfc = data
-#         dfc = _data
-    #     dfc = sutil.meanNorm(dfc)
-
-
         #### start clustering
         config = {}
         config['baseDist'] = baseDist
-    #     callbacks = pymisca.callbacks.
-
         #### set cluster number and iteration clip
         if quick == 1:
             config['K'] = 10
@@ -186,9 +169,6 @@ def main(**kwargs):
         if cluMax is not None:
             config['K'] = cluMax
 
-
-
-
         ##### set callbacks
         callbacks =  []
         if verbose:
@@ -212,13 +192,10 @@ def main(**kwargs):
 
     #         callbacks += [pycbk.resp__sample(n_draw=reduce_entropy)]
         if version == '0421':
-            
             callbacks += [pycbk.resp__MCE__surfer(
                 stepSize=stepSize,
-    #             beta = reduce_entropy,
                 maxIter=5,
                 debug=debug,
-    #                                               maxIter=reduce_entropy
                                                  )]
         elif version =='0422':
             callbacks += [
@@ -231,9 +208,6 @@ def main(**kwargs):
             assert 0, version
 
         config['callbacks'] = callbacks
-
-
-
         job = pyext.functools.partial( pyjob.EMMixture__anneal,
                                        start=start, end=end,seed=seed,
                                       update_proba = update_proba,
@@ -257,10 +231,7 @@ def main(**kwargs):
 
 
         ##### Post visualisation
-
         # mdl0 = np.load('mdl0.npy').tolist()
-
-
         mdl = mdl0.callback.mdls[XCUT][-1]
         clu  = mdl.predictClu(mdl0.data,
                               entropy_cutoff = YCUT,
@@ -273,39 +244,22 @@ def main(**kwargs):
         print pyutil.get_cluCount(clu).T
         clu.to_csv('clu.csv')
 
+        
         vdf = dfc.copy()
-    #     vdf = vdf.reindex(columns = rnaCurr.index & vdf.columns)
-    #     vdf=  scount.countMatrix(vdf,colMeta = rnaCurr)
-
-        # vdf =sutil.sumNorm(scount.countMatrix(rnaTable.astype(float),
-        #                                      colMeta =rnaCurr))
-        # .apply(np.sqrt)
-    #     vdf.relabel(colLabel=keys)
-
-        # clu.clu.replace({0:3,1:3,2:3},inplace=True)
-
-
         ###### post-filtering
         dfc = dfc.qc_Avg();
         dfc.summary = pd.concat([dfc.summary,clu],axis=1)
-    #         stats = dfc.summary
-#         cluc = dfc.summary.query('clu > -1 & %s' % query)
         cluc = dfc.summary.query(' %s' % query)
-    #         cluc = clu.query('clu>-1 & score > @CUTOFF_SCORE')
         cluc.to_csv('cluc.csv')
 
         if not silent:
             if 1:
                 fig = plt.figure()
-    #             cbk = [x for x in mdl0.callbacks if isinstance(x,pycbk.MCE)]
                 cbk = [x for x in mdl0.callbacks if hasattr(x, '_hist')]
                 if cbk:
                     cbk = cbk[0]
-        #             x = mdl0.callbacks[0]._hist
                     for i,y in enumerate(cbk._hist):
                         plt.plot(y['loss'])
-#                         if debug:
-#                             print np.diff(y['loss'])[-3:]
                         plt.plot(i,y['loss'][-1],'x')
                     figs['MCE-loss-hist']= fig
 
@@ -337,15 +291,6 @@ def main(**kwargs):
 
                                        show_axa=1
                                      )
-
-    #             dfc = dfc.qc_Avg();
-    #             dfc.summary = pd.concat([dfc.summary,clu],axis=1)
-    #     #         stats = dfc.summary
-    #             cluc = dfc.summary.query('clu > -1 & %s' % query)
-    #     #         cluc = clu.query('clu>-1 & score > @CUTOFF_SCORE')
-    #             cluc.to_csv('cluc.csv')
-
-
                 if len(cluc)==0:
                     index = None
                 else:
@@ -362,9 +307,6 @@ def main(**kwargs):
 
         pymisca.blocks.printCWD()()
         return mdl0
-    
-    
-
     res = pyext.func__inDIR(
         pyext.functools.partial(jobInDIR,**kwargs), 
         DIR=ODIR)
