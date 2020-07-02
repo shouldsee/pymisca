@@ -13,18 +13,19 @@ The actual EM-algorithm is implemented in :func:`pymisca.jobs.EMMixture__anneal`
 
 Author: Feng Geng (fg368@protonmail.com)
 '''
+
+#################################
+### baseScript compatibility ####
+###
 import pymisca.header as pyheader
-pyheader.base__check()
-
-
-# pyheader.execBaseFile('headers/header__import.py')
-
 import pymisca.ext as pyext
+pyheader.base__check()
 pd = pyext.pd; np =pyext.np; 
 pyheader.mpl__setBackend('agg')
 import matplotlib.pyplot as plt
-
 figs = pyext.collections.OrderedDict()
+###
+#################################
 
 
 
