@@ -2,7 +2,7 @@
 
 
 contextlib2
-numpy==1.16.5
+numpy==1.21.0
 scipy
 matplotlib==2.2.3
 bcbio-gff
