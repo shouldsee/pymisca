@@ -16,7 +16,7 @@ autograd
 slugify
 matplotlib_venn
 line_profiler
-ipython==7.16.3
+ipython==8.10.0
 
 
 
